@@ -335,6 +335,13 @@ pub fn setup_desktop(app: &mut App) -> Result<(), Box<dyn Error>> {
     register_configured_global_shortcut(app.handle());
     setup_tray(app)?;
     schedule_notepad_prewarm(app.handle());
+
+    if !std::env::args().any(|a| a == "--silent") {
+        if let Err(error) = show_main_window(app.handle()) {
+            eprintln!("failed to show main window on startup: {error}");
+        }
+    }
+
     Ok(())
 }
 
@@ -807,7 +814,7 @@ fn mark_app_exiting(app: &AppHandle) {
 fn setup_autostart_plugin(app: &AppHandle) -> tauri::Result<()> {
     app.plugin(tauri_plugin_autostart::init(
         MacosLauncher::LaunchAgent,
-        None,
+        Some(vec!["--silent"]),
     ))
 }
 
