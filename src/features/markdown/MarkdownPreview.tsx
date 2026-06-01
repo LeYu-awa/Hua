@@ -12,7 +12,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Components } from "react-markdown";
 import "katex/dist/katex.min.css";
 
-function CodeBlock({ children }: { children: React.ReactNode }) {
+function CodeBlock({ children, language }: { children: React.ReactNode; language?: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
@@ -25,7 +25,16 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
   }, [children]);
 
   return (
-    <pre className="my-3 px-4 py-3 rounded bg-paper-warm/80 overflow-x-auto relative group">
+    <pre
+      className={`my-3 px-4 rounded bg-paper-warm/80 overflow-x-auto relative group ${
+        language ? "pt-8 pb-3" : "py-3"
+      }`}
+    >
+      {language && (
+        <span className="absolute top-2 left-3 text-[10px] font-mono text-ink-faint/70 uppercase tracking-wider select-none">
+          {language}
+        </span>
+      )}
       <button
         type="button"
         onClick={handleCopy}
@@ -134,7 +143,21 @@ const components: Components = {
       </code>
     );
   },
-  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  pre: ({ children }) => {
+    // Extract language from the <code> element's className
+    let language = "";
+    if (
+      children != null &&
+      typeof children === "object" &&
+      "props" in (children as React.ReactElement)
+    ) {
+      const codeProps = (children as React.ReactElement<{ className?: string }>).props;
+      const match = codeProps.className?.match(/language-(\S+)/);
+      if (match) language = match[1];
+    }
+
+    return <CodeBlock language={language}>{children}</CodeBlock>;
+  },
   a: ({ href, children }) => (
     <a
       href={href}
