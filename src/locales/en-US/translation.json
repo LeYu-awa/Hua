@@ -44,7 +44,14 @@
   "markdown": {
     "copied": "Copied",
     "copy": "Copy",
-    "emptyHint": "Preview of the current note"
+    "emptyHint": "Preview of the current note",
+    "alert": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    }
   },
   "main": {
     "category": {

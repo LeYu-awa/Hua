@@ -515,3 +515,113 @@ input::placeholder {
   font-size: 0.85em;
   font-family: var(--font-mono);
 }
+
+/* ── GFM Alerts ── */
+.markdown-alert {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid;
+  border-radius: 0 6px 6px 0;
+}
+.markdown-alert p {
+  line-height: 1.8;
+}
+.markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.88em;
+  margin-bottom: 0.25rem;
+}
+.markdown-alert-title svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Note — blue-gray */
+.markdown-alert-note {
+  border-color: #4a8db7;
+  background: rgba(74, 141, 183, 0.06);
+}
+.markdown-alert-note .markdown-alert-title {
+  color: #4a8db7;
+}
+
+/* Tip — sage green */
+.markdown-alert-tip {
+  border-color: #3a7a52;
+  background: rgba(58, 122, 82, 0.06);
+}
+.markdown-alert-tip .markdown-alert-title {
+  color: #3a7a52;
+}
+
+/* Important — muted purple */
+.markdown-alert-important {
+  border-color: #8b6bb5;
+  background: rgba(139, 107, 181, 0.06);
+}
+.markdown-alert-important .markdown-alert-title {
+  color: #8b6bb5;
+}
+
+/* Warning — warm amber */
+.markdown-alert-warning {
+  border-color: #b8860b;
+  background: rgba(184, 134, 11, 0.06);
+}
+.markdown-alert-warning .markdown-alert-title {
+  color: #b8860b;
+}
+
+/* Caution — terracotta red */
+.markdown-alert-caution {
+  border-color: #c45c4a;
+  background: rgba(196, 92, 74, 0.06);
+}
+.markdown-alert-caution .markdown-alert-title {
+  color: #c45c4a;
+}
+
+/* Dark theme overrides */
+:root[data-theme="dark"] .markdown-alert-note {
+  border-color: #6cb6e8;
+  background: rgba(108, 182, 232, 0.08);
+}
+:root[data-theme="dark"] .markdown-alert-note .markdown-alert-title {
+  color: #6cb6e8;
+}
+
+:root[data-theme="dark"] .markdown-alert-tip {
+  border-color: #5fc085;
+  background: rgba(95, 192, 133, 0.08);
+}
+:root[data-theme="dark"] .markdown-alert-tip .markdown-alert-title {
+  color: #5fc085;
+}
+
+:root[data-theme="dark"] .markdown-alert-important {
+  border-color: #b08de0;
+  background: rgba(176, 141, 224, 0.08);
+}
+:root[data-theme="dark"] .markdown-alert-important .markdown-alert-title {
+  color: #b08de0;
+}
+
+:root[data-theme="dark"] .markdown-alert-warning {
+  border-color: #d4a948;
+  background: rgba(212, 169, 72, 0.08);
+}
+:root[data-theme="dark"] .markdown-alert-warning .markdown-alert-title {
+  color: #d4a948;
+}
+
+:root[data-theme="dark"] .markdown-alert-caution {
+  border-color: #e87462;
+  background: rgba(232, 116, 98, 0.08);
+}
+:root[data-theme="dark"] .markdown-alert-caution .markdown-alert-title {
+  color: #e87462;
+}
