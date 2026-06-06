@@ -15,6 +15,7 @@ import {
 import type { AppConfig, ViewMode } from "../features/settings/types";
 import { normalizeTileColor } from "../features/settings/tileColor";
 import { BackgroundLayer } from "./BackgroundLayer";
+import { DeepSeekChat } from "./DeepSeekChat";
 import { SettingsPanel } from "./SettingsPanel";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
 import {
@@ -90,6 +91,28 @@ type FormatAction =
   | "quote"
   | "inlineMath"
   | "blockMath";
+
+const TEXT_COLOR_OPTIONS = [
+  "#8B0000",
+  "#B45309",
+  "#047857",
+  "#0F766E",
+  "#1D4ED8",
+  "#6D28D9",
+  "#BE185D",
+  "#374151",
+];
+
+const HIGHLIGHT_COLOR_OPTIONS = [
+  "#FEF3C7",
+  "#FDE68A",
+  "#F9A8D4",
+  "#BFDBFE",
+  "#A7F3D0",
+  "#DDD6FE",
+  "#FDBA74",
+  "#E5E7EB",
+];
 
 function applyFormat(
   textarea: HTMLTextAreaElement,
@@ -314,7 +337,13 @@ export function MainWindow({
   const [renameCategoryValue, setRenameCategoryValue] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [settingsOverlay, setSettingsOverlay] = useState(() => window.innerWidth < 1080);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [deepSeekOpen, setDeepSeekOpen] = useState(false);
+  const [selectedTextRange, setSelectedTextRange] = useState<{ start: number; end: number } | null>(
+    null,
+  );
+  const [textColorPaletteOpen, setTextColorPaletteOpen] = useState(false);
+  const [highlightPaletteOpen, setHighlightPaletteOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(200);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
@@ -323,11 +352,14 @@ export function MainWindow({
   const [categoryMenuClosing, setCategoryMenuClosing] = useState(false);
   const [categoryMenuConfirmDelete, setCategoryMenuConfirmDelete] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const colorPaletteRef = useRef<HTMLDivElement>(null);
+  const selectionRangeRef = useRef<{ start: number; end: number } | null>(null);
   const externalFileMtimeRef = useRef<number>(0);
   const lastExternalSaveRef = useRef<number>(0);
   const imageBaseDir = useImageBaseDir();
   const saveStateRef = useRef(saveState);
   saveStateRef.current = saveState;
+  const skipNextNotesChangedRef = useRef(false);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
@@ -459,13 +491,23 @@ export function MainWindow({
   );
   const charCount = useMemo(() => countNoteChars(content), [content]);
 
-  const applyNote = useCallback((note: Note) => {
+  const applyNote = useCallback((note: Note, options?: { preserveDirty?: boolean }) => {
+    if (
+      options?.preserveDirty &&
+      selectedIdRef.current === note.id &&
+      saveStateRef.current === "dirty"
+    ) {
+      return;
+    }
     setSelectedId(note.id);
     setTitle(note.title);
+    contentRefValue.current = note.content;
     setContent(note.content);
     setSaveState("saved");
     setErrorMessage(null);
-    setNoteTransitionKey((k) => k + 1);
+    if (selectedIdRef.current !== note.id) {
+      setNoteTransitionKey((k) => k + 1);
+    }
   }, []);
 
   const replaceNoteMetadata = useCallback((note: Note) => {
@@ -483,7 +525,7 @@ export function MainWindow({
     async (id: string) => {
       setErrorMessage(null);
       const note = await getNote(id);
-      applyNote(note);
+      applyNote(note, { preserveDirty: true });
       replaceNoteMetadata(note);
     },
     [applyNote, replaceNoteMetadata],
@@ -558,7 +600,7 @@ export function MainWindow({
         setCollapsedCategories(new Set(loadedCategories));
         if (loadedNotes[0]) {
           const note = await getNote(loadedNotes[0].id);
-          if (!cancelled) applyNote(note);
+          if (!cancelled) applyNote(note, { preserveDirty: true });
         } else {
           clearCurrentNote();
         }
@@ -584,21 +626,41 @@ export function MainWindow({
 
   useEffect(() => {
     const unlisten = listen("notes-changed", () => {
+      if (skipNextNotesChangedRef.current) {
+        skipNextNotesChangedRef.current = false;
+        void refreshNotes();
+        return;
+      }
       void refreshNotes().then((loaded) => {
         const currentId = selectedIdRef.current;
         if (!currentId) return;
         const stillExists = loaded.some((n) => n.id === currentId);
         if (stillExists) {
-          if (saveStateRef.current !== "dirty") {
-            void getNote(currentId)
-              .then((note) => {
-                if (selectedIdRef.current !== currentId) return;
-                setTitle(note.title);
-                setContent(note.content);
-                setSaveState("saved");
-              })
-              .catch(() => undefined);
+          if (saveStateRef.current === "dirty" || saveStateRef.current === "saving") {
+            return;
           }
+          void getNote(currentId)
+            .then((note) => {
+              if (selectedIdRef.current !== currentId) return;
+              if (saveStateRef.current === "dirty" || saveStateRef.current === "saving") return;
+              //#region debug-point notes-changed-apply-note
+              void fetch("http://127.0.0.1:7777/event", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  scope: "main-window",
+                  point: "notes-changed-apply-note",
+                  selectedId: currentId,
+                  saveStateRef: saveStateRef.current,
+                  noteContentPreview: note.content.slice(0, 200),
+                }),
+              }).catch(() => undefined);
+              //#endregion
+              setTitle(note.title);
+              setContent(note.content);
+              setSaveState("saved");
+            })
+            .catch(() => undefined);
         } else if (selectedNoteRef.current) {
           if (loaded[0]) {
             void loadNote(loaded[0].id);
@@ -694,7 +756,9 @@ export function MainWindow({
   }, [selectedExternalFile]);
 
   useEffect(() => {
-    function closeMenus() {
+    function closeMenus(event?: globalThis.MouseEvent) {
+      const target = event?.target as Node | undefined;
+      if (target && colorPaletteRef.current?.contains(target)) return;
       setNoteMenuClosing(true);
       setCategoryMenuClosing(true);
     }
@@ -731,19 +795,23 @@ export function MainWindow({
     return () => window.clearTimeout(timer);
   }, [categoryMenuClosing, categoryMenu]);
 
+  const contentRefValue = useRef(content);
+  contentRefValue.current = content;
+
   const saveCurrentNote = useCallback(async () => {
     if (!selectedId) return null;
 
     if (isExternal && selectedExternalFile) {
       setSaveState("saving");
       try {
-        await saveExternalFile(selectedExternalFile.filePath, content);
+        const latestContent = contentRefValue.current;
+        await saveExternalFile(selectedExternalFile.filePath, latestContent);
         lastExternalSaveRef.current = Date.now();
         const mtime = await getFileModifiedTime(selectedExternalFile.filePath);
         externalFileMtimeRef.current = mtime;
         setSaveState("saved");
         setErrorMessage(null);
-        return { id: selectedId, title, content } as Note;
+        return { id: selectedId, title, content: latestContent } as Note;
       } catch (error) {
         setSaveState("error");
         setErrorMessage(getErrorMessage(error));
@@ -752,10 +820,25 @@ export function MainWindow({
     }
 
     setSaveState("saving");
+    const latestContent = contentRefValue.current;
+    //#region debug-point save-current-note-start
+    void fetch("http://127.0.0.1:7777/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scope: "main-window",
+        point: "save-current-note-start",
+        selectedId,
+        contentPreview: latestContent.slice(0, 200),
+      }),
+    }).catch(() => undefined);
+    //#endregion
     try {
       const category = selectedNote?.category ?? "";
-      const note = await updateNote(selectedId, { title, content, category });
+      const note = await updateNote(selectedId, { title, content: latestContent, category });
+      skipNextNotesChangedRef.current = true;
       replaceNoteMetadata(note);
+      saveStateRef.current = "saved";
       setSaveState("saved");
       setErrorMessage(null);
       return note;
@@ -764,15 +847,7 @@ export function MainWindow({
       setErrorMessage(getErrorMessage(error));
       return null;
     }
-  }, [
-    content,
-    isExternal,
-    replaceNoteMetadata,
-    selectedExternalFile,
-    selectedId,
-    selectedNote,
-    title,
-  ]);
+  }, [isExternal, replaceNoteMetadata, selectedExternalFile, selectedId, selectedNote, title]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -787,11 +862,8 @@ export function MainWindow({
   }, [saveCurrentNote]);
 
   useEffect(() => {
-    if (!selectedId || saveState !== "dirty") return undefined;
-    if (isExternal) {
-      if (!settingsConfig?.externalFileAutoSave) return undefined;
-    } else {
-      if (!settingsConfig?.noteAutoSave) return undefined;
+    if (!selectedId || saveState !== "dirty") {
+      return undefined;
     }
 
     const timer = window.setTimeout(() => {
@@ -799,14 +871,7 @@ export function MainWindow({
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [
-    isExternal,
-    saveCurrentNote,
-    saveState,
-    selectedId,
-    settingsConfig?.noteAutoSave,
-    settingsConfig?.externalFileAutoSave,
-  ]);
+  }, [saveCurrentNote, saveState, selectedId]);
 
   const handleNewNote = async () => {
     setErrorMessage(null);
@@ -816,7 +881,7 @@ export function MainWindow({
     try {
       const note = await createNote({ title: "", content: "", category: activeCategory });
       replaceNoteMetadata(note);
-      applyNote(note);
+      applyNote(note, { preserveDirty: true });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     }
@@ -915,7 +980,7 @@ export function MainWindow({
       if (!note) return;
 
       replaceNoteMetadata(note);
-      applyNote(note);
+      applyNote(note, { preserveDirty: true });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     }
@@ -928,13 +993,10 @@ export function MainWindow({
       await saveCurrentNote();
     }
 
-    setIsLoading(true);
     try {
       await loadNote(id);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -948,7 +1010,6 @@ export function MainWindow({
     const file = externalFiles.find((f) => f.id === id);
     if (!file) return;
 
-    setIsLoading(true);
     try {
       const [fileContent, mtime] = await Promise.all([
         readExternalFile(file.filePath),
@@ -963,8 +1024,6 @@ export function MainWindow({
       externalFileMtimeRef.current = mtime;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -1138,7 +1197,7 @@ export function MainWindow({
     try {
       const note = await createNote({ title, content, category: activeCategory });
       replaceNoteMetadata(note);
-      applyNote(note);
+      applyNote(note, { preserveDirty: true });
       return note.id;
     } catch {
       return null;
@@ -1198,6 +1257,117 @@ export function MainWindow({
     }
   };
 
+  const syncSelectedTextRange = useCallback(() => {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const range = end > start ? { start, end } : null;
+    selectionRangeRef.current = range;
+    setSelectedTextRange(range);
+  }, []);
+
+  const replaceSelectedTextWithSpan = useCallback(
+    (style: string) => {
+      const textarea = contentRef.current;
+      const activeRange = selectedTextRange ?? selectionRangeRef.current;
+      if (!textarea || !selectedId || !activeRange) return;
+
+      const { start, end } = activeRange;
+      if (end <= start) return;
+
+      const value = textarea.value;
+      const selected = value.slice(start, end);
+      if (!selected) return;
+
+      const wrapped = `<span style="${style}">${selected}</span>`;
+      const result = `${value.slice(0, start)}${wrapped}${value.slice(end)}`;
+      const selectionStart = start;
+      const selectionEnd = start + wrapped.length;
+
+      textarea.setRangeText(wrapped, start, end, "select");
+      contentRefValue.current = result;
+      saveStateRef.current = "dirty";
+      setContent(result);
+      setSaveState("dirty");
+      selectionRangeRef.current = { start: selectionStart, end: selectionEnd };
+      setSelectedTextRange({ start: selectionStart, end: selectionEnd });
+      setTextColorPaletteOpen(false);
+      setHighlightPaletteOpen(false);
+
+      requestAnimationFrame(() => {
+        const nextTextarea = contentRef.current;
+        if (!nextTextarea) return;
+        nextTextarea.focus();
+        nextTextarea.setSelectionRange(selectionStart, selectionEnd);
+      });
+    },
+    [selectedId, selectedTextRange],
+  );
+
+  const handleApplyTextColor = useCallback(
+    (color: string) => {
+      replaceSelectedTextWithSpan(`color: ${color};`);
+    },
+    [replaceSelectedTextWithSpan],
+  );
+
+  const handleClearTextColor = useCallback(() => {
+    replaceSelectedTextWithSpan("");
+  }, [replaceSelectedTextWithSpan]);
+
+  const handleApplyHighlightColor = useCallback(
+    (color: string) => {
+      replaceSelectedTextWithSpan(`background-color: ${color};`);
+    },
+    [replaceSelectedTextWithSpan],
+  );
+
+  const handleClearHighlightColor = useCallback(() => {
+    replaceSelectedTextWithSpan("");
+  }, [replaceSelectedTextWithSpan]);
+
+  const toggleTextColorPalette = useCallback(() => {
+    syncSelectedTextRange();
+    setHighlightPaletteOpen(false);
+    setTextColorPaletteOpen((prev) => !prev);
+  }, [syncSelectedTextRange]);
+
+  const toggleHighlightPalette = useCallback(() => {
+    syncSelectedTextRange();
+    setTextColorPaletteOpen(false);
+    setHighlightPaletteOpen((prev) => !prev);
+  }, [syncSelectedTextRange]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      selectionRangeRef.current = null;
+      setSelectedTextRange(null);
+      setTextColorPaletteOpen(false);
+      setHighlightPaletteOpen(false);
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!textColorPaletteOpen && !highlightPaletteOpen) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && colorPaletteRef.current?.contains(active)) {
+      return;
+    }
+  }, [highlightPaletteOpen, textColorPaletteOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTextColorPaletteOpen(false);
+        setHighlightPaletteOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const handleOpenNotepad = async () => {
     setErrorMessage(null);
     try {
@@ -1226,7 +1396,7 @@ export function MainWindow({
     document.body.style.cursor = "col-resize";
 
     const onMouseMove = (e: globalThis.MouseEvent) => {
-      const newWidth = Math.min(Math.max(e.clientX, 180), 500);
+      const newWidth = Math.min(Math.max(e.clientX, 240), 560);
       setSidebarWidth(newWidth);
     };
     const onMouseUp = () => setIsResizingSidebar(false);
@@ -1377,6 +1547,169 @@ export function MainWindow({
               </svg>
             </button>
 
+            <div
+              ref={colorPaletteRef}
+              className="h-11 flex items-center gap-1"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <button
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  syncSelectedTextRange();
+                }}
+                onClick={toggleTextColorPalette}
+                disabled={!selectedId}
+                className="w-10 h-11 flex items-center justify-center text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                title={selectionRangeRef.current ? "文字颜色" : "先在编辑区选中文本"}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3l4 8-4 2-4-2 4-8z" />
+                  <path d="M6 15a6 6 0 0 0 12 0" />
+                  <path d="M9 19h6" />
+                </svg>
+              </button>
+              {textColorPaletteOpen && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl border border-paper-deep/20 bg-paper/95 shadow-sm">
+                  {(() => {
+                    const hasRange = Boolean(selectedTextRange ?? selectionRangeRef.current);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled={!hasRange}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (!hasRange) return;
+                            handleClearTextColor();
+                          }}
+                          className="px-2 h-5 rounded-md border border-paper-deep/30 text-[10px] text-ink-soft hover:text-bamboo hover:border-bamboo/40 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                          title={hasRange ? "清除文字颜色" : "先在编辑区选中文本"}
+                          aria-label="清除文字颜色"
+                        >
+                          清除
+                        </button>
+                        {TEXT_COLOR_OPTIONS.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            disabled={!hasRange}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (!hasRange) return;
+                              handleApplyTextColor(color);
+                            }}
+                            className="w-5 h-5 rounded-full border border-paper-deep/30 transition-transform hover:scale-110 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:scale-100"
+                            style={{ backgroundColor: color }}
+                            title={hasRange ? color : "先在编辑区选中文本"}
+                            aria-label={`选择文字颜色 ${color}`}
+                          />
+                        ))}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              <button
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  syncSelectedTextRange();
+                }}
+                onClick={toggleHighlightPalette}
+                disabled={!selectedId}
+                className="w-10 h-11 flex items-center justify-center text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                title={selectionRangeRef.current ? "荧光标记" : "先在编辑区选中文本"}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 16l8-8 4 4-8 8H6z" />
+                  <path d="M14 6l4 4" />
+                  <path d="M4 20h8" />
+                </svg>
+              </button>
+              {highlightPaletteOpen && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl border border-paper-deep/20 bg-paper/95 shadow-sm">
+                  {(() => {
+                    const hasRange = Boolean(selectedTextRange ?? selectionRangeRef.current);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled={!hasRange}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (!hasRange) return;
+                            handleClearHighlightColor();
+                          }}
+                          className="px-2 h-5 rounded-md border border-paper-deep/30 text-[10px] text-ink-soft hover:text-bamboo hover:border-bamboo/40 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                          title={hasRange ? "清除荧光标记" : "先在编辑区选中文本"}
+                          aria-label="清除荧光标记"
+                        >
+                          清除
+                        </button>
+                        {HIGHLIGHT_COLOR_OPTIONS.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            disabled={!hasRange}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (!hasRange) return;
+                              handleApplyHighlightColor(color);
+                            }}
+                            className="w-5 h-5 rounded-sm border border-paper-deep/30 transition-transform hover:scale-110 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:scale-100"
+                            style={{ backgroundColor: color }}
+                            title={hasRange ? color : "先在编辑区选中文本"}
+                            aria-label={`选择荧光颜色 ${color}`}
+                          />
+                        ))}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setDeepSeekOpen(true)}
+              className="w-10 h-11 flex items-center justify-center text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer"
+              title="DeepSeek 助手"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M8 10h.01M12 10h.01M16 10h.01" />
+              </svg>
+            </button>
+
             <div className="w-px h-4 bg-paper-deep/30 mx-0.5" />
 
             <button
@@ -1492,7 +1825,7 @@ export function MainWindow({
                 </div>
               </div>
 
-              <div className="px-3 pb-2 shrink-0 space-y-1">
+              <div className="px-4 pb-3 shrink-0 space-y-1.5">
                 <button
                   onClick={handleNewNote}
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12px] font-body text-bamboo hover:bg-bamboo-mist/60 transition-all cursor-pointer group"
@@ -1586,8 +1919,8 @@ export function MainWindow({
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto px-2 pb-2">
-                <div className="space-y-0.5">
+              <div className="flex-1 overflow-y-auto px-2 pb-3">
+                <div className="space-y-2">
                   {externalFiles.length > 0 && (
                     <>
                       <div className="px-3 py-1.5 text-[10px] text-ink-ghost/50 font-mono tracking-wider uppercase">
@@ -1603,7 +1936,7 @@ export function MainWindow({
                             onClick={() => void handleSelectExternalFile(file.id)}
                             onMouseEnter={() => setHoveredId(file.id)}
                             onMouseLeave={() => setHoveredId(null)}
-                            className={`w-full text-left rounded-xl px-3 py-2.5 transition-all duration-[600ms] cursor-pointer group relative ${
+                            className={`w-full text-left rounded-2xl px-3.5 py-4 transition-all duration-[600ms] cursor-pointer group relative shadow-[0_10px_30px_rgba(0,0,0,0.03)] ${
                               isSelected
                                 ? "bg-bamboo-mist/70"
                                 : isHovered
@@ -1764,14 +2097,14 @@ export function MainWindow({
                     const isCollapsed = collapsedCategories.has(group.category);
 
                     return (
-                      <div key={group.category} className="px-2 mb-0.5">
+                      <div key={group.category} className="px-2 mb-px">
                         <div
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg group/cat cursor-pointer select-none transition-all duration-200 ${
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl group/cat cursor-pointer select-none transition-all duration-200 ${
                             dragOverCategory === group.category
-                              ? "bg-bamboo/15 border border-bamboo/40 ring-1 ring-bamboo/20"
+                              ? "bg-bamboo/10 ring-1 ring-bamboo/20"
                               : isCollapsed
-                                ? "bg-transparent border border-bamboo/15"
-                                : "bg-bamboo/8 border border-bamboo/15 rounded-b-none"
+                                ? "bg-paper-warm/70"
+                                : "bg-paper-warm/80 rounded-b-none"
                           }`}
                           onClick={() => toggleCategoryCollapse(group.category)}
                           onContextMenu={(e) => {
@@ -1807,7 +2140,7 @@ export function MainWindow({
                             strokeWidth="2.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className={`text-bamboo/50 shrink-0 transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}
+                            className={`text-ink-ghost shrink-0 transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}
                           >
                             <polyline points="9 18 15 12 9 6" />
                           </svg>
@@ -1820,7 +2153,7 @@ export function MainWindow({
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className="text-bamboo/50 shrink-0"
+                            className="text-ink-ghost shrink-0"
                           >
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                           </svg>
@@ -1840,18 +2173,18 @@ export function MainWindow({
                               className="flex-1 min-w-0 px-1 text-[10px] font-mono text-ink bg-paper-warm/80 border border-bamboo/30 rounded"
                             />
                           ) : (
-                            <span className="text-[11px] text-bamboo/70 font-medium truncate">
+                            <span className="text-[11px] text-ink-soft font-semibold truncate tracking-[0.01em]">
                               {group.category}
                             </span>
                           )}
-                          <span className="text-[9px] text-bamboo/40 font-mono ml-auto shrink-0">
+                          <span className="text-[9px] text-ink-ghost/60 font-mono ml-auto shrink-0 px-1.5 py-0.5 rounded-full bg-paper/45">
                             {group.notes.length}
                           </span>
                         </div>
 
                         <div className={`category-body ${isCollapsed ? "" : "expanded"}`}>
                           <div
-                            className="category-body-inner bg-bamboo/[0.03] border border-t-0 border-bamboo/10 rounded-b-lg pb-1 pt-1"
+                            className="category-body-inner bg-paper/30 border border-t-0 border-paper-deep/20 rounded-b-xl pb-2 pt-1.5"
                             onDragOver={(e) => {
                               e.preventDefault();
                               e.dataTransfer.dropEffect = "move";
@@ -1890,7 +2223,7 @@ export function MainWindow({
                                     onContextMenu={(event) => handleOpenNoteMenu(event, note.id)}
                                     onMouseEnter={() => setHoveredId(note.id)}
                                     onMouseLeave={() => setHoveredId(null)}
-                                    className={`w-full text-left rounded-lg mx-1 px-2.5 py-2 transition-all duration-[600ms] cursor-pointer group relative ${
+                                    className={`w-full text-left rounded-xl mx-1.5 px-3 py-3 transition-all duration-[600ms] cursor-pointer group relative ${
                                       isSelected
                                         ? "bg-bamboo-mist/70"
                                         : isHovered
@@ -2189,8 +2522,7 @@ export function MainWindow({
                 </span>
                 <span className="text-[10px] text-ink-ghost/40">·</span>
                 <span
-                  key={saveState}
-                  className={`text-[10px] font-mono tabular-nums animate-status-fade ${
+                  className={`text-[10px] font-mono tabular-nums ${
                     saveState === "error"
                       ? "text-red-400"
                       : saveState === "dirty"
@@ -2203,11 +2535,7 @@ export function MainWindow({
               </div>
             </div>
 
-            <div
-              key={viewMode}
-              ref={splitContainerRef}
-              className="flex-1 flex min-h-0 animate-view-fade"
-            >
+            <div ref={splitContainerRef} className="flex-1 flex min-h-0">
               {!selectedId && !isLoading ? (
                 <div className="flex-1 flex items-center justify-center text-[13px] text-ink-ghost">
                   {t("main.editor.emptyHint", { defaultValue: "选择或新建一篇笔记" })}
@@ -2243,19 +2571,27 @@ export function MainWindow({
                         ))}
                       </div>
 
-                      <div className="flex-1 overflow-hidden px-5 pb-4">
+                      <div className="flex-1 overflow-hidden px-5 pb-4 relative">
                         <textarea
                           ref={contentRef}
                           data-tab-indent="true"
                           value={content}
                           onChange={(event) => {
-                            setContent(event.target.value);
+                            const nextValue = event.target.value;
+                            contentRefValue.current = nextValue;
+                            setContent(nextValue);
                             markDirty();
+                          }}
+                          onSelect={syncSelectedTextRange}
+                          onKeyUp={syncSelectedTextRange}
+                          onMouseUp={syncSelectedTextRange}
+                          onBlur={() => {
+                            syncSelectedTextRange();
                           }}
                           onPaste={imagePasteHandler}
                           onDrop={imageDropHandler}
                           onDragOver={imageDragOverHandler}
-                          className="w-full h-full leading-[1.9] text-ink-soft font-body placeholder:text-ink-ghost/40"
+                          className="relative w-full h-full leading-[1.9] text-ink-soft caret-bamboo font-body placeholder:text-ink-ghost/40 bg-transparent selection:bg-bamboo/30"
                           style={{
                             fontSize: `${settingsConfig?.fontSize ?? 14}px`,
                             tabSize: `var(--tab-indent-size, 2)`,
@@ -2307,7 +2643,7 @@ export function MainWindow({
                         <MarkdownPreview
                           content={content}
                           fontSize={settingsConfig?.fontSize ?? 14}
-                          renderHtml={settingsConfig?.renderHtmlMarkdown ?? false}
+                          renderHtml={true}
                           imageBaseDir={imageBaseDir ?? undefined}
                         />
                       </div>
@@ -2316,6 +2652,13 @@ export function MainWindow({
                 </>
               )}
             </div>
+
+            <DeepSeekChat
+              open={deepSeekOpen}
+              onClose={() => setDeepSeekOpen(false)}
+              docTitle={title}
+              docContent={content}
+            />
 
             <div className="flex items-center justify-between px-4 h-7 border-t border-paper-deep/20 bg-paper/30 shrink-0">
               <div className="flex items-center gap-3">

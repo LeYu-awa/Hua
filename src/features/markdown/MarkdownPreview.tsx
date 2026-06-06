@@ -5,7 +5,6 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -61,6 +60,22 @@ function extractText(node: React.ReactNode): string {
   return "";
 }
 
+function parseInlineStyle(style: string): React.CSSProperties {
+  return style.split(";").reduce<React.CSSProperties>((acc, declaration) => {
+    const [rawProperty, rawValue] = declaration.split(":");
+    const property = rawProperty?.trim();
+    const value = rawValue?.trim();
+    if (!property || !value) return acc;
+    if (property === "color") {
+      acc.color = value;
+    }
+    if (property === "background-color") {
+      acc.backgroundColor = value;
+    }
+    return acc;
+  }, {});
+}
+
 interface MarkdownPreviewProps {
   content: string;
   fontSize?: number;
@@ -69,29 +84,10 @@ interface MarkdownPreviewProps {
 }
 
 const remarkPlugins = [remarkGfm, remarkMath, remarkAlerts];
-const sanitizeSchema = {
-  ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "mark", "center", "font", "u", "abbr"],
-  attributes: {
-    ...defaultSchema.attributes,
-    "*": [
-      ...(defaultSchema.attributes?.["*"] ?? []),
-      "style",
-      "className",
-      "data-alert-type",
-      "dataAlertType",
-    ],
-    font: ["color", "size", "face"],
-    abbr: ["title"],
-  },
-};
 const rehypePluginsDefault = [rehypeKatex, rehypeSlug];
-const rehypePluginsWithHtml = [
-  rehypeRaw,
-  [rehypeSanitize, sanitizeSchema],
-  rehypeKatex,
-  rehypeSlug,
-] as Parameters<typeof Markdown>[0]["rehypePlugins"];
+const rehypePluginsWithHtml = [rehypeRaw, rehypeKatex, rehypeSlug] as Parameters<
+  typeof Markdown
+>[0]["rehypePlugins"];
 
 function AlertIcon({ type }: { type: string }) {
   switch (type) {
@@ -284,6 +280,19 @@ export function MarkdownPreview({
   const components = useMemo<Components>(
     () => ({
       ...staticComponents,
+      span: ({ node, children, ...props }) => {
+        const rawStyle = node?.properties?.style;
+        const style = Array.isArray(rawStyle) ? rawStyle.join(";") : rawStyle;
+
+        if (typeof style === "string") {
+          return (
+            <span {...props} style={parseInlineStyle(style)}>
+              {children}
+            </span>
+          );
+        }
+        return <span {...props}>{children}</span>;
+      },
       img: ({ src, alt, ...props }) => {
         let resolvedSrc = src ?? "";
         if (src?.startsWith("images/") && imageBaseDir) {
