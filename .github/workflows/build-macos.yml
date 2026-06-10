@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-macos:
     runs-on: macos-latest
@@ -20,21 +23,23 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Install dependencies (macOS)
+      - name: Install dependencies
         run: npm install
 
-      - name: Build Tauri (macOS)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: --target universal-apple-darwin
+      - name: Build Tauri (macOS Universal)
+        run: npx tauri build --target universal-apple-darwin
 
-      - name: Upload artifacts
+      - name: Upload app
         uses: actions/upload-artifact@v4
         with:
-          name: macos-build
-          path: |
-            src-tauri/target/release/bundle/macos/*.app
-            src-tauri/target/release/bundle/dmg/*.dmg
+          name: 花笺-macOS-app
+          path: src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+
+      - name: Upload dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: 花笺-macOS-dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
