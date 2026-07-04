@@ -9,6 +9,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { DashboardPage } from "./components/DashboardPage";
 import { InkPlaybackPage } from "./components/InkPlaybackPage";
 import { CoWritePage } from "./components/CoWritePage";
+import { FriendsPage } from "./components/FriendsPage";
 import { ElysiaPage } from "./components/ElysiaPage";
 import { WindowFrame } from "./components/WindowFrame";
 import { tabToIndentListener } from "indent-textarea";
@@ -19,7 +20,6 @@ import type { AppView } from "./components/AppSidebar";
 import { getInitialRoute } from "./features/windows/windowRoutes";
 import { syncLanguage } from "./locales";
 import { listen } from "@tauri-apps/api/event";
-import { listNotes, getNote } from "./features/notes/api";
 import { supabase } from "./features/auth/supabase";
 import { uploadConfig, downloadConfig } from "./features/sync/api";
 
@@ -29,8 +29,6 @@ function App() {
   const [sidebarView, setSidebarView] = useState<AppView>("cowrite");
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);
-  const [currentNoteId, setCurrentNoteId] = useState("");
-  const [currentNoteContent, setCurrentNoteContent] = useState("");
 
   // 认证状态
   const [userId, setUserId] = useState<string | null>(null);
@@ -81,26 +79,6 @@ function App() {
     },
     [userId],
   );
-
-  const handleCurrentNoteChange = useCallback((note: { id: string; content: string }) => {
-    console.log("[App] handleCurrentNoteChange", note);
-    setCurrentNoteId(note.id);
-    setCurrentNoteContent(note.content);
-  }, []);
-
-  // 启动时如果还没有选中笔记，自动选中最新的笔记，
-  // 这样用户可以直接点“共笔”而不必先进入笔记页手动选择。
-  useEffect(() => {
-    listNotes()
-      .then(async (notes) => {
-        if (notes.length > 0 && !currentNoteId) {
-          const note = await getNote(notes[0].id);
-          setCurrentNoteId(note.id);
-          setCurrentNoteContent(note.content);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     let cleanup = () => {};
@@ -232,12 +210,9 @@ function App() {
             ) : sidebarView === "playback" ? (
               <InkPlaybackPage />
             ) : sidebarView === "cowrite" ? (
-              <CoWritePage
-                providers={providers}
-                noteId={currentNoteId}
-                noteContent={currentNoteContent}
-                onNoteContentChange={setCurrentNoteContent}
-              />
+              <CoWritePage />
+            ) : sidebarView === "friends" ? (
+              <FriendsPage />
             ) : sidebarView === "elysia" ? (
               <ElysiaPage />
             ) : sidebarView === "settings" && settingsConfig ? (
@@ -251,7 +226,6 @@ function App() {
             ) : (
               <MainWindow
                 initialConfig={settingsConfig ?? undefined}
-                onCurrentNoteChange={handleCurrentNoteChange}
               />
             )}
           </div>

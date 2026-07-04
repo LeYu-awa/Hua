@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export type AppView = "home" | "main" | "settings" | "playback" | "cowrite" | "elysia";
+export type AppView = "home" | "main" | "settings" | "playback" | "cowrite" | "friends" | "elysia";
 
 interface AppSidebarProps {
   activeView: AppView;
@@ -70,11 +70,23 @@ function ElysiaIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+function FriendsIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
 const sidebarItems: SidebarItem[] = [
   { view: "home", label: "首页", icon: HomeIcon },
   { view: "main", label: "笔记", icon: NoteIcon },
   { view: "playback", label: "墨迹回放", icon: PlaybackIcon },
   { view: "cowrite", label: "共笔", icon: CowriteIcon },
+  { view: "friends", label: "好友", icon: FriendsIcon },
   { view: "elysia", label: "Elysia", icon: ElysiaIcon },
 ];
 

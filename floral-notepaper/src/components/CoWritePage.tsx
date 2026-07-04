@@ -1,813 +1,349 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  CoWriteIdentity,
-  CoWriteSession,
-  CoWriteSessionSummary,
-} from "../features/cowrite/types";
-import type { ProviderConfig } from "../features/settings/types";
-import {
-  createCoWriteSession,
-  appendHumanText,
-  appendAIText,
-  getCoWriteSession,
-  listCoWriteSessions,
-  mergeToNote,
-  deleteCoWriteSession,
-  replaceLastAIText,
-  undoLastTurn,
-} from "../features/cowrite/api";
-import {
-  requestCoWriteAITurn,
-  regenerateCoWriteAITurn,
-  generateInspirations,
-  type CoWriteInspiration,
-} from "../features/cowrite/coWriteAI";
-import { getNote } from "../features/notes/api";
-import { computeCoWriteStats } from "../features/cowrite/coWriteUtils";
-import { SCENARIO_PRESETS, getScenario } from "../features/cowrite/prompts";
+import { useEffect, useState, useCallback } from "react";
+import { getConversationList, addSystemFriend } from "../features/friends/api";
+import type { ConversationPreview } from "../features/friends/types";
+import { supabase } from "../features/auth/supabase";
+import { DocumentMode } from "./canvas/DocumentMode";
+import { CanvasMode } from "./canvas/CanvasMode";
+import { ChatPanel } from "./right/ChatPanel";
+import { SharedFiles } from "./right/SharedFiles";
+import { LocalFiles } from "./right/LocalFiles";
 
-export interface CoWritePageProps {
-  providers: ProviderConfig[];
-  noteId: string;
-  noteContent: string;
-  onNoteContentChange?: (content: string) => void;
+type CenterMode = "document" | "canvas";
+type RightTab = "chat" | "shared" | "local";
+
+// ============================================
+// SVG 图标组件
+// ============================================
+function DocumentIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
 }
 
-const IDENTITY_OPTIONS: { key: CoWriteIdentity; label: string; desc: string }[] = [
-  { key: "continuator", label: "续写者", desc: "顺着你的思路往下写" },
-  { key: "questioner", label: "追问者", desc: "不断追问，帮你挖得更深" },
-  { key: "opposer", label: "反对者", desc: "找反例、挑漏洞" },
-  { key: "poetic", label: "诗意者", desc: "注入诗意和画面感" },
-  { key: "custom", label: "自定义", desc: "自己定义 AI 的角色" },
-];
-
-function formatDuration(ms: number): string {
-  if (ms <= 0) return "0 秒";
-  const seconds = Math.floor(ms / 1000);
-  const mins = Math.floor(seconds / 60);
-  const hours = Math.floor(mins / 60);
-  if (hours > 0) return `${hours} 小时 ${mins % 60} 分`;
-  if (mins > 0) return `${mins} 分 ${seconds % 60} 秒`;
-  return `${seconds} 秒`;
+function CanvasIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
 }
 
-function formatRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  if (diff < 10_000) return "刚刚";
-  const seconds = Math.floor(diff / 1000);
-  const mins = Math.floor(seconds / 60);
-  const hours = Math.floor(mins / 60);
-  const days = Math.floor(hours / 24);
-  if (days > 0) return `${days} 天前`;
-  if (hours > 0) return `${hours} 小时前`;
-  if (mins > 0) return `${mins} 分钟前`;
-  return "刚刚";
+function ChatIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <line x1="12" y1="9" x2="12" y2="9.01" />
+      <line x1="8" y1="9" x2="8" y2="9.01" />
+      <line x1="16" y1="9" x2="16" y2="9.01" />
+    </svg>
+  );
 }
 
-export function CoWritePage({
-  providers,
-  noteId,
-  noteContent,
-  onNoteContentChange,
-}: CoWritePageProps) {
-  const [sessions, setSessions] = useState<CoWriteSessionSummary[]>([]);
-  const [activeSession, setActiveSession] = useState<CoWriteSession | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [showNewDialog, setShowNewDialog] = useState(false);
-  const [selectedScenarioKey, setSelectedScenarioKey] = useState<string | null>(null);
-  const [selectedIdentity, setSelectedIdentity] = useState<CoWriteIdentity>("continuator");
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [humanInput, setHumanInput] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [mergedBlockIndices, setMergedBlockIndices] = useState<Set<number>>(new Set());
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [noteTitle, setNoteTitle] = useState<string | null>(null);
-  const [autoTurn, setAutoTurn] = useState(false);
-  const [statsExpanded, setStatsExpanded] = useState(false);
-  const [inspirations, setInspirations] = useState<CoWriteInspiration[]>([]);
-  const [inspirationsLoading, setInspirationsLoading] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const editRef = useRef<HTMLDivElement>(null);
+function SharedIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
 
-  // 新内容自动滚动到底部
+function NotesIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z" />
+      <polyline points="16 3 16 8 21 8" />
+      <line x1="8" y1="12" x2="16" y2="12" />
+      <line x1="8" y1="16" x2="14" y2="16" />
+    </svg>
+  );
+}
+
+export function CoWritePage() {
+  // 左侧：会话列表
+  const [conversations, setConversations] = useState<ConversationPreview[]>([]);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  const [convLoading, setConvLoading] = useState(true);
+  const [convError, setConvError] = useState<string | null>(null);
+
+  // 中间：模式切换
+  const [centerMode, setCenterMode] = useState<CenterMode>("canvas");
+
+  // 中间：文档模式（选中文档）
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [docTitle, setDocTitle] = useState("");
+
+  // 右侧：切换 Tab
+  const [rightTab, setRightTab] = useState<RightTab>("chat");
+  const [rightVisible, setRightVisible] = useState(true);
+
+  // 当前用户（监听登录/登出）
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   useEffect(() => {
-    if (editRef.current) {
-      editRef.current.scrollTo({
-        top: editRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-  }, [activeSession?.blocks.length]);
+    // 初始化：获取当前 session
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.id) setCurrentUserId(data.user.id);
+    });
 
-  // 加载当前笔记标题
-  useEffect(() => {
-    if (!noteId) {
-      setNoteTitle(null);
-      return;
-    }
-    getNote(noteId)
-      .then((note) => setNoteTitle(note.title || null))
-      .catch(() => setNoteTitle(null));
-  }, [noteId]);
+    // 持续监听 auth 变化
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        setCurrentUserId(session.user.id);
+      } else if (event === "SIGNED_OUT") {
+        setCurrentUserId(null);
+      }
+    });
 
-  // 切换到某个会话
-  const loadSession = useCallback(async (sessionId: string) => {
-    try {
-      const session = await getCoWriteSession(sessionId);
-      setActiveSession(session);
-      setActiveSessionId(sessionId);
-      setSelectedBlocks(new Set());
-      setMergedBlockIndices(
-        new Set(
-          session.blocks.map((block, idx) => (block.merged ? idx : -1)).filter((idx) => idx >= 0),
-        ),
-      );
-      setErrorMessage(null);
-      setInspirations([]);
-    } catch (e) {
-      console.error(e);
-      setErrorMessage(e instanceof Error ? e.message : "加载会话失败");
-    }
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // 加载会话列表，笔记切换时清空当前会话避免串到其它笔记；
-  // 如果有会话则自动加载最新的一条，避免下拉框默认选中但状态未同步。
-  useEffect(() => {
-    setErrorMessage(null);
-    setActiveSession(null);
-    setActiveSessionId(null);
-    setSelectedBlocks(new Set());
-    setMergedBlockIndices(new Set());
-    setInspirations([]);
-    listCoWriteSessions(noteId)
-      .then((list) => {
-        setSessions(list);
-        if (list.length > 0) {
-          void loadSession(list[0].id);
-        }
-      })
-      .catch((e) => {
-        console.error(e);
-        setErrorMessage(e instanceof Error ? e.message : "加载会话列表失败");
-      });
-  }, [noteId, loadSession]);
-
-  const runAITurn = useCallback(
-    async (session: CoWriteSession) => {
-      setAiLoading(true);
-      setErrorMessage(null);
-      try {
-        const aiText = await requestCoWriteAITurn(
-          session,
-          session.identity,
-          session.customPrompt,
-          providers,
-        );
-        if (!aiText.trim()) {
-          throw new Error("AI 返回内容为空");
-        }
-        const updated = await appendAIText(session.id, aiText);
-        setActiveSession(updated);
-      } catch (e) {
-        console.error("[cowrite] AI turn failed", e);
-        setErrorMessage(e instanceof Error ? e.message : "AI 调用失败");
-      } finally {
-        setAiLoading(false);
-      }
-    },
-    [providers],
-  );
-
-  // 打开新建弹窗时，根据当前会话回显之前的 AI 角色/自定义 Prompt
-  useEffect(() => {
-    if (!showNewDialog) return;
-    setSelectedScenarioKey(null);
-    if (activeSession) {
-      setSelectedIdentity(activeSession.identity);
-      setCustomPrompt(activeSession.customPrompt ?? "");
-    } else {
-      setSelectedIdentity("continuator");
-      setCustomPrompt("");
-    }
-  }, [showNewDialog, activeSession]);
-
-  // 新建会话
-  const handleCreate = useCallback(async () => {
+  // 加载会话列表
+  const loadConversations = useCallback(async () => {
+    if (!currentUserId) return;
+    setConvLoading(true);
+    setConvError(null);
     try {
-      const scenario = selectedScenarioKey ? getScenario(selectedScenarioKey) : null;
-      const identity = scenario?.identity ?? selectedIdentity;
-      const prompt =
-        scenario?.systemPrompt ?? (selectedIdentity === "custom" ? customPrompt : undefined);
-
-      const session = await createCoWriteSession(noteId, identity, prompt);
-
-      let currentSession = session;
-      if (scenario) {
-        currentSession = await appendAIText(session.id, scenario.openingLine);
-      }
-
-      setActiveSession(currentSession);
-      setActiveSessionId(currentSession.id);
-      setShowNewDialog(false);
-      setSelectedScenarioKey(null);
-      setCustomPrompt("");
-      setErrorMessage(null);
-      const list = await listCoWriteSessions(noteId);
-      setSessions(list);
+      // 先确保系统好友会话存在（已存在好友时不会报错，只会补建会话）
+      try { await addSystemFriend(); } catch { /* 忽略 */ }
+      const list = await getConversationList();
+      setConversations(list);
     } catch (e) {
-      console.error(e);
-      setErrorMessage(e instanceof Error ? e.message : "创建会话失败");
-    }
-  }, [noteId, selectedScenarioKey, selectedIdentity, customPrompt]);
-
-  // 人类写一段
-  const handleHumanSubmit = useCallback(async () => {
-    if (!humanInput.trim() || !activeSessionId) return;
-    try {
-      const updated = await appendHumanText(activeSessionId, humanInput.trim());
-      setActiveSession(updated);
-      setHumanInput("");
-      setErrorMessage(null);
-      if (autoTurn) {
-        await runAITurn(updated);
-      }
-    } catch (e) {
-      console.error(e);
-      setErrorMessage(e instanceof Error ? e.message : "提交失败");
-    }
-  }, [humanInput, activeSessionId, autoTurn, runAITurn]);
-
-  // AI 续写（手动触发）
-  const handleAITurn = useCallback(() => {
-    if (!activeSession || aiLoading) return;
-    void runAITurn(activeSession);
-  }, [activeSession, aiLoading, runAITurn]);
-
-  // 重新生成最后一段 AI
-  const handleRegenerate = useCallback(async () => {
-    if (!activeSession || aiLoading) return;
-    const last = activeSession.blocks[activeSession.blocks.length - 1];
-    if (!last || last.author !== "ai") {
-      setErrorMessage("最后一段不是 AI 内容，无法重新生成");
-      return;
-    }
-    setAiLoading(true);
-    setErrorMessage(null);
-    try {
-      const aiText = await regenerateCoWriteAITurn(
-        activeSession,
-        activeSession.identity,
-        activeSession.customPrompt,
-        providers,
-      );
-      if (!aiText.trim()) {
-        throw new Error("AI 返回内容为空");
-      }
-      const updated = await replaceLastAIText(activeSession.id, aiText);
-      setActiveSession(updated);
-    } catch (e) {
-      console.error("[cowrite] regenerate failed", e);
-      setErrorMessage(e instanceof Error ? e.message : "重新生成失败");
+      const msg = e instanceof Error ? e.message : "加载失败";
+      setConvError(msg);
+      console.error("加载会话列表失败:", e);
     } finally {
-      setAiLoading(false);
+      setConvLoading(false);
     }
-  }, [activeSession, aiLoading, providers]);
+  }, [currentUserId]);
 
-  // 撤回上一步
-  const handleUndo = useCallback(async () => {
-    if (!activeSession || activeSession.blocks.length === 0) return;
-    const lastIndex = activeSession.blocks.length - 1;
-    const last = activeSession.blocks[lastIndex];
-    const desc = last.author === "ai" ? "AI 的最后一段回复" : "你最后的输入";
-    if (!window.confirm(`确定要撤回${desc}吗？`)) return;
-    try {
-      const updated = await undoLastTurn(activeSession.id);
-      setActiveSession(updated);
-      setMergedBlockIndices((prev) => {
-        if (!prev.has(lastIndex)) return prev;
-        const next = new Set(prev);
-        next.delete(lastIndex);
-        return next;
-      });
-      setErrorMessage(null);
-    } catch (e) {
-      console.error(e);
-      setErrorMessage(e instanceof Error ? e.message : "撤回失败");
-    }
-  }, [activeSession]);
+  // 依赖 currentUserId，登录后自动重新加载
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
 
-  // 合并到笔记
-  const handleMerge = useCallback(async () => {
-    if (!activeSessionId || selectedBlocks.size === 0) return;
-    try {
-      const result = await mergeToNote(
-        activeSessionId,
-        Array.from(selectedBlocks).sort((a, b) => a - b),
-      );
-      onNoteContentChange?.(result.content);
-      setActiveSession(result.session);
-      setMergedBlockIndices(
-        new Set(
-          result.session.blocks
-            .map((block, idx) => (block.merged ? idx : -1))
-            .filter((idx) => idx >= 0),
-        ),
-      );
-      setSelectedBlocks(new Set());
-      setErrorMessage(null);
-    } catch (e) {
-      console.error(e);
-      setErrorMessage(e instanceof Error ? e.message : "合并失败");
-    }
-  }, [activeSessionId, onNoteContentChange, selectedBlocks]);
+  // 切换会话时重置状态
+  useEffect(() => {
+    setSelectedDocId(null);
+    setDocTitle("");
+  }, [selectedConvId]);
 
-  // 删除会话
-  const handleDelete = useCallback(
-    async (sessionId: string) => {
-      try {
-        await deleteCoWriteSession(sessionId);
-        if (activeSessionId === sessionId) {
-          setActiveSession(null);
-          setActiveSessionId(null);
-        }
-        setErrorMessage(null);
-        const list = await listCoWriteSessions(noteId);
-        setSessions(list);
-      } catch (e) {
-        console.error(e);
-        setErrorMessage(e instanceof Error ? e.message : "删除失败");
-      }
-    },
-    [noteId, activeSessionId],
-  );
-
-  // 获取灵感
-  const handleGetInspirations = useCallback(async () => {
-    if (providers.length === 0) {
-      setErrorMessage("没有可用的 AI 供应商");
-      return;
-    }
-    setInspirationsLoading(true);
-    setErrorMessage(null);
-    try {
-      const items = await generateInspirations(noteContent, providers);
-      setInspirations(items);
-    } catch (e) {
-      console.error(e);
-      setErrorMessage(e instanceof Error ? e.message : "获取灵感失败");
-    } finally {
-      setInspirationsLoading(false);
-    }
-  }, [noteContent, providers]);
-
-  // 使用灵感
-  const handleUseInspiration = useCallback(
-    async (item: CoWriteInspiration) => {
-      if (!activeSessionId) return;
-      try {
-        const updated = await appendHumanText(activeSessionId, item.snippet);
-        setActiveSession(updated);
-        setInspirations([]);
-        setErrorMessage(null);
-        // 灵感卡片点击后自动写入 human 开头并触发 AI 续写
-        await runAITurn(updated);
-      } catch (e) {
-        console.error(e);
-        setErrorMessage(e instanceof Error ? e.message : "使用灵感失败");
-      }
-    },
-    [activeSessionId, runAITurn],
-  );
-
-  const toggleBlock = (index: number) => {
-    if (mergedBlockIndices.has(index)) return;
-    const next = new Set(selectedBlocks);
-    if (next.has(index)) {
-      next.delete(index);
-    } else {
-      next.add(index);
-    }
-    setSelectedBlocks(next);
-  };
-
-  const currentTurn = useMemo(() => {
-    if (!activeSession || activeSession.blocks.length === 0) return "human";
-    const last = activeSession.blocks[activeSession.blocks.length - 1];
-    return last.author === "human" ? "ai" : "human";
-  }, [activeSession]);
-
-  const stats = useMemo(
-    () => (activeSession ? computeCoWriteStats(activeSession) : null),
-    [activeSession],
-  );
-
-  console.log("[cowrite] render", {
-    noteId,
-    activeSessionId,
-    currentTurn,
-    blocksCount: activeSession?.blocks.length,
-  });
-
-  const hasNote = Boolean(noteId);
-
-  if (!hasNote) {
-    return (
-      <div className="cowrite-container">
-        <div className="cowrite-main" style={{ width: "100%" }}>
-          <div className="cowrite-placeholder">
-            请先在左侧边栏点击“笔记”，选择一篇笔记后再开始共笔
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="cowrite-container">
-      {/* 左侧共笔侧边栏 */}
-      <div className={`cowrite-sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
-        <div className="cowrite-sidebar-header">
-          <h3>共笔</h3>
-          <button
-            className="cowrite-btn-toggle-sidebar"
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            title={sidebarCollapsed ? "展开" : "收起"}
+  // ==========================================
+  // 渲染：左侧会话列表
+  // ==========================================
+  const renderLeftPanel = () => (
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 px-3 py-2.5 border-b border-paper-deep/20 flex items-center justify-between">
+        <h2 className="text-[11px] font-mono text-ink-faint uppercase tracking-wider">对话</h2>
+        <button
+          onClick={loadConversations}
+          disabled={convLoading}
+          className="p-1 rounded text-ink-ghost hover:text-ink hover:bg-paper-warm/60 transition-colors cursor-pointer disabled:opacity-40"
+          title="刷新"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={convLoading ? "animate-spin" : ""}
           >
-            {sidebarCollapsed ? (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            ) : (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            )}
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {convLoading ? (
+          <div className="text-[11px] text-ink-ghost text-center py-8">加载中...</div>
+        ) : convError ? (
+          <div className="text-[11px] text-red-400 text-center py-8 leading-relaxed px-3">
+            <p>加载失败</p>
+            <p className="mt-1 text-ink-faint text-[10px] break-all">{convError}</p>
+            <button
+              onClick={loadConversations}
+              className="mt-3 px-3 py-1.5 rounded-lg border border-paper-deep/40 text-ink-faint hover:text-ink hover:bg-paper-warm/60 transition-colors cursor-pointer"
+            >
+              重试
+            </button>
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="text-[11px] text-ink-ghost text-center py-8 leading-relaxed">
+            <p>还没有对话</p>
+            <p className="mt-1">先在好友页面加好友</p>
+          </div>
+        ) : (
+          <div className="py-1">
+            {conversations.map((conv) => {
+              const friend = conv.members.find(m => m.user_id !== currentUserId) ?? conv.members[0];
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => setSelectedConvId(conv.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors cursor-pointer hover:bg-paper-warm/60 ${
+                    selectedConvId === conv.id ? "bg-paper-warm/80" : ""
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-bamboo-mist/60 flex items-center justify-center text-[11px] font-display font-bold text-bamboo shrink-0">
+                    {friend?.display_name?.charAt(0).toUpperCase() ?? "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-medium text-ink truncate">
+                      {friend?.display_name ?? "未知用户"}
+                    </p>
+                    {conv.last_message && (
+                      <p className="text-[10px] text-ink-ghost truncate mt-0.5">
+                        {conv.last_message.content}
+                      </p>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-[9px] text-ink-faint font-mono">
+                    {conv.last_message
+                      ? new Date(conv.last_message.created_at).toLocaleTimeString("zh-CN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ==========================================
+  // 渲染：中间区域
+  // ==========================================
+  const renderCenter = () => (
+    <div className="flex-1 flex flex-col min-w-0">
+      {/* 模式切换栏 */}
+      <div className="shrink-0 flex items-center justify-between h-11 px-4 border-b border-paper-deep/20 bg-paper/80 backdrop-blur-sm">
+        <div className="flex items-center gap-1 bg-paper-warm/80 rounded-lg p-0.5 border border-paper-deep/15">
+          <button
+            onClick={() => setCenterMode("document")}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
+              centerMode === "document"
+                ? "bg-cloud text-ink shadow-sm"
+                : "text-ink-ghost hover:text-ink-soft"
+            }`}
+          >
+            <DocumentIcon size={13} />
+            文档
+          </button>
+          <button
+            onClick={() => setCenterMode("canvas")}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
+              centerMode === "canvas"
+                ? "bg-cloud text-ink shadow-sm"
+                : "text-ink-ghost hover:text-ink-soft"
+            }`}
+          >
+            <CanvasIcon size={13} />
+            画布
           </button>
         </div>
 
-        <div className="cowrite-sidebar-body">
-          {sessions.length === 0 ? (
-            <div className="cowrite-empty-state">
-              <p>暂无共笔会话</p>
-              <button className="cowrite-btn-new" onClick={() => setShowNewDialog(true)}>
-                + 新建共笔
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="cowrite-session-toolbar">
-                <select
-                  className="cowrite-session-select"
-                  value={activeSessionId ?? ""}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    if (id) void loadSession(id);
-                  }}
-                >
-                  {sessions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {IDENTITY_OPTIONS.find((o) => o.key === s.identity)?.label ?? s.identity}·{" "}
-                      {s.blockCount} 段
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="cowrite-btn-icon"
-                  title="删除当前会话"
-                  onClick={() => {
-                    if (activeSessionId) void handleDelete(activeSessionId);
-                  }}
-                  disabled={!activeSessionId}
-                >
-                  🗑
-                </button>
-                <button
-                  className="cowrite-btn-new"
-                  onClick={() => setShowNewDialog(true)}
-                  title="新建共笔会话"
-                >
-                  +
-                </button>
-              </div>
-
-              {errorMessage && <div className="cowrite-error-bar">{errorMessage}</div>}
-
-              {!activeSession ? (
-                <div className="cowrite-placeholder">选择一个共笔会话开始</div>
-              ) : (
-                <>
-                  {/* 状态条（点击展开统计） */}
-                  <div className="cowrite-status-bar" onClick={() => setStatsExpanded((v) => !v)}>
-                    <span className="cowrite-status-identity">
-                      {IDENTITY_OPTIONS.find((o) => o.key === activeSession.identity)?.label ??
-                        activeSession.identity}
-                    </span>
-                    <span className="cowrite-status-turn">
-                      {aiLoading ? "AI 思考中" : currentTurn === "human" ? "轮到你了" : "轮到 AI"}
-                    </span>
-                    <span className="cowrite-status-count">
-                      {stats ? `${stats.humanChars + stats.aiChars} 字` : ""}
-                    </span>
-                  </div>
-
-                  {/* 统计详情 */}
-                  {stats && statsExpanded && (
-                    <div className="cowrite-stats-detail">
-                      <div className="cowrite-stats-row">
-                        <span>
-                          人：{stats.humanChars} 字 / {stats.humanBlocks} 段
-                        </span>
-                        <span>
-                          AI：{stats.aiChars} 字 / {stats.aiBlocks} 段
-                        </span>
-                        <span>总轮次：{stats.totalTurns}</span>
-                      </div>
-                      <div className="cowrite-stats-bar-wrap">
-                        <div
-                          className="cowrite-stats-bar-human"
-                          style={{
-                            width: `${
-                              stats.humanChars + stats.aiChars === 0
-                                ? 50
-                                : (stats.humanChars / (stats.humanChars + stats.aiChars)) * 100
-                            }%`,
-                          }}
-                        />
-                        <div
-                          className="cowrite-stats-bar-ai"
-                          style={{
-                            width: `${
-                              stats.humanChars + stats.aiChars === 0
-                                ? 50
-                                : (stats.aiChars / (stats.humanChars + stats.aiChars)) * 100
-                            }%`,
-                          }}
-                        />
-                      </div>
-                      <div className="cowrite-stats-row">
-                        <span>会话时长：{formatDuration(stats.durationMs)}</span>
-                        <span>最后活跃：{formatRelativeTime(stats.lastActiveAt)}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 灵感注入 */}
-                  {activeSession.blocks.length === 0 && !aiLoading && (
-                    <div className="cowrite-inspiration-area">
-                      <p className="cowrite-inspiration-hint">不知道写什么？让 AI 给点灵感</p>
-                      <button
-                        className="cowrite-btn-inspiration"
-                        onClick={() => handleGetInspirations()}
-                        disabled={inspirationsLoading}
-                      >
-                        {inspirationsLoading ? "获取中…" : "获取灵感"}
-                      </button>
-                      {inspirations.length > 0 && (
-                        <div className="cowrite-inspiration-list">
-                          {inspirations.map((item, index) => (
-                            <div
-                              key={index}
-                              className="cowrite-inspiration-card"
-                              onClick={() => handleUseInspiration(item)}
-                            >
-                              <div className="cowrite-inspiration-title">{item.title}</div>
-                              <div className="cowrite-inspiration-snippet">{item.snippet}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 对话内容 */}
-                  <div ref={editRef} className="cowrite-content">
-                    {activeSession.blocks.map((block, i) => (
-                      <div
-                        key={i}
-                        className={`cowrite-block cowrite-author-${block.author} ${
-                          selectedBlocks.has(i) ? "selected" : ""
-                        } ${mergedBlockIndices.has(i) ? "merged" : ""}`}
-                        onClick={() => toggleBlock(i)}
-                        title={mergedBlockIndices.has(i) ? "已合并到笔记" : ""}
-                      >
-                        <span className="cowrite-block-author">
-                          {block.author === "human" ? "你" : "AI"}
-                          {mergedBlockIndices.has(i) && (
-                            <span className="cowrite-block-merged-badge">✓</span>
-                          )}
-                        </span>
-                        <p className="cowrite-block-text">{block.text}</p>
-                        {block.author === "ai" && (
-                          <button
-                            className="cowrite-btn-regenerate"
-                            title="重新生成"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRegenerate();
-                            }}
-                            disabled={aiLoading}
-                          >
-                            ⟳
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {activeSession.blocks.length === 0 && (
-                      <div className="cowrite-content-empty">开始写第一段吧</div>
-                    )}
-                  </div>
-
-                  {/* 输入区 */}
-                  {currentTurn === "human" && !aiLoading && (
-                    <div className="cowrite-input-area">
-                      <textarea
-                        className="cowrite-input"
-                        value={humanInput}
-                        onChange={(e) => setHumanInput(e.target.value)}
-                        placeholder="写一段…"
-                        rows={3}
-                        disabled={aiLoading}
-                      />
-                      <div className="cowrite-input-actions">
-                        <button
-                          className="cowrite-btn-undo"
-                          onClick={() => handleUndo()}
-                          disabled={activeSession.blocks.length === 0}
-                        >
-                          撤回
-                        </button>
-                        <button
-                          className={`cowrite-btn-auto ${autoTurn ? "active" : ""}`}
-                          onClick={() => setAutoTurn((v) => !v)}
-                        >
-                          {autoTurn ? "手动模式" : "自动续写"}
-                        </button>
-                        <button
-                          className="cowrite-btn-submit"
-                          onClick={() => handleHumanSubmit()}
-                          disabled={!humanInput.trim()}
-                        >
-                          提交
-                        </button>
-                        {!autoTurn && (
-                          <button
-                            className="cowrite-btn-ai"
-                            onClick={() => handleAITurn()}
-                            disabled={aiLoading}
-                          >
-                            轮到 AI
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {currentTurn === "ai" && !aiLoading && (
-                    <div className="cowrite-input-area">
-                      <div className="cowrite-input-actions">
-                        <button
-                          className="cowrite-btn-undo"
-                          onClick={() => handleUndo()}
-                          disabled={activeSession.blocks.length === 0}
-                        >
-                          撤回
-                        </button>
-                        <button className="cowrite-btn-ai" onClick={() => handleAITurn()}>
-                          轮到 AI
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 合并操作 */}
-                  {activeSession.blocks.length > 0 && (
-                    <div className="cowrite-merge-bar">
-                      <span className="cowrite-merge-hint">点击段落选中，合并到笔记</span>
-                      <button
-                        className="cowrite-btn-merge"
-                        onClick={() => handleMerge()}
-                        disabled={
-                          selectedBlocks.size === 0 ||
-                          Array.from(selectedBlocks).some((i) => mergedBlockIndices.has(i))
-                        }
-                      >
-                        合并 ({selectedBlocks.size})
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
+        <button
+          onClick={() => setRightVisible(!rightVisible)}
+          className="px-2 py-1 rounded text-[10px] text-ink-ghost hover:text-ink hover:bg-paper-warm/60 transition-colors cursor-pointer"
+        >
+          {rightVisible ? "隐藏侧栏" : "显示侧栏"}
+        </button>
       </div>
 
-      {/* 右侧主界面：当前笔记原文 */}
-      <div className="cowrite-main">
-        <div className="cowrite-main-header">
-          <div className="cowrite-main-title">
-            <span className="cowrite-main-title-label">当前笔记</span>
-            <span className="cowrite-main-title-text" title={noteTitle ?? noteId}>
-              {noteTitle || "（无标题）"}
-            </span>
-          </div>
-        </div>
-        <div className="cowrite-note-content">
-          {noteContent ? (
-            <pre className="cowrite-note-content-text">{noteContent}</pre>
-          ) : (
-            <div className="cowrite-note-content-empty">暂无内容</div>
-          )}
-        </div>
+      {/* 内容区 */}
+      <div className="flex-1 min-h-0">
+        {centerMode === "document" ? (
+          <DocumentMode
+            selectedDocId={selectedDocId}
+            docTitle={docTitle}
+            onDocTitleChange={setDocTitle}
+          />
+        ) : (
+          <CanvasMode conversationId={selectedConvId} />
+        )}
+      </div>
+    </div>
+  );
+
+  // ==========================================
+  // 渲染：右侧栏
+  // ==========================================
+  const rightTabs: { key: RightTab; label: string; icon: React.ReactNode }[] = [
+    { key: "chat", label: "聊天", icon: <ChatIcon size={13} /> },
+    { key: "shared", label: "共享文件", icon: <SharedIcon size={13} /> },
+    { key: "local", label: "笔记", icon: <NotesIcon size={13} /> },
+  ];
+
+  const renderRightPanel = () => (
+    <div className="flex flex-col h-full">
+      {/* Tab 切换按钮 */}
+      <div className="shrink-0 flex items-center border-b border-paper-deep/20 bg-paper/50">
+        {rightTabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setRightTab(tab.key)}
+            className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors cursor-pointer border-b-2 -mb-[1px] ${
+              rightTab === tab.key
+                ? "text-bamboo border-bamboo"
+                : "text-ink-ghost border-transparent hover:text-ink-soft"
+            }`}
+            title={tab.label}
+          >
+            {tab.icon}
+          </button>
+        ))}
       </div>
 
-      {/* 新建会话弹窗 */}
-      {showNewDialog && (
-        <div className="cowrite-dialog-overlay" onClick={() => setShowNewDialog(false)}>
-          <div className="cowrite-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>新建共笔会话</h3>
+      {/* Tab 内容 */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {rightTab === "chat" && (
+          <ChatPanel conversationId={selectedConvId} currentUserId={currentUserId} />
+        )}
+        {rightTab === "shared" && (
+          <SharedFiles conversationId={selectedConvId} />
+        )}
+        {rightTab === "local" && <LocalFiles />}
+      </div>
+    </div>
+  );
 
-            <div className="cowrite-section-label">选择场景（可选）</div>
-            <div className="cowrite-scenario-grid">
-              {SCENARIO_PRESETS.map((scenario) => (
-                <div
-                  key={scenario.key}
-                  className={`cowrite-scenario-card ${
-                    selectedScenarioKey === scenario.key ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setSelectedScenarioKey(scenario.key);
-                    setSelectedIdentity(scenario.identity);
-                    setCustomPrompt(scenario.systemPrompt);
-                  }}
-                >
-                  <div className="cowrite-scenario-icon">{scenario.icon}</div>
-                  <div className="cowrite-scenario-label">{scenario.label}</div>
-                  <div className="cowrite-scenario-desc">{scenario.description}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="cowrite-section-label">AI 身份</div>
-            <div className="cowrite-identity-grid">
-              {IDENTITY_OPTIONS.map((opt) => (
-                <div
-                  key={opt.key}
-                  className={`cowrite-identity-card ${
-                    selectedIdentity === opt.key ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setSelectedIdentity(opt.key);
-                    if (selectedScenarioKey) {
-                      setSelectedScenarioKey(null);
-                      if (opt.key !== "custom") setCustomPrompt("");
-                    }
-                  }}
-                >
-                  <div className="cowrite-identity-label">{opt.label}</div>
-                  <div className="cowrite-identity-desc">{opt.desc}</div>
-                </div>
-              ))}
-            </div>
-            {selectedIdentity === "custom" && (
-              <textarea
-                className="cowrite-custom-prompt"
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="输入自定义 Prompt…"
-                rows={3}
-              />
-            )}
-            <div className="cowrite-dialog-actions">
-              <button className="cowrite-btn-cancel" onClick={() => setShowNewDialog(false)}>
-                取消
-              </button>
-              <button className="cowrite-btn-create" onClick={() => handleCreate()}>
-                创建
-              </button>
-            </div>
-          </div>
+  // ==========================================
+  // 主渲染
+  // ==========================================
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ backgroundColor: "var(--color-paper)" }}>
+      <div className="flex-1 flex min-h-0">
+        {/* 左栏：会话列表 */}
+        <div className="shrink-0 w-[220px] border-r border-paper-deep/20 bg-paper/50 flex flex-col">
+          {renderLeftPanel()}
         </div>
-      )}
+
+        {/* 中栏：文档/画布 */}
+        {renderCenter()}
+
+        {/* 右栏：聊天/文件 */}
+        {rightVisible && (
+          <div className="shrink-0 w-[260px] border-l border-paper-deep/20 bg-paper/50 flex flex-col">
+            {renderRightPanel()}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

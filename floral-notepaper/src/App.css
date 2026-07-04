@@ -1549,3 +1549,86 @@ input::placeholder {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── 画布布料质感 ──
+ * 不覆盖 tldraw 内部 CSS 变量，直接在容器上设置背景，
+ * 让 tldraw 背景透明来透出容器颜色，彻底避免层叠冲突 */
+.canvas-fabric {
+  position: relative;
+  isolation: isolate;
+  /* 暖麻色底，明显区别于页面 #f8f8f8 */
+  background-color: #dcd3c6;
+  border-radius: 6px;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+/* 纹理叠加层 */
+.canvas-fabric::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent 6px,
+      rgba(0, 0, 0, 0.022) 6px,
+      rgba(0, 0, 0, 0.008) 8px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 6px,
+      rgba(0, 0, 0, 0.018) 6px,
+      rgba(0, 0, 0, 0.006) 8px
+    ),
+    repeating-radial-gradient(
+      circle at 4px 4px,
+      rgba(0, 0, 0, 0.025) 0,
+      transparent 2px
+    );
+  background-size:
+    8px 100%,
+    100% 8px,
+    14px 14px;
+  border-radius: inherit;
+}
+
+/* 让 tldraw 自身背景透明，透出我们的容器背景 */
+.canvas-fabric .tl-background {
+  background-color: transparent !important;
+}
+
+:root[data-theme="dark"] .canvas-fabric {
+  background-color: #1c1a17;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme="dark"] .canvas-fabric::after {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent 6px,
+      rgba(255, 255, 255, 0.028) 6px,
+      rgba(255, 255, 255, 0.012) 8px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 6px,
+      rgba(255, 255, 255, 0.022) 6px,
+      rgba(255, 255, 255, 0.01) 8px
+    ),
+    repeating-radial-gradient(
+      circle at 4px 4px,
+      rgba(255, 255, 255, 0.022) 0,
+      transparent 2px
+    );
+  background-size:
+    8px 100%,
+    100% 8px,
+    14px 14px;
+}
