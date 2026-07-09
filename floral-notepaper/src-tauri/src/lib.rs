@@ -3,7 +3,9 @@ pub mod locales;
 pub mod services;
 
 use locales::Locale;
+use services::canvas::{canvas_delete, canvas_get, canvas_list, canvas_save, CanvasStore};
 use services::cowrite::{self, CoWriteSession, CoWriteSessionSummary, MergeToNoteResult};
+use services::ink::{ink_append_events, ink_clear, ink_get_session, ink_list_sessions, InkStore};
 use services::notes::{default_store, AppConfig, AppError, Note, NoteMetadata, SaveNoteRequest};
 use services::stats;
 use std::{fs, path::PathBuf};
@@ -40,8 +42,9 @@ fn notes_update(app: AppHandle, id: String, request: SaveNoteRequest) -> Result<
 }
 
 #[tauri::command]
-fn notes_delete(app: AppHandle, id: String) -> Result<(), AppError> {
+fn notes_delete(app: AppHandle, id: String, store: tauri::State<InkStore>) -> Result<(), AppError> {
     default_store()?.delete_note(&id)?;
+    let _ = store.clear_note_ink(&id);
     let _ = app.emit("notes-changed", ());
     Ok(())
 }
@@ -417,6 +420,8 @@ pub fn run() {
                 let scope = app.asset_protocol_scope();
                 let _ = scope.allow_directory(base.join("images"), true);
                 let _ = scope.allow_directory(base.join("backgrounds"), true);
+                app.manage(InkStore::new(base));
+                app.manage(CanvasStore::new(base));
             }
             desktop::setup_desktop(app)?;
             Ok(())
@@ -466,7 +471,15 @@ pub fn run() {
             cowrite_delete_session,
             cowrite_replace_last_ai,
             cowrite_undo_last,
-            set_document_edited
+            set_document_edited,
+            ink_append_events,
+            ink_list_sessions,
+            ink_get_session,
+            ink_clear,
+            canvas_save,
+            canvas_get,
+            canvas_delete,
+            canvas_list
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

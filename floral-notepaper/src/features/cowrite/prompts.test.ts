@@ -65,12 +65,7 @@ describe("cowrite prompts", () => {
 
   it("has 4 scenario presets", () => {
     expect(SCENARIO_PRESETS).toHaveLength(4);
-    expect(SCENARIO_PRESETS.map((s) => s.key)).toEqual([
-      "letter",
-      "story",
-      "debate",
-      "diary",
-    ]);
+    expect(SCENARIO_PRESETS.map((s) => s.key)).toEqual(["letter", "story", "debate", "diary"]);
   });
 
   it("looks up scenario by key", () => {

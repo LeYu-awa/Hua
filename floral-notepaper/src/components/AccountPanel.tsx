@@ -179,7 +179,9 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
                 )}
               </div>
               <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                <span className="text-[9px] text-white opacity-0 group-hover:opacity-100 transition-opacity">更换</span>
+                <span className="text-[9px] text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  更换
+                </span>
               </div>
               <input
                 type="file"
@@ -228,7 +230,15 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
                     }}
                     className="w-5 h-5 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-soft cursor-pointer"
                   >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    >
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                     </svg>
@@ -261,12 +271,8 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
               {syncStatus === "syncing" ? "同步中..." : "下载配置"}
             </button>
           </div>
-          {syncStatus === "done" && (
-            <p className="text-[11px] text-bamboo mt-2">同步完成</p>
-          )}
-          {syncStatus === "error" && (
-            <p className="text-[11px] text-red-400 mt-2">同步失败</p>
-          )}
+          {syncStatus === "done" && <p className="text-[11px] text-bamboo mt-2">同步完成</p>}
+          {syncStatus === "error" && <p className="text-[11px] text-red-400 mt-2">同步失败</p>}
         </Card>
 
         {/* 登出 */}
@@ -350,7 +356,10 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
               <>
                 还没有账号？{" "}
                 <button
-                  onClick={() => { setMode("register"); setError(""); }}
+                  onClick={() => {
+                    setMode("register");
+                    setError("");
+                  }}
                   className="text-bamboo hover:underline cursor-pointer"
                 >
                   注册
@@ -360,7 +369,10 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
               <>
                 已有账号？{" "}
                 <button
-                  onClick={() => { setMode("login"); setError(""); }}
+                  onClick={() => {
+                    setMode("login");
+                    setError("");
+                  }}
                   className="text-bamboo hover:underline cursor-pointer"
                 >
                   登录

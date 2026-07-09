@@ -35,6 +35,7 @@ import {
   resolveTileColor,
 } from "../features/settings/tileColor";
 import type { TileColorMode } from "../features/settings/types";
+import { useInkRecorder } from "../hooks/useInkRecorder";
 import { shouldSaveBeforeSwitchingToTile } from "../features/windows/noteSurfaceSavePolicy";
 import {
   NOTE_SURFACE_ACTION_EVENT,
@@ -51,6 +52,7 @@ import {
   tileSurfaceModeUnpinNoteId,
 } from "../features/windows/tileWindowEvents";
 import { Tile } from "./Tile";
+import { WritingCompanion } from "./WritingCompanion";
 
 type OpenMode = "new" | "open";
 type NotePadStatus = "empty" | "opened" | "saved" | "dirty" | "saveFailed" | "copied";
@@ -130,12 +132,26 @@ export function NotePad({
   const [tileColorMode, setTileColorMode] = useState<TileColorMode>("system");
   const [surfaceFontSize, setSurfaceFontSize] = useState(14);
   const [tileRenderMarkdown, setTileRenderMarkdown] = useState(false);
+  const [agentEnabled, setAgentEnabled] = useState(false);
+  const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [tileColor, setTileColor] = useState(() =>
     resolveTileColor("system", normalizeTileColor(initialTileColor)),
   );
   const [isExiting, setIsExiting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const inkRecorder = useInkRecorder({
+    noteId: editingNoteId ?? "",
+    source: "notepad",
+    enabled: agentEnabled,
+  });
+  const {
+    initValue: initInkValue,
+    recordTextChange,
+    recordCursor,
+    recordPaste,
+    flush: flushInk,
+  } = inkRecorder;
   const isStandby = useRef(
     typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).get("standby") === "1",
@@ -167,13 +183,17 @@ export function NotePad({
     return loadedNotes;
   }, []);
 
-  const applyNote = useCallback((note: Note) => {
-    setEditingNoteId(note.id);
-    setTitle(note.title);
-    setContent(note.content);
-    setMode("new");
-    setStatus("opened");
-  }, []);
+  const applyNote = useCallback(
+    (note: Note) => {
+      setEditingNoteId(note.id);
+      setTitle(note.title);
+      setContent(note.content);
+      initInkValue(note.content);
+      setMode("new");
+      setStatus("opened");
+    },
+    [initInkValue],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -185,6 +205,7 @@ export function NotePad({
           setNoteSurfaceAutoSave(loadedConfig.noteSurfaceAutoSave);
           setSurfaceFontSize(loadedConfig.surfaceFontSize ?? 14);
           setTileRenderMarkdown(loadedConfig.tileRenderMarkdown ?? false);
+          setAgentEnabled(loadedConfig.agentEnabled ?? false);
           setTileColorRaw(normalizeTileColor(loadedConfig.tileColor));
           setTileColorMode(loadedConfig.tileColorMode ?? "system");
           setTileColor(
@@ -239,6 +260,7 @@ export function NotePad({
       tileColorMode?: TileColorMode;
       surfaceFontSize?: number;
       tileRenderMarkdown?: boolean;
+      agentEnabled?: boolean;
     }>("config-changed", (event) => {
       const mode = event.payload.tileColorMode ?? tileColorMode;
       const raw = event.payload.tileColor ?? tileColorRaw;
@@ -248,6 +270,7 @@ export function NotePad({
       if (event.payload.surfaceFontSize != null) setSurfaceFontSize(event.payload.surfaceFontSize);
       if (event.payload.tileRenderMarkdown != null)
         setTileRenderMarkdown(event.payload.tileRenderMarkdown);
+      if (event.payload.agentEnabled != null) setAgentEnabled(event.payload.agentEnabled);
     });
     return () => {
       void unlisten.then((fn) => fn());
@@ -717,10 +740,57 @@ export function NotePad({
                   data-tab-indent="true"
                   value={content}
                   onChange={(event) => {
-                    setContent(event.target.value);
+                    const nextValue = event.target.value;
+                    setContent(nextValue);
                     setStatus("dirty");
+                    setLastActivityAt(Date.now());
+                    recordTextChange(
+                      nextValue,
+                      event.target.selectionStart,
+                      event.target.selectionEnd,
+                    );
                   }}
-                  onPaste={imagePasteHandler}
+                  onSelect={(event) => {
+                    const target = event.currentTarget;
+                    setLastActivityAt(Date.now());
+                    recordCursor(target.selectionStart, target.selectionEnd);
+                  }}
+                  onKeyUp={(event) => {
+                    const target = event.currentTarget;
+                    setLastActivityAt(Date.now());
+                    recordCursor(target.selectionStart, target.selectionEnd);
+                  }}
+                  onMouseUp={(event) => {
+                    const target = event.currentTarget;
+                    setLastActivityAt(Date.now());
+                    recordCursor(target.selectionStart, target.selectionEnd);
+                  }}
+                  onBlur={() => {
+                    const textarea = contentRef.current;
+                    if (textarea) {
+                      recordCursor(textarea.selectionStart, textarea.selectionEnd);
+                    }
+                    flushInk();
+                  }}
+                  onPaste={(event) => {
+                    setLastActivityAt(Date.now());
+                    const clipboardText = event.clipboardData.getData("text");
+                    const textarea = contentRef.current;
+                    if (clipboardText && textarea) {
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const value = textarea.value;
+                      const newValue = `${value.slice(0, start)}${clipboardText}${value.slice(end)}`;
+                      recordPaste(
+                        clipboardText,
+                        newValue,
+                        start,
+                        start + clipboardText.length,
+                        start + clipboardText.length,
+                      );
+                    }
+                    imagePasteHandler(event);
+                  }}
                   onDrop={imageDropHandler}
                   onDragOver={imageDragOverHandler}
                   onKeyDown={(event) => {
@@ -827,6 +897,12 @@ export function NotePad({
           <SurfaceResizeHandles />
         </div>
       )}
+      <WritingCompanion
+        enabled={agentEnabled && editingNoteId !== null}
+        thresholdMs={20_000}
+        lastActivityAt={lastActivityAt}
+        position="bottom-left"
+      />
     </div>
   );
 }

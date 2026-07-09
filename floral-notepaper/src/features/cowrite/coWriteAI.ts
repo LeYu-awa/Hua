@@ -7,21 +7,16 @@ function getActiveApiConfig(providers: ProviderConfig[]): {
   apiKey: string;
   modelId: string;
 } | null {
-  const enabled = providers.filter(
-    (p) => p.enabled && p.models.length > 0,
-  );
+  const enabled = providers.filter((p) => p.enabled && p.models.length > 0);
   if (enabled.length === 0) return null;
 
   // 优先选 DeepSeek
-  const ds = enabled.find((p) =>
-    p.name.toLowerCase().includes("deepseek"),
-  );
+  const ds = enabled.find((p) => p.name.toLowerCase().includes("deepseek"));
   const provider = ds ?? enabled[0];
   const model = provider.models[0];
   if (!model) return null;
 
-  const apiUrl =
-    provider.baseUrl.replace(/\/+$/, "") + provider.apiPath;
+  const apiUrl = provider.baseUrl.replace(/\/+$/, "") + provider.apiPath;
 
   return {
     apiUrl,
@@ -30,7 +25,7 @@ function getActiveApiConfig(providers: ProviderConfig[]): {
   };
 }
 
-async function callChatCompletion(
+export async function callChatCompletion(
   providers: ProviderConfig[],
   messages: Array<{ role: string; content: string }>,
   temperature = 0.8,
@@ -77,8 +72,7 @@ async function callChatCompletion(
   const data = await response.json();
   console.log("[coWriteAI] response data", data);
 
-  const content: string =
-    data.choices?.[0]?.message?.content ?? "（未收到回复）";
+  const content: string = data.choices?.[0]?.message?.content ?? "（未收到回复）";
 
   console.log("[coWriteAI] extracted content", content);
   return content.trim();
@@ -109,7 +103,7 @@ export async function regenerateCoWriteAITurn(
   return callChatCompletion(providers, messages, 1.0);
 }
 
-function extractJsonArray<T>(text: string): T[] {
+export function extractJsonArray<T>(text: string): T[] {
   // 先尝试直接从文本中解析 JSON
   try {
     const parsed = JSON.parse(text);

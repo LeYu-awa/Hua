@@ -29,7 +29,13 @@ function buildInitialMessages(title: string, content: string): Message[] {
   ];
 }
 
-export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }: DeepSeekChatProps) {
+export function DeepSeekChat({
+  open,
+  onClose,
+  docTitle,
+  docContent,
+  providers,
+}: DeepSeekChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,10 +59,7 @@ export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }:
   );
 
   // 选中供应商的模型列表
-  const activeModels = useMemo(
-    () => activeProvider?.models ?? [],
-    [activeProvider],
-  );
+  const activeModels = useMemo(() => activeProvider?.models ?? [], [activeProvider]);
 
   // 选中的模型
   const activeModel = useMemo(
@@ -68,9 +71,7 @@ export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }:
   useEffect(() => {
     if (enabledProviders.length > 0 && !selectedProviderId) {
       // 优先选 DeepSeek
-      const ds = enabledProviders.find(
-        (p) => p.name.toLowerCase().includes("deepseek"),
-      );
+      const ds = enabledProviders.find((p) => p.name.toLowerCase().includes("deepseek"));
       const provider = ds ?? enabledProviders[0];
       setSelectedProviderId(provider.id);
       setSelectedModelId(provider.models[0]?.modelId ?? "");
@@ -181,7 +182,8 @@ export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }:
       const usage = data.usage ?? {};
       const inputTokens = (usage.prompt_tokens as number) ?? 0;
       const outputTokens = (usage.completion_tokens as number) ?? 0;
-      const cachedTokens = (usage.prompt_cache_hit_tokens as number) ?? (usage.cached_tokens as number) ?? 0;
+      const cachedTokens =
+        (usage.prompt_cache_hit_tokens as number) ?? (usage.cached_tokens as number) ?? 0;
       if (inputTokens + outputTokens + cachedTokens > 0) {
         void logUsage(activeProvider.name, inputTokens, outputTokens, cachedTokens);
       }
@@ -251,7 +253,9 @@ export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }:
                   className="h-6 px-1.5 rounded-md bg-paper-warm/60 border border-paper-deep/30 text-[11px] font-mono text-ink-soft cursor-pointer outline-none max-w-[100px] truncate"
                 >
                   {enabledProviders.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
 
@@ -263,7 +267,9 @@ export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }:
                     className="h-6 px-1.5 rounded-md bg-paper-warm/60 border border-paper-deep/30 text-[10px] font-mono text-ink-faint cursor-pointer outline-none max-w-[120px] truncate"
                   >
                     {activeModels.map((m) => (
-                      <option key={m.modelId} value={m.modelId}>{m.displayName}</option>
+                      <option key={m.modelId} value={m.modelId}>
+                        {m.displayName}
+                      </option>
                     ))}
                   </select>
                 )}
@@ -271,9 +277,7 @@ export function DeepSeekChat({ open, onClose, docTitle, docContent, providers }:
                 <span className="text-[10px] text-ink-ghost">· 分析当前文档</span>
               </div>
             ) : (
-              <span className="text-[11px] text-ink-ghost">
-                请先在设置中添加并启用供应商
-              </span>
+              <span className="text-[11px] text-ink-ghost">请先在设置中添加并启用供应商</span>
             )}
           </div>
 

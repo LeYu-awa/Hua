@@ -13,18 +13,18 @@ export interface NoteSyncData {
 // ─── 配置同步 ───
 
 export async function uploadConfig(userId: string, config: AppConfig): Promise<void> {
-  const { error } = await supabase
-    .from("config_sync")
-    .upsert(
-      { user_id: userId, config: config as unknown as Record<string, unknown>, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" },
-    );
+  const { error } = await supabase.from("config_sync").upsert(
+    {
+      user_id: userId,
+      config: config as unknown as Record<string, unknown>,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
   if (error) throw error;
 }
 
-export async function downloadConfig(
-  userId: string,
-): Promise<AppConfig | null> {
+export async function downloadConfig(userId: string): Promise<AppConfig | null> {
   const { data, error } = await supabase
     .from("config_sync")
     .select("config")
@@ -46,20 +46,18 @@ export async function uploadNote(
     word_count?: number;
   },
 ): Promise<void> {
-  const { error } = await supabase
-    .from("notes_sync")
-    .upsert(
-      {
-        id: note.id,
-        user_id: userId,
-        title: note.title ?? null,
-        content: note.content ?? null,
-        file_name: note.file_name ?? null,
-        word_count: note.word_count ?? 0,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id,user_id" },
-    );
+  const { error } = await supabase.from("notes_sync").upsert(
+    {
+      id: note.id,
+      user_id: userId,
+      title: note.title ?? null,
+      content: note.content ?? null,
+      file_name: note.file_name ?? null,
+      word_count: note.word_count ?? 0,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id,user_id" },
+  );
   if (error) throw error;
 }
 
@@ -73,10 +71,7 @@ export async function downloadNotes(userId: string): Promise<NoteSyncData[]> {
   return (data as NoteSyncData[]) ?? [];
 }
 
-export async function deleteNote(
-  userId: string,
-  noteId: string,
-): Promise<void> {
+export async function deleteNote(userId: string, noteId: string): Promise<void> {
   const { error } = await supabase
     .from("notes_sync")
     .delete()

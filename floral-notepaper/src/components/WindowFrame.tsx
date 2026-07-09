@@ -64,7 +64,15 @@ export function WindowFrame({ children }: WindowFrameProps) {
               className="w-7 h-7 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-soft hover:bg-paper-warm transition-colors cursor-pointer"
               title="最小化"
             >
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
                 <path d="M2 6h8" />
               </svg>
             </button>
@@ -75,13 +83,29 @@ export function WindowFrame({ children }: WindowFrameProps) {
               title={isMaximized ? "还原" : "最大化"}
             >
               {isMaximized ? (
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
                   <rect x="1.5" y="5" width="5.5" height="5.5" rx="0.5" />
                   <path d="M5 1.5V3.3a1.8 1.8 0 0 0 1.8 1.8h1.7" />
                   <rect x="5" y="5" width="5.5" height="5.5" rx="0.5" fill="none" />
                 </svg>
               ) : (
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
                   <rect x="2" y="2" width="8" height="8" rx="0.8" />
                 </svg>
               )}
@@ -92,7 +116,15 @@ export function WindowFrame({ children }: WindowFrameProps) {
               className="w-7 h-7 flex items-center justify-center rounded-md text-ink-ghost hover:text-white hover:bg-red-500 transition-colors cursor-pointer"
               title="关闭"
             >
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
                 <path d="M2 2l8 8M10 2l-8 8" />
               </svg>
             </button>
@@ -101,9 +133,7 @@ export function WindowFrame({ children }: WindowFrameProps) {
       </div>
 
       {/* ── content ── */}
-      <div className="flex-1 min-h-0">
-        {children}
-      </div>
+      <div className="flex-1 min-h-0">{children}</div>
     </div>
   );
 }

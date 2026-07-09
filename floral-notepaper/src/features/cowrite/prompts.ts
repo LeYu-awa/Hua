@@ -1,8 +1,4 @@
-import type {
-  CoWriteIdentity,
-  CoWriteScenario,
-  CoWriteSession,
-} from "./types";
+import type { CoWriteIdentity, CoWriteScenario, CoWriteSession } from "./types";
 import { blocksToText } from "./coWriteUtils";
 
 export interface IdentityPreset {
@@ -157,10 +153,7 @@ export function getScenario(key: string): ScenarioPreset | undefined {
   return SCENARIO_PRESETS.find((s) => s.key === key);
 }
 
-export function getSystemPrompt(
-  identity: CoWriteIdentity,
-  customPrompt?: string,
-): string {
+export function getSystemPrompt(identity: CoWriteIdentity, customPrompt?: string): string {
   if (customPrompt && customPrompt.trim()) {
     return customPrompt;
   }

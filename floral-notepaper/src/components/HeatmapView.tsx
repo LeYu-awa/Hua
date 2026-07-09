@@ -12,11 +12,11 @@ interface HeatmapViewProps {
 }
 
 const LEVEL_COLORS = [
-  "#E5E5E5",   // 0 — 浅灰（可见但低调）
-  "#DCFCE7",   // 1 — 淡绿
-  "#BBF7D0",   // 2 — 浅绿
-  "#86EFAC",   // 3 — 中绿
-  "#4ADE80",   // 4 — 亮绿
+  "#E5E5E5", // 0 — 浅灰（可见但低调）
+  "#DCFCE7", // 1 — 淡绿
+  "#BBF7D0", // 2 — 浅绿
+  "#86EFAC", // 3 — 中绿
+  "#4ADE80", // 4 — 亮绿
 ];
 
 function getLevel(count: number): number {
@@ -194,11 +194,7 @@ export function HeatmapView({ data, cellSize = 12, cellGap = 5 }: HeatmapViewPro
           <div style={{ width: 8 }} />
 
           {/* cell grid */}
-          <div
-            ref={gridRef}
-            className="relative"
-            style={{ width: gridWidth, height: gridHeight }}
-          >
+          <div ref={gridRef} className="relative" style={{ width: gridWidth, height: gridHeight }}>
             {slots.map((date, slotIndex) => {
               if (date === null) return null;
               const weekIndex = Math.floor(slotIndex / 7);
@@ -240,14 +236,10 @@ export function HeatmapView({ data, cellSize = 12, cellGap = 5 }: HeatmapViewPro
             transform: "translateX(-50%)",
           }}
         >
-          <div
-            className="bg-cloud border border-paper-deep rounded-lg px-2.5 py-1.5 shadow-[0_8px_18px_rgba(0,0,0,0.12)]"
-          >
+          <div className="bg-cloud border border-paper-deep rounded-lg px-2.5 py-1.5 shadow-[0_8px_18px_rgba(0,0,0,0.12)]">
             {tooltip.count > 0 ? (
               <>
-                <span className="text-[11px] font-semibold text-ink">
-                  {tooltip.count} 次记录
-                </span>
+                <span className="text-[11px] font-semibold text-ink">{tooltip.count} 次记录</span>
                 <span className="text-[11px] text-ink-faint"> 于 </span>
               </>
             ) : (

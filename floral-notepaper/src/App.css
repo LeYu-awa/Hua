@@ -22,6 +22,10 @@
   --color-bamboo-glow: #c8e6d2;
   --color-stone: #6b6b62;
   --color-cloud: #fcfcfc;
+  --color-canvas-card: #ffffff;
+  --color-canvas-card-hover: #f5f5f5;
+  --color-canvas-border: #d0d0d0;
+  --color-canvas-grid: rgba(0, 0, 0, 0.06);
   --color-shadow: rgba(0, 0, 0, 0.04);
   --color-shadow-deep: rgba(0, 0, 0, 0.08);
   --color-danger-bg: #fef2f2;
@@ -54,6 +58,10 @@
   --color-bamboo-glow: #243a2c;
   --color-stone: #8a8880;
   --color-cloud: #1a1a1a;
+  --color-canvas-card: #3a3a3a;
+  --color-canvas-card-hover: #484848;
+  --color-canvas-border: #5a5a5a;
+  --color-canvas-grid: rgba(255, 255, 255, 0.05);
   --color-shadow: rgba(0, 0, 0, 0.2);
   --color-shadow-deep: rgba(0, 0, 0, 0.4);
   --color-danger-bg: rgba(220, 38, 38, 0.15);

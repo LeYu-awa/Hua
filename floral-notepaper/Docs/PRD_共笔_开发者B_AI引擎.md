@@ -6,15 +6,15 @@
 
 ## 功能清单
 
-| 功能 | 状态 |
-|---|---|
+| 功能                | 状态      |
+| ------------------- | --------- |
 | 5 种 AI 身份 Prompt | ✅ 已实现 |
-| DeepSeek 共笔调用 | ✅ 已实现 |
-| 侧边栏入口 + 导航 | ✅ 已实现 |
-| 共笔页面样式 | ✅ 已实现 |
-| 重新生成 | 🆕 待实现 |
-| 场景模板（4 种） | 🆕 待实现 |
-| 灵感注入 | 🆕 待实现 |
+| DeepSeek 共笔调用   | ✅ 已实现 |
+| 侧边栏入口 + 导航   | ✅ 已实现 |
+| 共笔页面样式        | ✅ 已实现 |
+| 重新生成            | 🆕 待实现 |
+| 场景模板（4 种）    | 🆕 待实现 |
+| 灵感注入            | 🆕 待实现 |
 
 ---
 
@@ -31,6 +31,7 @@
 5. 后端：新增 `cowrite_replace_last_ai(sessionId, newText)` 命令
 
 涉及修改：
+
 - `coWriteAI.ts`：新增 `regenerateCoWriteAITurn(...)` 函数
 - `coWritePage.tsx` 中 AI 段落加重新生成按钮（这是 B 告诉 A 做的 UI 改动，B 负责 AI 逻辑即可）
 
@@ -38,24 +39,24 @@
 
 预设 4 种共笔场景，每个场景自带 AI 身份预设和开场白：
 
-| 场景 | 图标 | AI 身份 | System Prompt 核心 | AI 开场白 |
-|---|---|---|---|---|
-| 写信 | ✉️ | 续写者 | "你正在一起写一封书信。保持书信格式，语气真挚。" | "见字如面。最近还好吗？" |
-| 故事接龙 | 📖 | 续写者 | "你正在一起编故事。每次写一小段，留下悬念。" | "那个雨夜，门突然响了。" |
-| 辩论 | ⚔️ | 反对者 | "你站在对立面进行辩论。观点鲜明但不攻击。" | "我不同意你的看法——" |
-| 随笔日记 | 🌿 | 诗意者 | "你在一起写随笔。轻盈、即兴、有生活气息。" | "今天的天气让人想起……" |
+| 场景     | 图标 | AI 身份 | System Prompt 核心                               | AI 开场白                |
+| -------- | ---- | ------- | ------------------------------------------------ | ------------------------ |
+| 写信     | ✉️   | 续写者  | "你正在一起写一封书信。保持书信格式，语气真挚。" | "见字如面。最近还好吗？" |
+| 故事接龙 | 📖   | 续写者  | "你正在一起编故事。每次写一小段，留下悬念。"     | "那个雨夜，门突然响了。" |
+| 辩论     | ⚔️   | 反对者  | "你站在对立面进行辩论。观点鲜明但不攻击。"       | "我不同意你的看法——"     |
+| 随笔日记 | 🌿   | 诗意者  | "你在一起写随笔。轻盈、即兴、有生活气息。"       | "今天的天气让人想起……"   |
 
 数据结构：
 
 ```typescript
 interface CoWriteScenario {
-  key: string;          // "letter" | "story" | "debate" | "diary"
+  key: string; // "letter" | "story" | "debate" | "diary"
   label: string;
   icon: string;
   description: string;
   identity: CoWriteIdentity;
   systemPrompt: string;
-  openingLine: string;  // AI 自动写的第一段
+  openingLine: string; // AI 自动写的第一段
 }
 ```
 
@@ -76,8 +77,8 @@ API 调用：
 ```typescript
 async function generateInspirations(
   noteContent: string,
-  providers: ProviderConfig[]
-): Promise<{ title: string; snippet: string }[]>
+  providers: ProviderConfig[],
+): Promise<{ title: string; snippet: string }[]>;
 ```
 
 内部 prompt：
@@ -97,18 +98,18 @@ async function generateInspirations(
 
 ### 新建（已完成）
 
-| 文件 | 说明 | 状态 |
-|---|---|---|
-| `src/features/cowrite/prompts.ts` | AI 身份 Prompt + 场景模板 | 需更新 🆕 |
-| `src/features/cowrite/coWriteAI.ts` | DeepSeek 调用 | 需更新 🆕 |
+| 文件                                | 说明                      | 状态      |
+| ----------------------------------- | ------------------------- | --------- |
+| `src/features/cowrite/prompts.ts`   | AI 身份 Prompt + 场景模板 | 需更新 🆕 |
+| `src/features/cowrite/coWriteAI.ts` | DeepSeek 调用             | 需更新 🆕 |
 
 ### 修改（已完成）
 
-| 文件 | 改动 | 状态 |
-|---|---|---|
-| `src/App.tsx` | CoWritePage 路由 | ✅ |
-| `src/components/AppSidebar.tsx` | 侧边栏入口 + 图标 | ✅ |
-| `src/App.css` | 共笔样式 | ✅ |
+| 文件                            | 改动              | 状态 |
+| ------------------------------- | ----------------- | ---- |
+| `src/App.tsx`                   | CoWritePage 路由  | ✅   |
+| `src/components/AppSidebar.tsx` | 侧边栏入口 + 图标 | ✅   |
+| `src/App.css`                   | 共笔样式          | ✅   |
 
 ---
 
@@ -132,14 +133,14 @@ async function regenerateCoWriteAITurn(
   session: CoWriteSession,
   identity: CoWriteIdentity,
   customPrompt: string | undefined,
-  providers: ProviderConfig[]
-): Promise<string>
+  providers: ProviderConfig[],
+): Promise<string>;
 
 // 生成 3 个写作灵感
 async function generateInspirations(
   noteContent: string,
-  providers: ProviderConfig[]
-): Promise<{ title: string; snippet: string }[]>
+  providers: ProviderConfig[],
+): Promise<{ title: string; snippet: string }[]>;
 
 // 调整 temperature（原来的 0.8 改为可配置）
 async function requestCoWriteAITurn(
@@ -147,30 +148,30 @@ async function requestCoWriteAITurn(
   identity: CoWriteIdentity,
   customPrompt: string | undefined,
   providers: ProviderConfig[],
-  temperature?: number
-): Promise<string>
+  temperature?: number,
+): Promise<string>;
 ```
 
 ## AI Prompt 设计说明
 
 ### 5 种身份（不变）
 
-| 身份 | Prompt 核心规则 |
-|---|---|
+| 身份   | Prompt 核心规则                 |
+| ------ | ------------------------------- |
 | 续写者 | 写 1-3 句，顺着风格延续，不评价 |
 | 追问者 | 只写 1 个问题，精准深挖，不回答 |
-| 反对者 | 写 1-2 句反例或质疑，礼貌锐利 |
+| 反对者 | 写 1-2 句反例或质疑，礼貌锐利   |
 | 诗意者 | 写 1-2 句诗意的描写，具体有画面 |
-| 自定义 | 用户自行输入完整 system prompt |
+| 自定义 | 用户自行输入完整 system prompt  |
 
 ### 4 种场景模板（🆕）
 
-| 场景 | AI 身份 | Prompt 特征 |
-|---|---|---|
-| 写信 | 续写者 | 书信格式、真挚语气 |
-| 故事接龙 | 续写者 | 每段留悬念、叙事驱动 |
-| 辩论 | 反对者 | 观点鲜明、不攻击 |
-| 随笔日记 | 诗意者 | 轻盈即兴、生活气息 |
+| 场景     | AI 身份 | Prompt 特征          |
+| -------- | ------- | -------------------- |
+| 写信     | 续写者  | 书信格式、真挚语气   |
+| 故事接龙 | 续写者  | 每段留悬念、叙事驱动 |
+| 辩论     | 反对者  | 观点鲜明、不攻击     |
+| 随笔日记 | 诗意者  | 轻盈即兴、生活气息   |
 
 ### 上下文传递格式（不变）
 
