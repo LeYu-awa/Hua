@@ -82,6 +82,12 @@ pub struct AppConfig {
     pub providers: Vec<ProviderConfig>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub default_models: BTreeMap<String, Option<String>>,
+    #[serde(default = "default_agent_enabled")]
+    pub agent_enabled: bool,
+    #[serde(default = "default_agent_nudge_threshold_ms")]
+    pub agent_nudge_threshold_ms: u32,
+    #[serde(default = "default_agent_data_retention_days")]
+    pub agent_data_retention_days: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -162,7 +168,7 @@ pub struct AppError {
 }
 
 impl AppError {
-    fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
@@ -805,6 +811,9 @@ impl NoteStore {
             open_at_cursor: default_open_at_cursor(),
             providers: vec![],
             default_models: BTreeMap::new(),
+            agent_enabled: default_agent_enabled(),
+            agent_nudge_threshold_ms: default_agent_nudge_threshold_ms(),
+            agent_data_retention_days: default_agent_data_retention_days(),
         }
     }
 
@@ -1173,6 +1182,18 @@ fn default_locale() -> String {
     "zh-CN".into()
 }
 
+fn default_agent_enabled() -> bool {
+    false
+}
+
+fn default_agent_nudge_threshold_ms() -> u32 {
+    20_000
+}
+
+fn default_agent_data_retention_days() -> u32 {
+    30
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1324,6 +1345,9 @@ mod tests {
             open_at_cursor: true,
             providers: Vec::new(),
             default_models: Default::default(),
+            agent_enabled: false,
+            agent_nudge_threshold_ms: 20_000,
+            agent_data_retention_days: 30,
         };
 
         store.save_config(saved.clone()).expect("save config");

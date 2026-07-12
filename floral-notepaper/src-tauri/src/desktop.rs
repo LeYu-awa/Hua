@@ -1590,9 +1590,13 @@ fn open_or_focus_window(
     // Floating tile surfaces stay frameless; notepad and other windows use the
     // native macOS title bar.
     let use_native_titlebar = !label.starts_with("tile-");
-    let window =
-        apply_native_chrome(builder, opts.decorations, visual_options.transparent, use_native_titlebar)
-            .build()?;
+    let window = apply_native_chrome(
+        builder,
+        opts.decorations,
+        visual_options.transparent,
+        use_native_titlebar,
+    )
+    .build()?;
 
     apply_window_bounds(&window, opts.bounds)?;
 
@@ -2317,6 +2321,9 @@ mod tests {
             toggle_visibility_shortcut: "Ctrl+Shift+K".into(),
             providers: Vec::new(),
             default_models: Default::default(),
+            agent_enabled: false,
+            agent_nudge_threshold_ms: 20_000,
+            agent_data_retention_days: 30,
         };
 
         let error = match shortcut_bindings_from_config(&config) {
@@ -2385,6 +2392,9 @@ mod tests {
             toggle_visibility_shortcut: String::new(),
             providers: Vec::new(),
             default_models: Default::default(),
+            agent_enabled: false,
+            agent_nudge_threshold_ms: 20_000,
+            agent_data_retention_days: 30,
         };
         let next = AppConfig {
             locale: "en-US".into(),
@@ -2419,6 +2429,9 @@ mod tests {
             toggle_visibility_shortcut: "Ctrl+Shift+H".into(),
             providers: Vec::new(),
             default_models: Default::default(),
+            agent_enabled: false,
+            agent_nudge_threshold_ms: 20_000,
+            agent_data_retention_days: 30,
         };
 
         assert_eq!(

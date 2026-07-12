@@ -1,8 +1,9 @@
 import type { AuthorBlock, CoWriteSession, CoWriteStats } from "./types";
 
-export function splitBlocksByAuthor(
-  blocks: AuthorBlock[],
-): { human: AuthorBlock[]; ai: AuthorBlock[] } {
+export function splitBlocksByAuthor(blocks: AuthorBlock[]): {
+  human: AuthorBlock[];
+  ai: AuthorBlock[];
+} {
   const human: AuthorBlock[] = [];
   const ai: AuthorBlock[] = [];
   for (const block of blocks) {
@@ -63,14 +64,8 @@ export function computeCoWriteStats(session: CoWriteSession): CoWriteStats {
     else aiBlocks.push(block);
   }
 
-  const humanChars = humanBlocks.reduce(
-    (sum, b) => sum + b.text.replace(/\s/g, "").length,
-    0,
-  );
-  const aiChars = aiBlocks.reduce(
-    (sum, b) => sum + b.text.replace(/\s/g, "").length,
-    0,
-  );
+  const humanChars = humanBlocks.reduce((sum, b) => sum + b.text.replace(/\s/g, "").length, 0);
+  const aiChars = aiBlocks.reduce((sum, b) => sum + b.text.replace(/\s/g, "").length, 0);
 
   const lastActiveAt =
     session.blocks.length > 0

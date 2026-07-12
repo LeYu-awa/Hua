@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  requestCoWriteAITurn,
-  regenerateCoWriteAITurn,
-  generateInspirations,
-} from "./coWriteAI";
+import { requestCoWriteAITurn, regenerateCoWriteAITurn, generateInspirations } from "./coWriteAI";
 import type { CoWriteSession } from "./types";
 import type { ProviderConfig } from "../settings/types";
 
@@ -42,12 +38,7 @@ describe("requestCoWriteAITurn", () => {
     const providers = [createProvider()];
     const session = createSession();
 
-    const result = await requestCoWriteAITurn(
-      session,
-      "continuator",
-      undefined,
-      providers,
-    );
+    const result = await requestCoWriteAITurn(session, "continuator", undefined, providers);
 
     expect(result).toBe("AI generated reply");
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -74,8 +65,16 @@ describe("requestCoWriteAITurn", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const providers = [
-      createProvider({ id: "other", name: "Other", models: [{ modelId: "m-other", displayName: "Other" }] }),
-      createProvider({ id: "deepseek", name: "My DeepSeek", models: [{ modelId: "m-ds", displayName: "DS" }] }),
+      createProvider({
+        id: "other",
+        name: "Other",
+        models: [{ modelId: "m-other", displayName: "Other" }],
+      }),
+      createProvider({
+        id: "deepseek",
+        name: "My DeepSeek",
+        models: [{ modelId: "m-ds", displayName: "DS" }],
+      }),
     ];
 
     await requestCoWriteAITurn(createSession(), "continuator", undefined, providers);
@@ -149,11 +148,13 @@ describe("generateInspirations", () => {
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [{
-          message: {
-            content: `[{"title":"回忆","snippet":"那天下午的阳光……"},{"title":"冲突","snippet":"他突然停下脚步——"},{"title":"细节","snippet":"桌角的咖啡已经凉了。"}]`,
+        choices: [
+          {
+            message: {
+              content: `[{"title":"回忆","snippet":"那天下午的阳光……"},{"title":"冲突","snippet":"他突然停下脚步——"},{"title":"细节","snippet":"桌角的咖啡已经凉了。"}]`,
+            },
           },
-        }],
+        ],
       }),
     });
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -170,11 +171,14 @@ describe("generateInspirations", () => {
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [{
-          message: {
-            content: "```json\n[{\"title\":\"A\",\"snippet\":\"a\"},{\"title\":\"B\",\"snippet\":\"b\"},{\"title\":\"C\",\"snippet\":\"c\"}]\n```",
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n[{"title":"A","snippet":"a"},{"title":"B","snippet":"b"},{"title":"C","snippet":"c"}]\n```',
+            },
           },
-        }],
+        ],
       }),
     });
     global.fetch = fetchMock as unknown as typeof fetch;

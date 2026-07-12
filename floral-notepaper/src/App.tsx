@@ -8,6 +8,8 @@ import { AppSidebar } from "./components/AppSidebar";
 import { SettingsPage } from "./components/SettingsPage";
 import { DashboardPage } from "./components/DashboardPage";
 import { InkPlaybackPage } from "./components/InkPlaybackPage";
+import { CanvasPage } from "./components/CanvasPage";
+import { WritingReportPage } from "./components/WritingReportPage";
 import { CoWritePage } from "./components/CoWritePage";
 import { ElysiaPage } from "./components/ElysiaPage";
 import { WindowFrame } from "./components/WindowFrame";
@@ -230,7 +232,15 @@ function App() {
             {sidebarView === "home" ? (
               <DashboardPage />
             ) : sidebarView === "playback" ? (
-              <InkPlaybackPage />
+              <InkPlaybackPage noteId={currentNoteId} />
+            ) : sidebarView === "canvas" ? (
+              <CanvasPage
+                documentId={`canvas-${currentNoteId || "draft"}`}
+                noteId={currentNoteId}
+                providers={providers}
+              />
+            ) : sidebarView === "report" ? (
+              <WritingReportPage noteId={currentNoteId} providers={providers} />
             ) : sidebarView === "cowrite" ? (
               <CoWritePage
                 providers={providers}

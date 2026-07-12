@@ -57,4 +57,10 @@ export interface AppConfig {
   backgroundPositionY?: number;
   providers?: ProviderConfig[];
   defaultModels?: Record<string, string | null>;
+  /** Agent 总开关，默认关闭 */
+  agentEnabled?: boolean;
+  /** 停顿提示阈值，单位毫秒，默认 20000 */
+  agentNudgeThresholdMs?: number;
+  /** Agent 数据保留天数，默认 30 */
+  agentDataRetentionDays?: number;
 }

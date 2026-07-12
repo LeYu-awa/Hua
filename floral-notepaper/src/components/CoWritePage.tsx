@@ -142,9 +142,10 @@ export function CoWritePage({
     setInspirations([]);
     listCoWriteSessions(noteId)
       .then((list) => {
-        setSessions(list);
-        if (list.length > 0) {
-          void loadSession(list[0].id);
+        const sessions = Array.isArray(list) ? list : [];
+        setSessions(sessions);
+        if (sessions.length > 0) {
+          void loadSession(sessions[0].id);
         }
       })
       .catch((e) => {

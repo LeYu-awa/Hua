@@ -17,6 +17,9 @@ import { normalizeTileColor } from "../features/settings/tileColor";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { DeepSeekChat } from "./DeepSeekChat";
 import { SettingsPanel } from "./SettingsPanel";
+import { WritingCompanion } from "./WritingCompanion";
+import { ConnectionSuggestions } from "./ConnectionSuggestions";
+import { WritingMoodIndicator } from "./WritingMoodIndicator";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
 import {
   createNote,
@@ -37,6 +40,7 @@ import {
 import { cleanUnusedImages } from "../features/images/api";
 import { useImagePaste } from "../features/images/useImagePaste";
 import { useImageBaseDir } from "../features/images/useImageBaseDir";
+import { useInkRecorder } from "../hooks/useInkRecorder";
 import type { ExternalFile, Note, NoteMetadata } from "../features/notes/types";
 import {
   countNoteChars,
@@ -340,6 +344,7 @@ export function MainWindow({
   );
   const [textColorPaletteOpen, setTextColorPaletteOpen] = useState(false);
   const [highlightPaletteOpen, setHighlightPaletteOpen] = useState(false);
+  const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [sidebarWidth, setSidebarWidth] = useState(200);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.5);
@@ -359,6 +364,19 @@ export function MainWindow({
   const skipNextNotesChangedRef = useRef(false);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+
+  const inkRecorder = useInkRecorder({
+    noteId: selectedId ?? "",
+    source: "main",
+    enabled: Boolean(settingsConfig?.agentEnabled),
+  });
+  const {
+    initValue: initInkValue,
+    recordTextChange,
+    recordCursor,
+    recordPaste,
+    flush: flushInk,
+  } = inkRecorder;
 
   const selectedNote = useMemo(
     () => notes.find((note) => note.id === selectedId) ?? null,
@@ -488,26 +506,33 @@ export function MainWindow({
   );
   const charCount = useMemo(() => countNoteChars(content), [content]);
 
-  const applyNote = useCallback((note: Note, options?: { preserveDirty?: boolean }) => {
-    if (
-      options?.preserveDirty &&
-      selectedIdRef.current === note.id &&
-      saveStateRef.current === "dirty"
-    ) {
-      return;
-    }
-    setSelectedId(note.id);
-    setTitle(note.title);
-    contentRefValue.current = note.content;
-    setContent(note.content);
-    setSaveState("saved");
-    setErrorMessage(null);
-    console.log("[MainWindow] applyNote -> onCurrentNoteChange", { id: note.id, title: note.title });
-    onCurrentNoteChange?.({ id: note.id, content: note.content });
-    if (selectedIdRef.current !== note.id) {
-      setNoteTransitionKey((k) => k + 1);
-    }
-  }, [onCurrentNoteChange]);
+  const applyNote = useCallback(
+    (note: Note, options?: { preserveDirty?: boolean }) => {
+      if (
+        options?.preserveDirty &&
+        selectedIdRef.current === note.id &&
+        saveStateRef.current === "dirty"
+      ) {
+        return;
+      }
+      setSelectedId(note.id);
+      setTitle(note.title);
+      contentRefValue.current = note.content;
+      setContent(note.content);
+      initInkValue(note.content);
+      setSaveState("saved");
+      setErrorMessage(null);
+      console.log("[MainWindow] applyNote -> onCurrentNoteChange", {
+        id: note.id,
+        title: note.title,
+      });
+      onCurrentNoteChange?.({ id: note.id, content: note.content });
+      if (selectedIdRef.current !== note.id) {
+        setNoteTransitionKey((k) => k + 1);
+      }
+    },
+    [onCurrentNoteChange, initInkValue],
+  );
 
   const replaceNoteMetadata = useCallback((note: Note) => {
     const metadata = metadataFromNote(note);
@@ -847,7 +872,15 @@ export function MainWindow({
       setErrorMessage(getErrorMessage(error));
       return null;
     }
-  }, [isExternal, onCurrentNoteChange, replaceNoteMetadata, selectedExternalFile, selectedId, selectedNote, title]);
+  }, [
+    isExternal,
+    onCurrentNoteChange,
+    replaceNoteMetadata,
+    selectedExternalFile,
+    selectedId,
+    selectedNote,
+    title,
+  ]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -2195,7 +2228,16 @@ export function MainWindow({
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer"
                   title={t("main.window.quickNotepad", { defaultValue: "快捷便签" })}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M4 4h16v14H7l-3 3V4z" />
                     <path d="M8 9h8M8 13h5" />
                   </svg>
@@ -2205,7 +2247,16 @@ export function MainWindow({
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
                   title={t("main.window.settings", { defaultValue: "设置" })}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
@@ -2215,7 +2266,16 @@ export function MainWindow({
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer"
                   title="AI 助手"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     <path d="M8 10h.01M12 10h.01M16 10h.01" />
                   </svg>
@@ -2316,38 +2376,124 @@ export function MainWindow({
                           </button>
                         ))}
                         <div className="h-4 w-px bg-paper-deep/20 mx-0.5" />
-                        <div ref={colorPaletteRef} className="flex items-center gap-0.5" onMouseDown={(e) => e.stopPropagation()}>
+                        <div
+                          ref={colorPaletteRef}
+                          className="flex items-center gap-0.5"
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
                           <button
-                            onMouseDown={(e) => { e.preventDefault(); syncSelectedTextRange(); }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              syncSelectedTextRange();
+                            }}
                             onClick={toggleTextColorPalette}
                             disabled={!selectedId}
                             className="w-6 h-6 flex items-center justify-center rounded text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             title={selectionRangeRef.current ? "文字颜色" : "先在编辑区选中文本"}
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 3l4 8-4 2-4-2 4-8z" /><path d="M6 15a6 6 0 0 0 12 0" /><path d="M9 19h6" /></svg>
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            >
+                              <path d="M12 3l4 8-4 2-4-2 4-8z" />
+                              <path d="M6 15a6 6 0 0 0 12 0" />
+                              <path d="M9 19h6" />
+                            </svg>
                           </button>
                           {textColorPaletteOpen && (
                             <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-paper-deep/20 bg-paper/95 shadow-sm">
-                              <button type="button" disabled={!Boolean(selectedTextRange ?? selectionRangeRef.current)} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!(selectedTextRange ?? selectionRangeRef.current)) return; handleClearTextColor(); }} className="px-1.5 h-4 rounded text-[9px] text-ink-soft hover:text-bamboo cursor-pointer disabled:opacity-35">清除</button>
+                              <button
+                                type="button"
+                                disabled={!Boolean(selectedTextRange ?? selectionRangeRef.current)}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (!(selectedTextRange ?? selectionRangeRef.current)) return;
+                                  handleClearTextColor();
+                                }}
+                                className="px-1.5 h-4 rounded text-[9px] text-ink-soft hover:text-bamboo cursor-pointer disabled:opacity-35"
+                              >
+                                清除
+                              </button>
                               {TEXT_COLOR_OPTIONS.map((color) => (
-                                <button key={color} type="button" disabled={!Boolean(selectedTextRange ?? selectionRangeRef.current)} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!(selectedTextRange ?? selectionRangeRef.current)) return; handleApplyTextColor(color); }} className="w-4 h-4 rounded-full border border-paper-deep/30 hover:scale-110 transition-transform cursor-pointer disabled:opacity-35" style={{ backgroundColor: color }} />
+                                <button
+                                  key={color}
+                                  type="button"
+                                  disabled={
+                                    !Boolean(selectedTextRange ?? selectionRangeRef.current)
+                                  }
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!(selectedTextRange ?? selectionRangeRef.current)) return;
+                                    handleApplyTextColor(color);
+                                  }}
+                                  className="w-4 h-4 rounded-full border border-paper-deep/30 hover:scale-110 transition-transform cursor-pointer disabled:opacity-35"
+                                  style={{ backgroundColor: color }}
+                                />
                               ))}
                             </div>
                           )}
                           <button
-                            onMouseDown={(e) => { e.preventDefault(); syncSelectedTextRange(); }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              syncSelectedTextRange();
+                            }}
                             onClick={toggleHighlightPalette}
                             disabled={!selectedId}
                             className="w-6 h-6 flex items-center justify-center rounded text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             title={selectionRangeRef.current ? "荧光标记" : "先在编辑区选中文本"}
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 16l8-8 4 4-8 8H6z" /><path d="M14 6l4 4" /><path d="M4 20h8" /></svg>
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            >
+                              <path d="M6 16l8-8 4 4-8 8H6z" />
+                              <path d="M14 6l4 4" />
+                              <path d="M4 20h8" />
+                            </svg>
                           </button>
                           {highlightPaletteOpen && (
                             <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-paper-deep/20 bg-paper/95 shadow-sm">
-                              <button type="button" disabled={!Boolean(selectedTextRange ?? selectionRangeRef.current)} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!(selectedTextRange ?? selectionRangeRef.current)) return; handleClearHighlightColor(); }} className="px-1.5 h-4 rounded text-[9px] text-ink-soft hover:text-bamboo cursor-pointer disabled:opacity-35">清除</button>
+                              <button
+                                type="button"
+                                disabled={!Boolean(selectedTextRange ?? selectionRangeRef.current)}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (!(selectedTextRange ?? selectionRangeRef.current)) return;
+                                  handleClearHighlightColor();
+                                }}
+                                className="px-1.5 h-4 rounded text-[9px] text-ink-soft hover:text-bamboo cursor-pointer disabled:opacity-35"
+                              >
+                                清除
+                              </button>
                               {HIGHLIGHT_COLOR_OPTIONS.map((color) => (
-                                <button key={color} type="button" disabled={!Boolean(selectedTextRange ?? selectionRangeRef.current)} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!(selectedTextRange ?? selectionRangeRef.current)) return; handleApplyHighlightColor(color); }} className="w-4 h-4 rounded-sm border border-paper-deep/30 hover:scale-110 transition-transform cursor-pointer disabled:opacity-35" style={{ backgroundColor: color }} />
+                                <button
+                                  key={color}
+                                  type="button"
+                                  disabled={
+                                    !Boolean(selectedTextRange ?? selectionRangeRef.current)
+                                  }
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!(selectedTextRange ?? selectionRangeRef.current)) return;
+                                    handleApplyHighlightColor(color);
+                                  }}
+                                  className="w-4 h-4 rounded-sm border border-paper-deep/30 hover:scale-110 transition-transform cursor-pointer disabled:opacity-35"
+                                  style={{ backgroundColor: color }}
+                                />
                               ))}
                             </div>
                           )}
@@ -2364,14 +2510,60 @@ export function MainWindow({
                             contentRefValue.current = nextValue;
                             setContent(nextValue);
                             markDirty();
+                            setLastActivityAt(Date.now());
+                            recordTextChange(
+                              nextValue,
+                              event.target.selectionStart,
+                              event.target.selectionEnd,
+                            );
                           }}
-                          onSelect={syncSelectedTextRange}
-                          onKeyUp={syncSelectedTextRange}
-                          onMouseUp={syncSelectedTextRange}
+                          onSelect={(event) => {
+                            syncSelectedTextRange();
+                            setLastActivityAt(Date.now());
+                            recordCursor(
+                              event.currentTarget.selectionStart,
+                              event.currentTarget.selectionEnd,
+                            );
+                          }}
+                          onKeyUp={(event) => {
+                            syncSelectedTextRange();
+                            setLastActivityAt(Date.now());
+                            const target = event.currentTarget;
+                            recordCursor(target.selectionStart, target.selectionEnd);
+                          }}
+                          onMouseUp={(event) => {
+                            syncSelectedTextRange();
+                            setLastActivityAt(Date.now());
+                            const target = event.currentTarget;
+                            recordCursor(target.selectionStart, target.selectionEnd);
+                          }}
                           onBlur={() => {
                             syncSelectedTextRange();
+                            const textarea = contentRef.current;
+                            if (textarea) {
+                              recordCursor(textarea.selectionStart, textarea.selectionEnd);
+                            }
+                            flushInk();
                           }}
-                          onPaste={imagePasteHandler}
+                          onPaste={(event) => {
+                            setLastActivityAt(Date.now());
+                            const clipboardText = event.clipboardData.getData("text");
+                            const textarea = contentRef.current;
+                            if (clipboardText && textarea) {
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const value = textarea.value;
+                              const newValue = `${value.slice(0, start)}${clipboardText}${value.slice(end)}`;
+                              recordPaste(
+                                clipboardText,
+                                newValue,
+                                start,
+                                start + clipboardText.length,
+                                start + clipboardText.length,
+                              );
+                            }
+                            imagePasteHandler(event);
+                          }}
                           onDrop={imageDropHandler}
                           onDragOver={imageDragOverHandler}
                           className="relative w-full h-full leading-[1.9] text-ink-soft caret-bamboo font-body placeholder:text-ink-ghost/40 bg-transparent selection:bg-bamboo/30"
@@ -2384,6 +2576,13 @@ export function MainWindow({
                           })}
                           spellCheck={false}
                           disabled={!selectedId}
+                        />
+                        <ConnectionSuggestions
+                          noteId={selectedId ?? ""}
+                          noteTitle={title}
+                          noteContent={content}
+                          providers={settingsConfig?.providers ?? []}
+                          enabled={Boolean(settingsConfig?.agentEnabled) && selectedId !== null}
                         />
                       </div>
                     </div>
@@ -2446,6 +2645,11 @@ export function MainWindow({
 
             <div className="flex items-center justify-between px-4 h-7 border-t border-paper-deep/20 bg-paper/30 shrink-0">
               <div className="flex items-center gap-3">
+                <WritingMoodIndicator
+                  noteId={selectedId ?? ""}
+                  enabled={Boolean(settingsConfig?.agentEnabled) && selectedId !== null}
+                />
+                <span className="text-[10px] text-ink-ghost/40">|</span>
                 <span className="text-[10px] text-ink-ghost font-mono tabular-nums">
                   {t("main.statusBar.lineNumber", {
                     count: lineCount,
@@ -2617,6 +2821,12 @@ export function MainWindow({
           )}
         </div>
       )}
+      <WritingCompanion
+        enabled={Boolean(settingsConfig?.agentEnabled) && selectedId !== null}
+        thresholdMs={settingsConfig?.agentNudgeThresholdMs ?? 20_000}
+        lastActivityAt={lastActivityAt}
+        hidden={settingsOpen}
+      />
     </div>
   );
 }

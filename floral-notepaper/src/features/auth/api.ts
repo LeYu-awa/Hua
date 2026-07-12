@@ -22,11 +22,7 @@ export async function getSession() {
 }
 
 export async function getProfile(userId: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .single();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
   if (error) return null;
   return data as UserProfile;
 }
@@ -45,10 +41,7 @@ export async function updateProfile(
   return data as UserProfile;
 }
 
-export async function uploadAvatar(
-  userId: string,
-  file: File,
-): Promise<string | null> {
+export async function uploadAvatar(userId: string, file: File): Promise<string | null> {
   const fileExt = file.name.split(".").pop();
   const filePath = `avatars/${userId}.${fileExt}`;
 
@@ -57,16 +50,12 @@ export async function uploadAvatar(
     .upload(filePath, file, { upsert: true });
   if (uploadError) throw uploadError;
 
-  const { data: urlData } = supabase.storage
-    .from("avatars")
-    .getPublicUrl(filePath);
+  const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
   return urlData.publicUrl;
 }
 
-export function onAuthStateChange(
-  callback: (event: string, session: unknown) => void,
-) {
+export function onAuthStateChange(callback: (event: string, session: unknown) => void) {
   const { data } = supabase.auth.onAuthStateChange((event, session) => {
     callback(event, session);
   });

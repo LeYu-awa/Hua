@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { checkGlobalShortcut, chooseBackgroundImage } from "../features/settings/api";
+import { clearInkData } from "../features/ink/api";
 import type {
   AppConfig,
   BackgroundFit,
@@ -439,6 +440,44 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
             value={config.defaultViewMode}
             onChange={(v) => setConfigValue("defaultViewMode", v)}
           />
+        </section>
+
+        <section className="space-y-3 pt-2 border-t border-paper-deep/25">
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-body text-ink-faint">
+              {t("settings.agent.label", { defaultValue: "写作伙伴" })}
+            </label>
+            <span className="text-[10px] text-ink-ghost/70">
+              {t("settings.agent.localOnly", { defaultValue: "数据仅本地存储" })}
+            </span>
+          </div>
+          <ToggleRow
+            label={t("settings.agent.enable", { defaultValue: "开启写作伙伴" })}
+            checked={Boolean(config.agentEnabled)}
+            onChange={(checked) => setConfigValue("agentEnabled", checked)}
+          />
+          <RangeRow
+            label={t("settings.agent.nudgeThreshold", { defaultValue: "停顿提示时间" })}
+            value={config.agentNudgeThresholdMs ?? 20_000}
+            min={5_000}
+            max={60_000}
+            step={5_000}
+            format={(v) => `${v / 1000}s`}
+            onChange={(v) => setConfigValue("agentNudgeThresholdMs", v)}
+          />
+          <button
+            type="button"
+            onClick={() => void clearInkData()}
+            className="w-full h-9 rounded-lg px-2.5 text-[12px] text-ink-soft bg-paper-warm/45 border border-paper-deep/25 hover:bg-paper-warm transition-colors cursor-pointer"
+          >
+            {t("settings.agent.clearData", { defaultValue: "清除所有写作伙伴数据" })}
+          </button>
+          <p className="text-[10px] leading-relaxed text-ink-ghost/70">
+            {t("settings.agent.notice", {
+              defaultValue:
+                "开启后，花箴会记录你的输入、光标和停顿节奏，用于生成回放和温柔提示。数据只保存在本地，不会被上传到云端。",
+            })}
+          </p>
         </section>
 
         <section className="pt-2 border-t border-paper-deep/25">

@@ -19,7 +19,9 @@ export function DashboardPage({}: DashboardPageProps) {
   const [notes, setNotes] = useState<NoteMetadata[]>([]);
 
   useEffect(() => {
-    listNotes().then(setNotes).catch(() => {});
+    listNotes()
+      .then(setNotes)
+      .catch(() => {});
   }, []);
 
   const totalNotes = notes.length;
@@ -78,7 +80,9 @@ export function DashboardPage({}: DashboardPageProps) {
             {/* left: stats */}
             <div className="shrink-0">
               <h3 className="text-[15px] font-display font-bold text-ink mb-1">概览</h3>
-              <p className="text-[11px] text-ink-ghost mb-5">{totalNotes} 篇笔记 · {totalWords.toLocaleString()} 字</p>
+              <p className="text-[11px] text-ink-ghost mb-5">
+                {totalNotes} 篇笔记 · {totalWords.toLocaleString()} 字
+              </p>
               <div className="flex gap-6">
                 <div>
                   <div className="text-[28px] font-display font-bold text-bamboo">{totalNotes}</div>
@@ -97,7 +101,9 @@ export function DashboardPage({}: DashboardPageProps) {
 
             {/* right: heatmap */}
             <div className="flex-1 min-w-0">
-              <label className="block text-[12px] font-medium text-ink-soft mb-2">笔记活动热力图</label>
+              <label className="block text-[12px] font-medium text-ink-soft mb-2">
+                笔记活动热力图
+              </label>
               <HeatmapView data={heatmapData} />
             </div>
           </div>
@@ -118,7 +124,9 @@ export function DashboardPage({}: DashboardPageProps) {
                       <div className="text-[12px] font-medium text-ink-soft truncate">
                         {note.title || note.fileName}
                       </div>
-                      <div className="text-[10px] text-ink-ghost truncate mt-0.5">{note.preview}</div>
+                      <div className="text-[10px] text-ink-ghost truncate mt-0.5">
+                        {note.preview}
+                      </div>
                     </div>
                     <div className="text-[9px] text-ink-ghost font-mono ml-3 shrink-0">
                       {formatDate(new Date(note.updatedAt))}

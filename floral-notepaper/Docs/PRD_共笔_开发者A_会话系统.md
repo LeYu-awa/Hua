@@ -6,16 +6,16 @@
 
 ## 功能清单
 
-| 功能 | 状态 |
-|---|---|
+| 功能                        | 状态      |
+| --------------------------- | --------- |
 | 会话 CRUD（新建/切换/删除） | ✅ 已实现 |
-| AI 身份选择（5 种） | ✅ 已实现 |
-| 交替写作 | ✅ 已实现 |
-| 作者分色渲染 | ✅ 已实现 |
-| 合并到笔记 | ✅ 已实现 |
-| 写作统计面板 | 🆕 待实现 |
-| 撤回上一步 | 🆕 待实现 |
-| 一键续写模式 | 🆕 待实现 |
+| AI 身份选择（5 种）         | ✅ 已实现 |
+| 交替写作                    | ✅ 已实现 |
+| 作者分色渲染                | ✅ 已实现 |
+| 合并到笔记                  | ✅ 已实现 |
+| 写作统计面板                | 🆕 待实现 |
+| 撤回上一步                  | 🆕 待实现 |
+| 一键续写模式                | 🆕 待实现 |
 
 ---
 
@@ -58,6 +58,7 @@ interface CoWriteStats {
 5. 前端刷新 `activeSession`
 
 涉及修改：
+
 - `api.ts`：新增 `undoLastTurn(sessionId)`
 - `cowrite.rs`：新增 `undo_last_turn(session_id)` 方法
 - `lib.rs`：新增 `cowrite_undo_last` Tauri 命令
@@ -83,20 +84,20 @@ interface CoWriteStats {
 
 ### 新建（已完成）
 
-| 文件 | 说明 | 状态 |
-|---|---|---|
-| `src/features/cowrite/types.ts` | 数据模型定义 | ✅ |
-| `src/features/cowrite/api.ts` | Tauri 命令封装 | 需更新 🆕 |
-| `src/features/cowrite/coWriteUtils.ts` | 工具函数 | 需更新 🆕 |
-| `src/components/CoWritePage.tsx` | 共笔主页面 | 需更新 🆕 |
-| `src-tauri/src/services/cowrite.rs` | Rust 后端存储 | 需更新 🆕 |
+| 文件                                   | 说明           | 状态      |
+| -------------------------------------- | -------------- | --------- |
+| `src/features/cowrite/types.ts`        | 数据模型定义   | ✅        |
+| `src/features/cowrite/api.ts`          | Tauri 命令封装 | 需更新 🆕 |
+| `src/features/cowrite/coWriteUtils.ts` | 工具函数       | 需更新 🆕 |
+| `src/components/CoWritePage.tsx`       | 共笔主页面     | 需更新 🆕 |
+| `src-tauri/src/services/cowrite.rs`    | Rust 后端存储  | 需更新 🆕 |
 
 ### 修改（已完成）
 
-| 文件 | 改动 | 状态 |
-|---|---|---|
-| `src-tauri/src/services/mod.rs` | 加 `pub mod cowrite;` | ✅ |
-| `src-tauri/src/lib.rs` | Tauri 命令注册 | 需更新 🆕 |
+| 文件                            | 改动                  | 状态      |
+| ------------------------------- | --------------------- | --------- |
+| `src-tauri/src/services/mod.rs` | 加 `pub mod cowrite;` | ✅        |
+| `src-tauri/src/lib.rs`          | Tauri 命令注册        | 需更新 🆕 |
 
 ---
 
