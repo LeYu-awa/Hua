@@ -24,6 +24,17 @@ const BEHAVIOR_BG: Record<BehaviorType, string> = {
   停顿思考: "rgba(153,153,153,0.08)",
 };
 
+const REPLAY_MARKER_STYLE: Record<
+  ReplayMarker["markerType"],
+  { color: string; label: string }
+> = {
+  flow: { color: "#2a6a42", label: "进入状态" },
+  stuck: { color: "#b8860b", label: "停顿点" },
+  handoff: { color: "#c8a24a", label: "接力点" },
+  conflict: { color: "#c45c4a", label: "分歧点" },
+  consensus: { color: "#4a8db7", label: "共识点" },
+};
+
 function formatMs(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   const m = Math.floor(totalSec / 60);
@@ -136,6 +147,13 @@ export function InkPlaybackPage() {
     if (!selectedSession) return null;
     return analyzeInkSession(selectedSession.events);
   }, [selectedSession]);
+
+  // Agent 关键帧标记（场景十一）：规则版，纯本地、无需 embedding，随 session 变化
+  const agentMarkers = useMemo<ReplayMarker[]>(() => {
+    if (!analyzed) return [];
+    return ruleBasedMarkers(analyzed);
+  }, [analyzed]);
+  const [hoverMarker, setHoverMarker] = useState<ReplayMarker | null>(null);
 
   useEffect(() => {
     if (!noteId) {
@@ -589,6 +607,22 @@ export function InkPlaybackPage() {
             </div>
           )}
 
+          {hoverMarker && (
+            <div className="px-5 pt-2 pb-0 animate-fade-in">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-ink/80 text-cloud text-[11px]">
+                <span
+                  className="w-2 h-2 rotate-45 inline-block shrink-0"
+                  style={{ backgroundColor: REPLAY_MARKER_STYLE[hoverMarker.markerType].color }}
+                />
+                <span className="font-mono text-[10px] opacity-70">
+                  {formatMs(hoverMarker.time)}
+                </span>
+                <span className="font-medium">{hoverMarker.title}</span>
+                <span className="opacity-80">· {hoverMarker.summary}</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center px-5 py-2.5 gap-3">
             <span className="text-[10px] text-ink-ghost font-mono tabular-nums shrink-0 w-10 text-right">
               {selectedSummary ? formatTimeLabel(selectedSummary.startedAt) : "00:00"}
@@ -651,6 +685,35 @@ export function InkPlaybackPage() {
                           )?.type ?? "流畅创作"
                         ],
                     }}
+                  />
+                );
+              })}
+
+              {/* Agent 关键帧标记（场景十一）：菱形，位于时间轴上方，可点击跳转 */}
+              {agentMarkers.map((m, i) => {
+                const leftPct = (m.time / totalMs) * 100;
+                const style = REPLAY_MARKER_STYLE[m.markerType];
+                const isHovered = hoverMarker === m;
+                return (
+                  <button
+                    key={`agent-${i}`}
+                    type="button"
+                    className={`absolute -top-2 w-2.5 h-2.5 rotate-45 border border-cloud z-20 cursor-pointer transition-transform duration-150 ${
+                      isHovered ? "scale-150" : "scale-100"
+                    }`}
+                    style={{
+                      left: `calc(${leftPct}% - 5px)`,
+                      backgroundColor: style.color,
+                    }}
+                    title={`${style.label} · ${m.summary}`}
+                    onMouseEnter={() => setHoverMarker(m)}
+                    onMouseLeave={() => setHoverMarker(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPlaying(false);
+                      setPlaybackMs(m.time);
+                    }}
+                    aria-label={`${style.label} ${formatMs(m.time)}`}
                   />
                 );
               })}

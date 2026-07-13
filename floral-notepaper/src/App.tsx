@@ -232,6 +232,7 @@ function App() {
                 documentId={`canvas-${currentNoteId || "draft"}`}
                 noteId={currentNoteId}
                 providers={providers}
+                agentEnabled={Boolean(settingsConfig?.agentEnabled)}
               />
             ) : sidebarView === "report" ? (
               <WritingReportPage noteId={currentNoteId} providers={providers} />

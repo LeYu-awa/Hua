@@ -6,12 +6,16 @@ import {
   generateArchiveSuggestions,
   type ArchiveSuggestion,
 } from "../features/canvas/canvasArchive";
+import { useCanvasAgent } from "../features/agent/useCanvasAgent";
+import type { ImplicitConnection } from "../features/agent/connectionRecommendations";
 import type { ProviderConfig } from "../features/settings/types";
 
 interface CanvasPageProps {
   documentId: string;
   noteId?: string;
   providers: ProviderConfig[];
+  /** Agent 总开关：关闭时不显示任何 AI 建议 */
+  agentEnabled?: boolean;
   initialDocument?: CanvasDocument;
   onSave?: (doc: CanvasDocument) => void;
 }
@@ -29,6 +33,7 @@ export function CanvasPage({
   documentId,
   noteId,
   providers,
+  agentEnabled = false,
   initialDocument,
   onSave,
 }: CanvasPageProps) {
@@ -53,6 +58,54 @@ export function CanvasPage({
   const [archiveSuggestions, setArchiveSuggestions] = useState<ArchiveSuggestion[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveDismissed, setArchiveDismissed] = useState(false);
+
+  // ── Agent 智能覆盖层（场景一：隐含连接 / 场景二：语义空白区 / 场景三：共识分歧）──
+  const agent = useCanvasAgent(providers, agentEnabled);
+  const nodeById = useCallback(
+    (id: string) => doc.nodes.find((n) => n.id === id) ?? null,
+    [doc.nodes],
+  );
+
+  // 接受一条隐含连接建议：写入一条 dashed 连线（可追溯到来源两节点），并从建议列表移除
+  const acceptConnection = useCallback(
+    (c: ImplicitConnection) => {
+      setDoc((prev) => {
+        const exists = prev.edges.some(
+          (e) =>
+            (e.fromNodeId === c.sourceId && e.toNodeId === c.targetId) ||
+            (e.fromNodeId === c.targetId && e.toNodeId === c.sourceId),
+        );
+        if (exists) return prev;
+        return {
+          ...prev,
+          edges: [
+            ...prev.edges,
+            { id: generateId(), fromNodeId: c.sourceId, toNodeId: c.targetId, style: "dashed" },
+          ],
+        };
+      });
+      agent.dismissConnection(c.sourceId, c.targetId);
+    },
+    [agent],
+  );
+
+  // 语义空白区：为某个缺失视角生成半透明占位节点（source=agent）
+  const createPerspectiveNode = useCallback(
+    (perspective: string, area: { x: number; y: number }, index: number) => {
+      const newNode: CanvasNode = {
+        id: generateId(),
+        type: "text",
+        x: area.x,
+        y: area.y + index * 96,
+        width: NODE_DEFAULTS.text.width,
+        height: NODE_DEFAULTS.text.height,
+        text: perspective,
+        source: "agent",
+      };
+      setDoc((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -229,6 +282,51 @@ export function CanvasPage({
             ? t("canvas.archiving", { defaultValue: "分析中…" })
             : t("canvas.archive", { defaultValue: "智能归档" })}
         </button>
+        {agentEnabled && providers.length > 0 && (
+          <>
+            <div className="w-px h-5 bg-paper-deep/20" />
+            <button
+              type="button"
+              onClick={() => void agent.runConnections(doc.nodes, doc.edges)}
+              disabled={agent.loading.connection || doc.nodes.length < 2}
+              className="px-3 py-1.5 text-[12px] text-bamboo bg-bamboo-mist/50 hover:bg-bamboo-mist disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+            >
+              {agent.loading.connection
+                ? t("canvas.agentThinking", { defaultValue: "分析中…" })
+                : t("canvas.findConnections", { defaultValue: "发现连接" })}
+            </button>
+            <button
+              type="button"
+              onClick={() => void agent.runGap(doc.nodes)}
+              disabled={agent.loading.gap || doc.nodes.length < 5}
+              className="px-3 py-1.5 text-[12px] text-bamboo bg-bamboo-mist/50 hover:bg-bamboo-mist disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+              title={
+                doc.nodes.length < 5
+                  ? t("canvas.gapNeedsNodes", { defaultValue: "至少 5 个节点才能分析视角" })
+                  : undefined
+              }
+            >
+              {agent.loading.gap
+                ? t("canvas.agentThinking", { defaultValue: "分析中…" })
+                : t("canvas.findGaps", { defaultValue: "补充视角" })}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void agent.runDiscussion(
+                  t("canvas.discussionTopic", { defaultValue: "画布讨论" }),
+                  doc.nodes,
+                )
+              }
+              disabled={agent.loading.discussion || doc.nodes.length < 3}
+              className="px-3 py-1.5 text-[12px] text-bamboo bg-bamboo-mist/50 hover:bg-bamboo-mist disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+            >
+              {agent.loading.discussion
+                ? t("canvas.agentThinking", { defaultValue: "分析中…" })
+                : t("canvas.analyzeDiscussion", { defaultValue: "分析共识" })}
+            </button>
+          </>
+        )}
       </div>
 
       {selectedNodeId && (
@@ -282,6 +380,132 @@ export function CanvasPage({
         </div>
       )}
 
+      {/* 场景一：隐含连接建议气泡（定位在两节点连线中点，可接受/忽略） */}
+      {agent.connections.map((c) => {
+        const from = nodeById(c.sourceId);
+        const to = nodeById(c.targetId);
+        if (!from || !to) return null;
+        const midX = (from.x + from.width / 2 + to.x + to.width / 2) / 2;
+        const midY = (from.y + from.height / 2 + to.y + to.height / 2) / 2;
+        return (
+          <div
+            key={`bubble-${c.sourceId}-${c.targetId}`}
+            className="absolute z-20 w-[210px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-2.5 animate-fade-in"
+            style={{ left: midX, top: midY }}
+          >
+            <div className="text-[11px] text-ink-soft leading-relaxed">{c.message}</div>
+            <div className="mt-1 text-[9px] text-ink-ghost/70">
+              {t("canvas.similarity", { defaultValue: "相似度" })} {(c.similarity * 100).toFixed(0)}%
+            </div>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <button
+                type="button"
+                onClick={() => acceptConnection(c)}
+                className="flex-1 text-[10px] px-2 py-1 rounded-lg bg-bamboo text-cloud hover:bg-bamboo-light transition-colors cursor-pointer"
+              >
+                {t("canvas.connect", { defaultValue: "轻轻连起来" })}
+              </button>
+              <button
+                type="button"
+                onClick={() => agent.dismissConnection(c.sourceId, c.targetId)}
+                className="text-[10px] px-2 py-1 rounded-lg text-ink-ghost hover:bg-paper-deep/20 transition-colors cursor-pointer"
+              >
+                {t("common.ignore", { defaultValue: "忽略" })}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* 场景二：语义空白区提示（浮框 + 待补充视角，可生成占位节点） */}
+      {agent.gap && (
+        <div
+          className="absolute z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-3 animate-fade-in"
+          style={{
+            left: Math.max(16, Math.min(agent.gap.areaHint.x, 640)),
+            top: Math.max(72, Math.min(agent.gap.areaHint.y, 420)),
+          }}
+        >
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <span className="text-[11px] text-ink-soft leading-relaxed">{agent.gap.message}</span>
+            <button
+              type="button"
+              onClick={agent.dismissGap}
+              className="shrink-0 text-ink-ghost/60 hover:text-ink-ghost text-[10px] cursor-pointer"
+              aria-label={t("common.ignore", { defaultValue: "忽略" })}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1">
+            {agent.gap.missingPerspectives.map((p, i) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => agent.gap && createPerspectiveNode(p, agent.gap.areaHint, i)}
+                className="w-full text-left text-[10px] px-2 py-1 rounded-lg bg-bamboo-mist/50 text-bamboo hover:bg-bamboo-mist transition-colors cursor-pointer"
+              >
+                + {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 场景三：共识/分歧面板（分组光圈 + 桥梁方案） */}
+      {agent.discussion && (
+        <div className="absolute top-16 right-4 z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-paper-deep/20 shadow-lg p-3 animate-fade-in">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-medium text-ink-faint">
+              {t("canvas.discussionPanel", { defaultValue: "讨论结构" })}
+              {agent.discussion.status === "consensus"
+                ? " · " + t("canvas.consensus", { defaultValue: "趋于共识" })
+                : agent.discussion.status === "diverging"
+                  ? " · " + t("canvas.diverging", { defaultValue: "分歧加大" })
+                  : " · " + t("canvas.mixed", { defaultValue: "存在折中" })}
+            </span>
+            <button
+              type="button"
+              onClick={agent.dismissDiscussion}
+              className="text-ink-ghost/60 hover:text-ink-ghost text-[10px] cursor-pointer"
+              aria-label={t("common.ignore", { defaultValue: "忽略" })}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {agent.discussion.groups.map((g, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: g.color }}
+                />
+                <span className="text-[10px] text-ink-soft">{g.label}</span>
+                <span className="text-[9px] text-ink-ghost/70 ml-auto">
+                  {g.userIds.length} {t("canvas.people", { defaultValue: "人" })}
+                </span>
+              </div>
+            ))}
+          </div>
+          {agent.discussion.bridgeNodeIds.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-paper-deep/20 text-[10px] text-ink-ghost/80 leading-relaxed">
+              {t("canvas.bridgeHint", {
+                defaultValue: "有折中方案，或许能作为共识桥梁再聊聊。",
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 空结果轻提示（不静默，让用户知道分析已运行） */}
+      {(agent.emptyHint.connection || agent.emptyHint.gap || agent.emptyHint.discussion) && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-ink/75 text-cloud text-[10px] animate-fade-in pointer-events-none">
+          {providers.length === 0
+            ? t("canvas.agentNoProvider", { defaultValue: "未配置 AI，暂用规则分析（无结果）" })
+            : t("canvas.agentNoResult", { defaultValue: "这次没发现明显的可提示内容" })}
+        </div>
+      )}
+
       <svg
         ref={svgRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
@@ -326,6 +550,28 @@ export function CanvasPage({
           );
         })}
 
+        {/* Agent 隐含连接建议：淡色动态虚线（区别于用户连线，可忽略） */}
+        {agent.connections.map((c) => {
+          const from = nodeById(c.sourceId);
+          const to = nodeById(c.targetId);
+          if (!from || !to) return null;
+          return (
+            <line
+              key={`sugg-${c.sourceId}-${c.targetId}`}
+              x1={from.x + from.width / 2}
+              y1={from.y + from.height / 2}
+              x2={to.x + to.width / 2}
+              y2={to.y + to.height / 2}
+              stroke="var(--color-bamboo, #6a9a5b)"
+              strokeWidth="1.5"
+              strokeDasharray="4 5"
+              strokeLinecap="round"
+              opacity={0.55}
+              className="canvas-suggestion-line pointer-events-none"
+            />
+          );
+        })}
+
         {/* 节点 */}
         {doc.nodes.map((node) => (
           <g
@@ -342,9 +588,12 @@ export function CanvasPage({
               className={`transition-colors drop-shadow-sm ${
                 selectedNodeId === node.id
                   ? "fill-canvas-card-hover stroke-bamboo"
-                  : "fill-canvas-card stroke-canvas-border"
+                  : node.source === "agent"
+                    ? "fill-bamboo-mist/40 stroke-bamboo/50"
+                    : "fill-canvas-card stroke-canvas-border"
               }`}
               strokeWidth={selectedNodeId === node.id ? 2 : 1}
+              strokeDasharray={node.source === "agent" && selectedNodeId !== node.id ? "5 4" : undefined}
             />
             <foreignObject width={node.width} height={node.height}>
               <div className="w-full h-full p-2">

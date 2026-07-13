@@ -41,6 +41,9 @@ import { cleanUnusedImages } from "../features/images/api";
 import { useImagePaste } from "../features/images/useImagePaste";
 import { useImageBaseDir } from "../features/images/useImageBaseDir";
 import { useInkRecorder } from "../hooks/useInkRecorder";
+import type { InkEvent } from "../features/ink/types";
+import { assessAnxiety, DEFAULT_BASELINE } from "../features/agent/moodDetector";
+import { CooldownTracker } from "../features/agent/ruleEngine";
 import type { ExternalFile, Note, NoteMetadata } from "../features/notes/types";
 import {
   countNoteChars,
@@ -365,10 +368,36 @@ export function MainWindow({
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
+  // 场景四：焦虑推断 + 主动干预。收集最近 5 分钟编辑事件，超基线阈值时给出关怀（带冷却）。
+  const [anxietyMessage, setAnxietyMessage] = useState<string | null>(null);
+  const recentInkEventsRef = useRef<InkEvent[]>([]);
+  const anxietyCooldownRef = useRef(new CooldownTracker());
+  const ANXIETY_CARE_MESSAGES = [
+    "卡在这里了？先写别的段落也可以。",
+    "要不要先停一下，我在这儿。",
+    "别急，慢慢来就好。",
+  ];
+  const handleInkEvent = useCallback((event: InkEvent) => {
+    const now = event.timestamp;
+    const windowStart = now - 300_000;
+    const buffer = recentInkEventsRef.current;
+    buffer.push(event);
+    // 只保留 5 分钟窗口，防止无限增长
+    while (buffer.length > 0 && buffer[0].timestamp < windowStart) buffer.shift();
+
+    const assessment = assessAnxiety(buffer, DEFAULT_BASELINE, now);
+    if (assessment.shouldIntervene && anxietyCooldownRef.current.tryFire("anxiety", 180_000, now)) {
+      // 关怀文案随机取一句，避免机械重复；语气只关心、不评价
+      const idx = Math.abs(now) % ANXIETY_CARE_MESSAGES.length;
+      setAnxietyMessage(ANXIETY_CARE_MESSAGES[idx]);
+    }
+  }, []);
+
   const inkRecorder = useInkRecorder({
     noteId: selectedId ?? "",
     source: "main",
     enabled: Boolean(settingsConfig?.agentEnabled),
+    onEvent: handleInkEvent,
   });
   const {
     initValue: initInkValue,
@@ -2671,6 +2700,8 @@ export function MainWindow({
               docTitle={title}
               docContent={content}
               providers={settingsConfig?.providers ?? []}
+              noteId={selectedId ?? undefined}
+              agentEnabled={Boolean(settingsConfig?.agentEnabled)}
             />
 
             <div className="flex items-center justify-between px-4 h-7 border-t border-paper-deep/20 bg-paper/30 shrink-0">
@@ -2856,6 +2887,8 @@ export function MainWindow({
         thresholdMs={settingsConfig?.agentNudgeThresholdMs ?? 20_000}
         lastActivityAt={lastActivityAt}
         hidden={settingsOpen}
+        alertMessage={anxietyMessage}
+        onAlertDismiss={() => setAnxietyMessage(null)}
       />
     </div>
   );
