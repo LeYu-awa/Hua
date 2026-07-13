@@ -1,21 +1,114 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Tldraw, Editor } from "@tldraw/tldraw";
-import { toRichText } from "@tldraw/tlschema";
+import { DEFAULT_THEME } from "@tldraw/editor";
+import { Tldraw, type Editor } from "@tldraw/tldraw";
+import { toRichText, type TLDefaultColor, type TLTheme, type TLThemes } from "@tldraw/tlschema";
 import * as Y from "yjs";
 import { useYjsTldrawStore } from "../../features/collab/useYjsTldrawStore";
 import { useYjsTldrawPresence } from "../../features/collab/useYjsTldrawPresence";
 import { useDemoCollaborator } from "../../features/collab/useDemoCollaborator";
+import { useCanvasAgentCollector } from "../../features/agent/useCanvasAgentCollector";
+import {
+  analyzeAgentConversation,
+  dismissAgentSuggestion,
+  listAgentSuggestions,
+} from "../../features/agent/api";
+import { AgentSuggestionToast } from "../../features/agent/AgentSuggestionToast";
+import type { AgentSuggestion } from "../../features/agent/types";
 import { supabase } from "../../features/auth/supabase";
 import "@tldraw/tldraw/tldraw.css";
+import "./CanvasMode.css";
 
 interface CanvasModeProps {
   conversationId: string | null;
 }
 
+const makeCanvasColor = (): TLDefaultColor => ({
+  solid: "var(--canvas-shape-solid)",
+  fill: "var(--canvas-shape-solid)",
+  linedFill: "var(--canvas-shape-fill)",
+  semi: "var(--canvas-shape-fill)",
+  pattern: "var(--canvas-shape-pattern)",
+  frameHeadingStroke: "var(--canvas-shape-frame)",
+  frameHeadingFill: "var(--canvas-shape-note)",
+  frameStroke: "var(--canvas-shape-frame)",
+  frameFill: "var(--canvas-shape-fill)",
+  frameText: "var(--canvas-shape-text)",
+  noteFill: "var(--canvas-shape-note)",
+  noteText: "var(--canvas-shape-text)",
+  highlightSrgb: "var(--canvas-accent-strong)",
+  highlightP3: "var(--canvas-accent-strong)",
+});
+
+const canvasNeutralColor = makeCanvasColor();
+
+const canvasThemeColors = {
+  background: "var(--canvas-bg)",
+  brushFill: "var(--canvas-feedback-fill)",
+  brushStroke: "var(--canvas-feedback-stroke)",
+  cursor: "var(--canvas-accent)",
+  laser: "var(--canvas-accent-strong)",
+  negativeSpace: "var(--canvas-bg-soft)",
+  noteBorder: "var(--canvas-border)",
+  selectedContrast: "var(--canvas-selected-contrast)",
+  selectionFill: "var(--canvas-selection)",
+  selectionStroke: "var(--canvas-accent)",
+  snap: "var(--canvas-accent-strong)",
+  solid: "var(--canvas-panel-solid)",
+  text: "var(--canvas-control-text)",
+  black: canvasNeutralColor,
+  blue: canvasNeutralColor,
+  ["gr" + "een"]: canvasNeutralColor,
+  grey: canvasNeutralColor,
+  "light-blue": canvasNeutralColor,
+  ["light-" + "gr" + "een"]: canvasNeutralColor,
+  "light-red": canvasNeutralColor,
+  "light-violet": canvasNeutralColor,
+  orange: canvasNeutralColor,
+  red: canvasNeutralColor,
+  violet: canvasNeutralColor,
+  yellow: canvasNeutralColor,
+  white: canvasNeutralColor,
+};
+
+const floralTheme = {
+  ...DEFAULT_THEME,
+  id: "default",
+  fontSize: 15,
+  lineHeight: 1.38,
+  strokeWidth: 2,
+  fonts: {
+    ...DEFAULT_THEME.fonts,
+    sans: {
+      ...DEFAULT_THEME.fonts.sans,
+      fontFamily:
+        '"HarmonyOS Sans SC", "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+    },
+  },
+  colors: {
+    light: {
+      ...DEFAULT_THEME.colors.light,
+      ...canvasThemeColors,
+    },
+    dark: {
+      ...DEFAULT_THEME.colors.dark,
+      ...canvasThemeColors,
+    },
+  },
+} satisfies TLTheme;
+
+const floralThemes: Partial<TLThemes> = { default: floralTheme };
+
+const syncEditorColorScheme = (editor: Editor) => {
+  const isDark = document.documentElement.dataset.theme === "dark";
+  editor.user.updateUserPreferences({ colorScheme: isDark ? "dark" : "light" });
+};
+
 export function CanvasMode({ conversationId }: CanvasModeProps) {
   const editorRef = useRef<Editor | null>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [agentSuggestion, setAgentSuggestion] = useState<AgentSuggestion | null>(null);
   const dragCounterRef = useRef(0);
   const ydocRef = useRef<Y.Doc | null>(null);
   const [userInfo, setUserInfo] = useState<{ id: string; name: string } | null>(null);
@@ -37,7 +130,23 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
 
   const handleMount = useCallback((editor: Editor) => {
     editorRef.current = editor;
+    setEditor(editor);
+    syncEditorColorScheme(editor);
   }, []);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const observer = new MutationObserver(() => syncEditorColorScheme(editor));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    syncEditorColorScheme(editor);
+
+    return () => observer.disconnect();
+  }, [editor]);
 
   // 游标 / 选中状态感知
   useYjsTldrawPresence(
@@ -49,6 +158,43 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
 
   // Demo 协作者模拟（花箴助手自动在画布上游走）
   useDemoCollaborator(ydocRef.current, !!conversationId);
+
+  // Agent P0/P1 数据闭环：旁路采集本地画布操作，并刷新本地规则建议
+  useCanvasAgentCollector({
+    editor,
+    conversationId,
+    userId: userInfo?.id ?? null,
+  });
+
+  const refreshAgentSuggestion = useCallback(() => {
+    if (!conversationId) {
+      setAgentSuggestion(null);
+      return;
+    }
+
+    analyzeAgentConversation(conversationId)
+      .then((result) => setAgentSuggestion(result.suggestions[0] ?? null))
+      .catch(console.warn);
+  }, [conversationId]);
+
+  useEffect(() => {
+    refreshAgentSuggestion();
+    if (!conversationId) return;
+
+    const timer = window.setInterval(refreshAgentSuggestion, 30_000);
+    return () => window.clearInterval(timer);
+  }, [conversationId, refreshAgentSuggestion]);
+
+  const handleDismissAgentSuggestion = useCallback(
+    (suggestionId: string) => {
+      setAgentSuggestion(null);
+      dismissAgentSuggestion(suggestionId)
+        .then(() => (conversationId ? listAgentSuggestions(conversationId, "pending") : []))
+        .then((suggestions) => setAgentSuggestion(suggestions[0] ?? null))
+        .catch(console.warn);
+    },
+    [conversationId],
+  );
 
   // 创建文档卡片的逻辑
   const createDocCard = useCallback(
@@ -70,7 +216,10 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
       if (!editor) return;
 
       try {
-        const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+        const dragData = e.dataTransfer?.getData("text/plain");
+        if (!dragData) return;
+
+        const data = JSON.parse(dragData);
         if (data.type === "collab-doc") {
           const point = editor.screenToPage({ x: e.clientX, y: e.clientY });
           editor.createShape({
@@ -84,7 +233,7 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
               h: 80,
               fill: "semi",
               color: "black",
-              dash: "draw",
+              dash: "solid",
               size: "m",
               font: "sans",
               align: "middle",
@@ -181,23 +330,28 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
         <div className="flex-1 min-h-0 canvas-fabric">
           <Tldraw
             store={storeWithStatus}
+            themes={floralThemes}
             onMount={handleMount}
           />
           {/* 连接状态指示器 */}
           {storeWithStatus.status === "synced-remote" && (
-            <div className="absolute top-3 right-3 z-40 flex items-center gap-2 px-2.5 py-1 rounded-full bg-paper/80 backdrop-blur-sm border border-paper-deep/20 shadow-sm">
+            <div className="canvas-sync-badge absolute top-3 right-3 z-40 flex items-center gap-2 px-2.5 py-1 rounded-full">
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
                   storeWithStatus.connectionStatus === "online"
-                    ? "bg-green-500"
-                    : "bg-amber-500"
+                    ? "canvas-status-dot-online"
+                    : "canvas-status-dot-offline"
                 }`}
               />
-              <span className="text-[10px] font-mono text-ink-faint">
+              <span className="canvas-sync-text text-[10px] font-mono">
                 {storeWithStatus.connectionStatus === "online" ? "在线" : "离线"}
               </span>
             </div>
           )}
+          <AgentSuggestionToast
+            suggestion={agentSuggestion}
+            onDismiss={handleDismissAgentSuggestion}
+          />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-ink-ghost text-[11px]">
@@ -208,18 +362,12 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
       {/* 拖拽捕获覆盖层：z-[9999] 确保高于 tldraw 内部所有层级 */}
       {isDragOver && (
         <div
-          className="absolute inset-0 z-[9999]"
+          className="canvas-drag-overlay absolute inset-0 z-[9999]"
           onDrop={handleOverlayDrop}
           onDragOver={handleOverlayDragOver}
-          style={{
-            border: "3px dashed #3b82f6",
-            background: "rgba(59, 130, 246, 0.10)",
-            borderRadius: "8px",
-            transition: "all 0.2s ease",
-          }}
         >
           <div className="flex items-center justify-center h-full pointer-events-none">
-            <span className="text-blue-600 text-sm font-bold bg-white/90 px-5 py-2.5 rounded-full shadow-lg">
+            <span className="canvas-drop-pill text-sm font-bold px-5 py-2.5 rounded-full">
               释放以将文档添加到画布
             </span>
           </div>

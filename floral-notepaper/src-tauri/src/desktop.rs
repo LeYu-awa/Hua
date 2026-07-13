@@ -1623,11 +1623,10 @@ fn tile_window_label(note_id: &str) -> String {
 }
 
 fn dynamic_window_visual_options(label: &str) -> DynamicWindowVisualOptions {
-    let is_app_surface =
-        label == MAIN_WINDOW_LABEL || label.starts_with("notepad-") || label.starts_with("tile-");
+    let is_transparent_surface = label.starts_with("notepad-") || label.starts_with("tile-");
 
     DynamicWindowVisualOptions {
-        transparent: is_app_surface,
+        transparent: is_transparent_surface,
     }
 }
 

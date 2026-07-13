@@ -624,53 +624,58 @@ export function MainWindow({
   }, [applyNote, clearCurrentNote]);
 
   useEffect(() => {
-    const unlisten = listen("notes-changed", () => {
-      if (skipNextNotesChangedRef.current) {
-        skipNextNotesChangedRef.current = false;
-        void refreshNotes();
-        return;
-      }
-      void refreshNotes().then((loaded) => {
-        const currentId = selectedIdRef.current;
-        if (!currentId) return;
-        const stillExists = loaded.some((n) => n.id === currentId);
-        if (stillExists) {
-          if (saveStateRef.current === "dirty" || saveStateRef.current === "saving") {
-            return;
-          }
-          void getNote(currentId)
-            .then((note) => {
-              if (selectedIdRef.current !== currentId) return;
-              if (saveStateRef.current === "dirty" || saveStateRef.current === "saving") return;
-              //#region debug-point notes-changed-apply-note
-              void fetch("http://127.0.0.1:7777/event", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  scope: "main-window",
-                  point: "notes-changed-apply-note",
-                  selectedId: currentId,
-                  saveStateRef: saveStateRef.current,
-                  noteContentPreview: note.content.slice(0, 200),
-                }),
-              }).catch(() => undefined);
-              //#endregion
-              setTitle(note.title);
-              setContent(note.content);
-              setSaveState("saved");
-            })
-            .catch(() => undefined);
-        } else if (selectedNoteRef.current) {
-          if (loaded[0]) {
-            void loadNote(loaded[0].id);
-          } else {
-            clearCurrentNote();
-          }
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen("notes-changed", () => {
+        if (skipNextNotesChangedRef.current) {
+          skipNextNotesChangedRef.current = false;
+          void refreshNotes();
+          return;
         }
+        void refreshNotes().then((loaded) => {
+          const currentId = selectedIdRef.current;
+          if (!currentId) return;
+          const stillExists = loaded.some((n) => n.id === currentId);
+          if (stillExists) {
+            if (saveStateRef.current === "dirty" || saveStateRef.current === "saving") {
+              return;
+            }
+            void getNote(currentId)
+              .then((note) => {
+                if (selectedIdRef.current !== currentId) return;
+                if (saveStateRef.current === "dirty" || saveStateRef.current === "saving") return;
+                //#region debug-point notes-changed-apply-note
+                void fetch("http://127.0.0.1:7777/event", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    scope: "main-window",
+                    point: "notes-changed-apply-note",
+                    selectedId: currentId,
+                    saveStateRef: saveStateRef.current,
+                    noteContentPreview: note.content.slice(0, 200),
+                  }),
+                }).catch(() => undefined);
+                //#endregion
+                setTitle(note.title);
+                setContent(note.content);
+                setSaveState("saved");
+              })
+              .catch(() => undefined);
+          } else if (selectedNoteRef.current) {
+            if (loaded[0]) {
+              void loadNote(loaded[0].id);
+            } else {
+              clearCurrentNote();
+            }
+          }
+        });
       });
-    });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, [refreshNotes, loadNote, clearCurrentNote]);
 
@@ -689,47 +694,72 @@ export function MainWindow({
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<string>("open-external-file", (event) => {
-      void loadExternalFile(event.payload);
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<string>("open-external-file", (event) => {
+        void loadExternalFile(event.payload);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, [loadExternalFile]);
 
   useEffect(() => {
-    const unlisten = listen<string>("open-note", (event) => {
-      void loadNote(event.payload);
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<string>("open-note", (event) => {
+        void loadNote(event.payload);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, [loadNote]);
 
   useEffect(() => {
-    const unlisten = listen<string>("shortcut-register-failed", (event) => {
-      setErrorMessage(event.payload);
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<string>("shortcut-register-failed", (event) => {
+        setErrorMessage(event.payload);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<string>(TILE_WINDOW_CLOSED_EVENT, (event) => {
-      setPinnedTileIds((previous) => syncPinnedTileIds(previous, event.payload, false));
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<string>(TILE_WINDOW_CLOSED_EVENT, (event) => {
+        setPinnedTileIds((previous) => syncPinnedTileIds(previous, event.payload, false));
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<string>(TILE_WINDOW_UNPINNED_EVENT, (event) => {
-      setPinnedTileIds((previous) => syncPinnedTileIds(previous, event.payload, false));
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<string>(TILE_WINDOW_UNPINNED_EVENT, (event) => {
+        setPinnedTileIds((previous) => syncPinnedTileIds(previous, event.payload, false));
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, []);
 

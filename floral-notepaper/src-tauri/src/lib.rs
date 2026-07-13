@@ -2,7 +2,12 @@ pub mod desktop;
 pub mod locales;
 pub mod services;
 
+use chrono::{DateTime, Utc};
 use locales::Locale;
+use services::agent::{
+    self, AgentAnalysisResult, AgentCanvasNode, AgentCollaborationSegment, AgentEvent,
+    AgentEventInput, AgentReplayMarker, AgentReviewReport, AgentSuggestion,
+};
 use services::cowrite::{self, CoWriteSession, CoWriteSessionSummary, MergeToNoteResult};
 use services::notes::{default_store, AppConfig, AppError, Note, NoteMetadata, SaveNoteRequest};
 use services::stats;
@@ -318,6 +323,80 @@ fn stats_log_usage(
 }
 
 #[tauri::command]
+fn agent_record_event(event: AgentEventInput) -> Result<AgentEvent, AppError> {
+    agent::record_event(event)
+}
+
+#[tauri::command]
+fn agent_record_events(events: Vec<AgentEventInput>) -> Result<Vec<AgentEvent>, AppError> {
+    agent::record_events(events)
+}
+
+#[tauri::command]
+fn agent_list_events(
+    conversation_id: String,
+    limit: Option<u32>,
+) -> Result<Vec<AgentEvent>, AppError> {
+    agent::list_events(conversation_id, limit)
+}
+
+#[tauri::command]
+fn agent_list_canvas_nodes(conversation_id: String) -> Result<Vec<AgentCanvasNode>, AppError> {
+    agent::list_canvas_nodes(conversation_id)
+}
+
+#[tauri::command]
+fn agent_analyze_conversation(conversation_id: String) -> Result<AgentAnalysisResult, AppError> {
+    agent::analyze_conversation(conversation_id)
+}
+
+#[tauri::command]
+fn agent_list_suggestions(
+    conversation_id: String,
+    status: Option<String>,
+) -> Result<Vec<AgentSuggestion>, AppError> {
+    agent::list_suggestions(conversation_id, status)
+}
+
+#[tauri::command]
+fn agent_dismiss_suggestion(suggestion_id: String) -> Result<AgentSuggestion, AppError> {
+    agent::dismiss_suggestion(suggestion_id)
+}
+
+#[tauri::command]
+fn agent_accept_suggestion(suggestion_id: String) -> Result<AgentSuggestion, AppError> {
+    agent::accept_suggestion(suggestion_id)
+}
+
+#[tauri::command]
+fn agent_list_replay_markers(conversation_id: String) -> Result<Vec<AgentReplayMarker>, AppError> {
+    agent::list_replay_markers(conversation_id)
+}
+
+#[tauri::command]
+fn agent_list_collaboration_segments(
+    conversation_id: String,
+) -> Result<Vec<AgentCollaborationSegment>, AppError> {
+    agent::list_collaboration_segments(conversation_id)
+}
+
+#[tauri::command]
+fn agent_generate_review_report(conversation_id: String) -> Result<AgentReviewReport, AppError> {
+    agent::generate_review_report(conversation_id)
+}
+
+#[tauri::command]
+fn agent_record_chat_message_event(
+    conversation_id: String,
+    message_id: String,
+    user_id: String,
+    content: String,
+    timestamp: Option<DateTime<Utc>>,
+) -> Result<AgentEvent, AppError> {
+    agent::record_chat_message_event(conversation_id, message_id, user_id, content, timestamp)
+}
+
+#[tauri::command]
 fn cowrite_create_session(
     note_id: String,
     identity: String,
@@ -456,6 +535,18 @@ pub fn run() {
             take_startup_file,
             stats_get,
             stats_log_usage,
+            agent_record_event,
+            agent_record_events,
+            agent_list_events,
+            agent_list_canvas_nodes,
+            agent_analyze_conversation,
+            agent_list_suggestions,
+            agent_dismiss_suggestion,
+            agent_accept_suggestion,
+            agent_list_replay_markers,
+            agent_list_collaboration_segments,
+            agent_generate_review_report,
+            agent_record_chat_message_event,
             cowrite_create_session,
             cowrite_append_human,
             cowrite_append_ai,

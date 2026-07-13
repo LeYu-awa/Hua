@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMessages, sendMessage } from "../../features/friends/api";
+import { recordAgentChatMessageEvent } from "../../features/agent/api";
 import type { Message } from "../../features/friends/types";
 
 interface ChatPanelProps {
@@ -38,10 +39,19 @@ export function ChatPanel({ conversationId, currentUserId }: ChatPanelProps) {
       const msg = await sendMessage(conversationId, msgInput.trim());
       setMessages((prev) => [...prev, msg]);
       setMsgInput("");
+      if (currentUserId) {
+        recordAgentChatMessageEvent({
+          conversationId,
+          messageId: msg.id,
+          userId: currentUserId,
+          content: msg.content,
+          timestamp: msg.created_at,
+        }).catch(console.warn);
+      }
     } catch (e) {
       console.error(e);
     }
-  }, [conversationId, msgInput]);
+  }, [conversationId, currentUserId, msgInput]);
 
   if (!conversationId) {
     return (

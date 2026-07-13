@@ -12,6 +12,10 @@ import { CoWritePage } from "./components/CoWritePage";
 import { FriendsPage } from "./components/FriendsPage";
 import { ElysiaPage } from "./components/ElysiaPage";
 import { WindowFrame } from "./components/WindowFrame";
+import { BongoCompanionLayer } from "./features/companion/components/BongoCompanionLayer";
+import { Live2DCompanionLayer } from "./features/live2d/Live2DCompanionLayer";
+import { CompanionEventBridge } from "./features/companion/components/CompanionEventBridge";
+import { CompanionFloatingPage } from "./features/companion/components/CompanionFloatingPage";
 import { tabToIndentListener } from "indent-textarea";
 import { getConfig, saveConfig } from "./features/settings/api";
 import { applyTheme, watchSystemTheme } from "./features/settings/theme";
@@ -101,22 +105,27 @@ function App() {
 
   useEffect(() => {
     let themeCleanup = () => {};
-    const unlisten = listen<AppConfig>("config-changed", (event) => {
-      const theme = (event.payload.theme || "system") as ThemeOption;
-      applyTheme(theme);
-      themeCleanup();
-      themeCleanup = watchSystemTheme(theme);
-      document.documentElement.style.setProperty(
-        "--tab-indent-size",
-        String(event.payload.tabIndentSize ?? 2),
-      );
-      void syncLanguage(event.payload.locale);
-      setSettingsConfig(event.payload);
-      setProviders(event.payload.providers ?? []);
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<AppConfig>("config-changed", (event) => {
+        const theme = (event.payload.theme || "system") as ThemeOption;
+        applyTheme(theme);
+        themeCleanup();
+        themeCleanup = watchSystemTheme(theme);
+        document.documentElement.style.setProperty(
+          "--tab-indent-size",
+          String(event.payload.tabIndentSize ?? 2),
+        );
+        void syncLanguage(event.payload.locale);
+        setSettingsConfig(event.payload);
+        setProviders(event.payload.providers ?? []);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
       themeCleanup();
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, []);
 
@@ -199,12 +208,19 @@ function App() {
     );
   }
 
+  if (route.view === "companion") {
+    return <CompanionFloatingPage />;
+  }
+
   return (
     <ContextMenuProvider>
       <WindowFrame>
-        <div className="h-full font-body text-ink overflow-hidden flex">
+        <div className="h-full font-body text-ink overflow-hidden flex bg-paper">
           <AppSidebar activeView={sidebarView} onViewChange={setSidebarView} />
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="relative flex-1 flex flex-col min-w-0">
+            <CompanionEventBridge />
+            <BongoCompanionLayer />
+            <Live2DCompanionLayer />
             {sidebarView === "home" ? (
               <DashboardPage />
             ) : sidebarView === "playback" ? (

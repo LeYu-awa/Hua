@@ -129,10 +129,13 @@ export function CoWritePage() {
     loadConversations();
   }, [loadConversations]);
 
-  // 切换会话时重置状态
+  // 切换会话时重置状态，并为回放页保留最近会话
   useEffect(() => {
     setSelectedDocId(null);
     setDocTitle("");
+    if (selectedConvId) {
+      localStorage.setItem("floral-last-conversation-id", selectedConvId);
+    }
   }, [selectedConvId]);
 
   // ==========================================
