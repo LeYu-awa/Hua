@@ -3,6 +3,8 @@ import { analyzeInkSession } from "../ink/analyze";
 import { getInkSession, listInkSessions } from "../ink/api";
 import { getNote } from "../notes/api";
 import type { ProviderConfig } from "../settings/types";
+import { callEmbedding, cosineSimilarity } from "./embeddingService";
+import { addHistoricalDoc } from "./profileApi";
 
 export interface WritingReport {
   summary: string;
@@ -38,6 +40,7 @@ function countWords(text: string): number {
 export async function generateWritingReport(
   noteId: string,
   providers: ProviderConfig[],
+  options: { historicalDocs?: HistoricalDoc[] } = {},
 ): Promise<WritingReport | null> {
   if (!noteId || providers.length === 0) return null;
 
@@ -95,6 +98,14 @@ export async function generateWritingReport(
     longestStuckMs,
   };
 
+  // RAG：检索历史同类文档做对比（可降级：无历史或无 embedding 时为空）
+  const comparison = await buildHistoricalComparison(
+    note.content,
+    input.deleteRatio,
+    options.historicalDocs ?? [],
+    providers,
+  );
+
   const prompt = `你是一位温柔的写作教练。请基于以下写作数据生成一份复盘报告。
 语气要求：只描述、不评价、不指责，用"这次…""相比…"等中性表达。
 输出 JSON 格式：
@@ -115,7 +126,7 @@ export async function generateWritingReport(
 - 删除占比：${input.deleteRatio}%
 - 长停顿次数：${input.pauseCount}
 - 最长连续流畅写作：${Math.round(input.longestFlowMs / 60000)} 分钟
-- 最长一次停顿：${Math.round(input.longestStuckMs / 1000)} 秒`;
+- 最长一次停顿：${Math.round(input.longestStuckMs / 1000)} 秒${comparison}`;
 
   try {
     const messages = [
@@ -155,6 +166,14 @@ export async function generateWritingReport(
       );
     }
 
+    // 把本次文档存入用户画像，供未来复盘做 RAG 对比（可降级：失败静默忽略）
+    await addHistoricalDoc({
+      noteId,
+      title: note.title,
+      summary: note.content.slice(0, 500),
+      deleteRatio: input.deleteRatio,
+    });
+
     return {
       summary: report.summary || "",
       insights: Array.isArray(report.insights) ? report.insights.slice(0, 5) : [],
@@ -189,4 +208,66 @@ async function listInkSessionsForAllNotes(): Promise<Array<{ noteId: string; tit
   // 这里无法直接列出所有 noteId，因为 ink 目录按 noteId 分。
   // 简单方案：返回空，后续如需跨项目画像再扩展。
   return [];
+}
+
+// ─── RAG：历史同类文档对比（issue 场景五） ───
+
+/** 历史文档档案，用于复盘时做同类对比。持久化由调用方负责。 */
+export interface HistoricalDoc {
+  noteId: string;
+  title: string;
+  /** 文档内容摘要，用于计算主题向量 */
+  summary: string;
+  /** 历史删改率（百分比，0-100） */
+  deleteRatio: number;
+}
+
+/**
+ * 在历史文档中检索与当前文档主题最相似的一篇。
+ * 无历史、无 embedding 供应商或调用失败时返回 null（可降级）。
+ */
+export async function findSimilarHistoricalDoc(
+  currentText: string,
+  history: HistoricalDoc[],
+  providers: ProviderConfig[],
+): Promise<{ doc: HistoricalDoc; similarity: number } | null> {
+  if (history.length === 0 || !currentText.trim()) return null;
+  try {
+    const vectors = await callEmbedding(providers, [
+      currentText.slice(0, 500),
+      ...history.map((h) => h.summary.slice(0, 500)),
+    ]);
+    const currentVec = vectors[0];
+    let best: { doc: HistoricalDoc; similarity: number } | null = null;
+    history.forEach((doc, i) => {
+      const sim = cosineSimilarity(currentVec, vectors[i + 1]);
+      if (!best || sim > best.similarity) best = { doc, similarity: sim };
+    });
+    return best;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 构造注入 prompt 的历史对比文本。找不到相似文档时返回空串。
+ * 相似度过低（< 0.6）视为不同类文档，不做对比。
+ */
+async function buildHistoricalComparison(
+  currentText: string,
+  currentDeleteRatio: number,
+  history: HistoricalDoc[],
+  providers: ProviderConfig[],
+): Promise<string> {
+  const match = await findSimilarHistoricalDoc(currentText, history, providers);
+  if (!match || match.similarity < 0.6) return "";
+  const delta = currentDeleteRatio - match.doc.deleteRatio;
+  const trend =
+    delta < -3 ? "有所下降" : delta > 3 ? "有所上升" : "基本持平";
+  return `
+
+历史同类文档对比（供参考，请自然融入 insights）：
+- 最相似的历史文档：《${match.doc.title}》（主题相似度 ${match.similarity.toFixed(2)}）
+- 该文档历史删除占比：${match.doc.deleteRatio}%
+- 本次相比历史${trend}`;
 }

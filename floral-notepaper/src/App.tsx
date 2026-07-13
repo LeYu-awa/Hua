@@ -11,6 +11,7 @@ import { InkPlaybackPage } from "./components/InkPlaybackPage";
 import { CanvasPage } from "./components/CanvasPage";
 import { WritingReportPage } from "./components/WritingReportPage";
 import { CoWritePage } from "./components/CoWritePage";
+import { ElysiaPage } from "./components/ElysiaPage";
 import { WindowFrame } from "./components/WindowFrame";
 import { tabToIndentListener } from "indent-textarea";
 import { getConfig, saveConfig } from "./features/settings/api";
@@ -237,6 +238,7 @@ function App() {
                 documentId={`canvas-${currentNoteId || "draft"}`}
                 noteId={currentNoteId}
                 providers={providers}
+                agentEnabled={Boolean(settingsConfig?.agentEnabled)}
               />
             ) : sidebarView === "report" ? (
               <WritingReportPage noteId={currentNoteId} providers={providers} />
@@ -247,6 +249,8 @@ function App() {
                 noteContent={currentNoteContent}
                 onNoteContentChange={setCurrentNoteContent}
               />
+            ) : sidebarView === "elysia" ? (
+              <ElysiaPage />
             ) : sidebarView === "settings" && settingsConfig ? (
               <SettingsPage
                 config={settingsConfig}

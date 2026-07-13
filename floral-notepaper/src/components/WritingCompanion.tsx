@@ -15,6 +15,13 @@ export interface WritingCompanionProps {
   onNudge?: () => void;
   /** 用户点击关闭/忽略时回调 */
   onDismiss?: () => void;
+  /**
+   * 焦虑关怀提示（场景四）：非空时优先于停顿提示立即显示，语气为"关心"而非"评价"。
+   * 由外部的 assessAnxiety + 冷却控制何时给出。
+   */
+  alertMessage?: string | null;
+  /** 用户忽略焦虑关怀提示时回调 */
+  onAlertDismiss?: () => void;
   /** 位置 */
   position?: "bottom-right" | "bottom-left";
 }
@@ -43,11 +50,14 @@ export function WritingCompanion({
   messages = DEFAULT_MESSAGES,
   onNudge,
   onDismiss,
+  alertMessage = null,
+  onAlertDismiss,
   position = "bottom-right",
 }: WritingCompanionProps) {
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [nudgeMessage, setNudgeMessage] = useState<string>(() => randomMessage(messages));
   const [visible, setVisible] = useState(false);
+  const [dismissedAlert, setDismissedAlert] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nudgedRef = useRef(false);
 
@@ -105,6 +115,45 @@ export function WritingCompanion({
     setDismissedAt(Date.now());
     onDismiss?.();
   };
+
+  const handleAlertDismiss = () => {
+    setDismissedAlert(alertMessage);
+    onAlertDismiss?.();
+  };
+
+  // 场景四：焦虑关怀提示优先展示（立即、不等停顿），可忽略
+  const showAlert =
+    enabled && !hidden && alertMessage != null && alertMessage !== dismissedAlert;
+
+  if (showAlert) {
+    return (
+      <div
+        className={`fixed ${positionClass} bottom-6 z-50 flex max-w-[280px] animate-in fade-in slide-in-from-bottom-2 duration-300`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="relative rounded-2xl bg-amber-50/95 dark:bg-amber-950/60 backdrop-blur-sm border border-amber-300/40 shadow-lg px-4 py-3 pr-10 text-sm text-ink-soft">
+          <button
+            type="button"
+            onClick={handleAlertDismiss}
+            className="absolute top-1.5 right-1.5 p-1 text-ink-ghost/60 hover:text-ink-soft hover:bg-ink-ghost/10 rounded-full transition-colors cursor-pointer"
+            aria-label="忽略"
+            title="忽略"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path
+                d="M2 2L10 10M10 2L2 10"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <span className="leading-relaxed">{alertMessage}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!enabled || !visible) {
     return null;

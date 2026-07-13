@@ -7,6 +7,8 @@ use super::notes::AppError;
 #[serde(rename_all = "camelCase")]
 pub struct CanvasNode {
     pub id: String,
+    // 前端 CanvasNode 字段名为 `type`，此处显式对齐 IPC 契约（camelCase 会误转成 nodeType）
+    #[serde(rename = "type")]
     pub node_type: String,
     pub x: f64,
     pub y: f64,
@@ -153,4 +155,107 @@ pub fn canvas_delete(id: String, store: tauri::State<CanvasStore>) -> Result<(),
 #[tauri::command]
 pub fn canvas_list(store: tauri::State<CanvasStore>) -> Result<Vec<CanvasDocument>, AppError> {
     store.list()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use uuid::Uuid;
+
+    fn temp_store() -> CanvasStore {
+        let dir = env::temp_dir().join(format!("hua-canvas-tests-{}", Uuid::new_v4()));
+        CanvasStore::new(dir)
+    }
+
+    /// 关键契约测试：前端 TS 的 CanvasNode 字段是 `type`，Rust 是 `node_type`
+    /// (rename_all=camelCase → `nodeType`)。此测试用「前端真实发送的 JSON 形状」
+    /// 反序列化，确认 IPC 契约不会因字段名不一致而在真机上悄悄失败。
+    #[test]
+    fn deserializes_frontend_shaped_payload() {
+        let frontend_json = r#"{
+            "id": "canvas-note1",
+            "noteId": "note1",
+            "nodes": [
+                {"id":"a","type":"text","x":0,"y":0,"width":200,"height":80,"text":"节点A"},
+                {"id":"b","type":"card","x":700,"y":0,"width":240,"height":120,"text":"沉淀内容\n\n— 来自聊天","source":"agent"}
+            ],
+            "edges": [
+                {"id":"e1","fromNodeId":"a","toNodeId":"b","style":"dashed"}
+            ]
+        }"#;
+        let doc: CanvasDocument = serde_json::from_str(frontend_json)
+            .expect("前端形状的 JSON 必须能被 Rust 反序列化");
+        assert_eq!(doc.nodes.len(), 2);
+        assert_eq!(doc.nodes[0].node_type, "text");
+        assert_eq!(doc.nodes[1].node_type, "card");
+        assert_eq!(doc.nodes[1].source.as_deref(), Some("agent"));
+        assert_eq!(doc.edges[0].style, "dashed");
+    }
+
+    /// 场景一：接受隐含连接 → 写入 dashed 连线 → 落盘 → 重新读取仍在。
+    #[test]
+    fn accept_connection_persists_dashed_edge() {
+        let store = temp_store();
+        let doc = CanvasDocument {
+            id: "canvas-n1".into(),
+            note_id: Some("n1".into()),
+            co_write_session_id: None,
+            nodes: vec![
+                CanvasNode { id: "a".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "A".into(), source: None },
+                CanvasNode { id: "b".into(), node_type: "text".into(), x: 700.0, y: 0.0, width: 200.0, height: 80.0, text: "B".into(), source: None },
+            ],
+            edges: vec![],
+        };
+        store.save(doc.clone()).unwrap();
+
+        // 模拟前端 acceptConnection：追加一条 dashed 连线后再次保存
+        let mut updated = store.get("canvas-n1").unwrap();
+        updated.edges.push(CanvasEdge {
+            id: "e-ab".into(),
+            from_node_id: "a".into(),
+            to_node_id: "b".into(),
+            style: "dashed".into(),
+        });
+        store.save(updated).unwrap();
+
+        let reloaded = store.get("canvas-n1").unwrap();
+        assert_eq!(reloaded.edges.len(), 1);
+        assert_eq!(reloaded.edges[0].style, "dashed");
+        assert_eq!(reloaded.edges[0].from_node_id, "a");
+        assert_eq!(reloaded.edges[0].to_node_id, "b");
+    }
+
+    /// 场景九：聊天沉淀 → 写入 source=agent 的卡片节点 → 落盘 → 重新读取仍在。
+    #[test]
+    fn sink_to_canvas_persists_agent_node() {
+        let store = temp_store();
+        store
+            .save(CanvasDocument {
+                id: "canvas-n2".into(),
+                note_id: Some("n2".into()),
+                co_write_session_id: None,
+                nodes: vec![],
+                edges: vec![],
+            })
+            .unwrap();
+
+        let mut doc = store.get("canvas-n2").unwrap();
+        doc.nodes.push(CanvasNode {
+            id: "sunk-1".into(),
+            node_type: "card".into(),
+            x: 120.0,
+            y: 120.0,
+            width: 240.0,
+            height: 120.0,
+            text: "决定先做实时同步 MVP\n\n— 来自聊天".into(),
+            source: Some("agent".into()),
+        });
+        store.save(doc).unwrap();
+
+        let reloaded = store.get("canvas-n2").unwrap();
+        assert_eq!(reloaded.nodes.len(), 1);
+        assert_eq!(reloaded.nodes[0].source.as_deref(), Some("agent"));
+        assert!(reloaded.nodes[0].text.contains("来自聊天"));
+    }
 }

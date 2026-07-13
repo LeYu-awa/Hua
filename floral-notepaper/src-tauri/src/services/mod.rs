@@ -1,5 +1,7 @@
 pub mod canvas;
 pub mod cowrite;
+pub mod embedding_cache;
 pub mod ink;
 pub mod notes;
+pub mod profile;
 pub mod stats;
