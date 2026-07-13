@@ -1,0 +1,10677 @@
+{
+	"Version": 3,
+	"Meta": {
+		"PhysicsSettingCount": 97,
+		"TotalInputCount": 217,
+		"TotalOutputCount": 255,
+		"VertexCount": 347,
+		"Fps": 60,
+		"EffectiveForces": {
+			"Gravity": {
+				"X": 0,
+				"Y": -1
+			},
+			"Wind": {
+				"X": 0,
+				"Y": 0
+			}
+		},
+		"PhysicsDictionary": [
+			{
+				"Id": "PhysicsSetting1",
+				"Name": "正物理运算"
+			},
+			{
+				"Id": "PhysicsSetting2",
+				"Name": "反物理运算"
+			},
+			{
+				"Id": "PhysicsSetting3",
+				"Name": "整理运算"
+			},
+			{
+				"Id": "PhysicsSetting4",
+				"Name": "反绑输出"
+			},
+			{
+				"Id": "PhysicsSetting5",
+				"Name": "瞳孔 左眼"
+			},
+			{
+				"Id": "PhysicsSetting6",
+				"Name": "瞳孔 右眼"
+			},
+			{
+				"Id": "PhysicsSetting7",
+				"Name": "眼笑"
+			},
+			{
+				"Id": "PhysicsSetting8",
+				"Name": "左眼缩放"
+			},
+			{
+				"Id": "PhysicsSetting9",
+				"Name": "右眼缩放"
+			},
+			{
+				"Id": "PhysicsSetting10",
+				"Name": "特殊眼 爱心L"
+			},
+			{
+				"Id": "PhysicsSetting11",
+				"Name": "特殊眼 爱心R"
+			},
+			{
+				"Id": "PhysicsSetting12",
+				"Name": "高光 左眼"
+			},
+			{
+				"Id": "PhysicsSetting13",
+				"Name": "高光 右眼"
+			},
+			{
+				"Id": "PhysicsSetting14",
+				"Name": "眨眼 左眼"
+			},
+			{
+				"Id": "PhysicsSetting15",
+				"Name": "眨眼 右眼"
+			},
+			{
+				"Id": "PhysicsSetting16",
+				"Name": "眼球X延迟"
+			},
+			{
+				"Id": "PhysicsSetting17",
+				"Name": "眼球Y延迟"
+			},
+			{
+				"Id": "PhysicsSetting18",
+				"Name": "眨眼—眉左"
+			},
+			{
+				"Id": "PhysicsSetting19",
+				"Name": "眨眼—眉R"
+			},
+			{
+				"Id": "PhysicsSetting20",
+				"Name": "左眉上下"
+			},
+			{
+				"Id": "PhysicsSetting21",
+				"Name": "右眉上下"
+			},
+			{
+				"Id": "PhysicsSetting22",
+				"Name": "嘴Y phy"
+			},
+			{
+				"Id": "PhysicsSetting23",
+				"Name": "嘴X phy"
+			},
+			{
+				"Id": "PhysicsSetting24",
+				"Name": "右眉角度"
+			},
+			{
+				"Id": "PhysicsSetting25",
+				"Name": "左眉角度(2)"
+			},
+			{
+				"Id": "PhysicsSetting26",
+				"Name": "右眉形变"
+			},
+			{
+				"Id": "PhysicsSetting27",
+				"Name": "左眉形变(2)"
+			},
+			{
+				"Id": "PhysicsSetting28",
+				"Name": "头 X"
+			},
+			{
+				"Id": "PhysicsSetting29",
+				"Name": "头 Y"
+			},
+			{
+				"Id": "PhysicsSetting30",
+				"Name": "头 Z"
+			},
+			{
+				"Id": "PhysicsSetting31",
+				"Name": "身体 X"
+			},
+			{
+				"Id": "PhysicsSetting32",
+				"Name": "身体 Y"
+			},
+			{
+				"Id": "PhysicsSetting33",
+				"Name": "身体 Z"
+			},
+			{
+				"Id": "PhysicsSetting34",
+				"Name": "身体 Z3"
+			},
+			{
+				"Id": "PhysicsSetting35",
+				"Name": "身体 Z2"
+			},
+			{
+				"Id": "PhysicsSetting36",
+				"Name": "身体 ZZ2"
+			},
+			{
+				"Id": "PhysicsSetting37",
+				"Name": "身体 XX"
+			},
+			{
+				"Id": "PhysicsSetting38",
+				"Name": "身体 Y缓"
+			},
+			{
+				"Id": "PhysicsSetting39",
+				"Name": "肩膀"
+			},
+			{
+				"Id": "PhysicsSetting40",
+				"Name": "肩膀R"
+			},
+			{
+				"Id": "PhysicsSetting41",
+				"Name": "手臂L 身体 Y"
+			},
+			{
+				"Id": "PhysicsSetting42",
+				"Name": "手臂R 身体 Y"
+			},
+			{
+				"Id": "PhysicsSetting43",
+				"Name": "手臂R 唱歌棉花棒"
+			},
+			{
+				"Id": "PhysicsSetting44",
+				"Name": "前倾1"
+			},
+			{
+				"Id": "PhysicsSetting45",
+				"Name": "前发X"
+			},
+			{
+				"Id": "PhysicsSetting46",
+				"Name": "前发XL"
+			},
+			{
+				"Id": "PhysicsSetting47",
+				"Name": "侧发X"
+			},
+			{
+				"Id": "PhysicsSetting48",
+				"Name": "R马尾"
+			},
+			{
+				"Id": "PhysicsSetting49",
+				"Name": "L马尾"
+			},
+			{
+				"Id": "PhysicsSetting50",
+				"Name": "前发Y"
+			},
+			{
+				"Id": "PhysicsSetting51",
+				"Name": "L侧发Y"
+			},
+			{
+				"Id": "PhysicsSetting52",
+				"Name": "肩章"
+			},
+			{
+				"Id": "PhysicsSetting53",
+				"Name": "袖子R"
+			},
+			{
+				"Id": "PhysicsSetting54",
+				"Name": "袖子L"
+			},
+			{
+				"Id": "PhysicsSetting55",
+				"Name": "袖子Y"
+			},
+			{
+				"Id": "PhysicsSetting56",
+				"Name": "袖子LY(2)"
+			},
+			{
+				"Id": "PhysicsSetting57",
+				"Name": "蝴蝶结"
+			},
+			{
+				"Id": "PhysicsSetting58",
+				"Name": "手势蝴蝶结"
+			},
+			{
+				"Id": "PhysicsSetting59",
+				"Name": "蝴蝶结(2"
+			},
+			{
+				"Id": "PhysicsSetting60",
+				"Name": "Boo X"
+			},
+			{
+				"Id": "PhysicsSetting61",
+				"Name": "Boo Y"
+			},
+			{
+				"Id": "PhysicsSetting62",
+				"Name": "后发X"
+			},
+			{
+				"Id": "PhysicsSetting63",
+				"Name": "后发XL"
+			},
+			{
+				"Id": "PhysicsSetting64",
+				"Name": "后发中X"
+			},
+			{
+				"Id": "PhysicsSetting65",
+				"Name": "后发X平移"
+			},
+			{
+				"Id": "PhysicsSetting66",
+				"Name": "辫子X平移(2)"
+			},
+			{
+				"Id": "PhysicsSetting67",
+				"Name": "后发Y"
+			},
+			{
+				"Id": "PhysicsSetting68",
+				"Name": "侧发Y"
+			},
+			{
+				"Id": "PhysicsSetting69",
+				"Name": "衣服X"
+			},
+			{
+				"Id": "PhysicsSetting70",
+				"Name": "衣服Y"
+			},
+			{
+				"Id": "PhysicsSetting71",
+				"Name": "花边X"
+			},
+			{
+				"Id": "PhysicsSetting72",
+				"Name": "头花边"
+			},
+			{
+				"Id": "PhysicsSetting73",
+				"Name": "花边Y"
+			},
+			{
+				"Id": "PhysicsSetting74",
+				"Name": "头花边Y(2)"
+			},
+			{
+				"Id": "PhysicsSetting75",
+				"Name": "前发1长"
+			},
+			{
+				"Id": "PhysicsSetting76",
+				"Name": "胸口帶子R"
+			},
+			{
+				"Id": "PhysicsSetting77",
+				"Name": "裙蝴蝶结"
+			},
+			{
+				"Id": "PhysicsSetting78",
+				"Name": "胸口帶子L"
+			},
+			{
+				"Id": "PhysicsSetting79",
+				"Name": "前倾x修正"
+			},
+			{
+				"Id": "PhysicsSetting80",
+				"Name": "抱熊手势花边"
+			},
+			{
+				"Id": "PhysicsSetting81",
+				"Name": "抱熊手势花边Y"
+			},
+			{
+				"Id": "PhysicsSetting82",
+				"Name": "星星眼"
+			},
+			{
+				"Id": "PhysicsSetting83",
+				"Name": "泪光R"
+			},
+			{
+				"Id": "PhysicsSetting84",
+				"Name": "泪光L"
+			},
+			{
+				"Id": "PhysicsSetting85",
+				"Name": "蝴蝶结R"
+			},
+			{
+				"Id": "PhysicsSetting86",
+				"Name": "蝴蝶结L"
+			},
+			{
+				"Id": "PhysicsSetting87",
+				"Name": "小臂花边"
+			},
+			{
+				"Id": "PhysicsSetting88",
+				"Name": "小臂花边R"
+			},
+			{
+				"Id": "PhysicsSetting89",
+				"Name": "L手X"
+			},
+			{
+				"Id": "PhysicsSetting90",
+				"Name": "R手X"
+			},
+			{
+				"Id": "PhysicsSetting91",
+				"Name": "腰链条X"
+			},
+			{
+				"Id": "PhysicsSetting92",
+				"Name": "腰链条Y"
+			},
+			{
+				"Id": "PhysicsSetting93",
+				"Name": "泪滴物理L"
+			},
+			{
+				"Id": "PhysicsSetting94",
+				"Name": "液体"
+			},
+			{
+				"Id": "PhysicsSetting95",
+				"Name": "跨步pose"
+			},
+			{
+				"Id": "PhysicsSetting96",
+				"Name": "踏步重心"
+			},
+			{
+				"Id": "PhysicsSetting97",
+				"Name": "踏步抬腿"
+			}
+		]
+	},
+	"PhysicsSettings": [
+		{
+			"Id": "PhysicsSetting1",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyInput"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamSwitchBodyCtrl"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamPhysicsRAM"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting2",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyInput"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamSwitchBodyCtrl"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyOutput"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting3",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamPhysicsRAM"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyOutput"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamPhysicsRAM"
+					},
+					"VertexIndex": 1,
+					"Scale": 60,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": 0,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting4",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamPhysicsRAM"
+					},
+					"Weight": 66,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamSwitchBodyCtrl"
+					},
+					"Weight": 33,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyOutput"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 1,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -172,
+					"Default": 0,
+					"Maximum": 172
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting5",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallX"
+					},
+					"Weight": 15,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallY"
+					},
+					"Weight": 15,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrinkL"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L7"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L8"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L9"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.658,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L10"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L11"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L12"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.8,
+					"Delay": 1,
+					"Acceleration": 0.9,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15.8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.94,
+					"Radius": 7.8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21.8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 6
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting6",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallX"
+					},
+					"Weight": 15,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallY"
+					},
+					"Weight": 15,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrinkL4"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L2"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L5"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L13"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.658,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L14"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L15"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallShrink1L16"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15.8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.94,
+					"Radius": 7.8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21.8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 6
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting7",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeSmile"
+					},
+					"VertexIndex": 1,
+					"Scale": 6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeSmileR"
+					},
+					"VertexIndex": 1,
+					"Scale": 6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -9,
+					"Default": 0,
+					"Maximum": 9
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting8",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeSmile"
+					},
+					"Weight": 56,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallSizeL"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7
+					},
+					"Mobility": 0.41,
+					"Delay": 0.81,
+					"Acceleration": 1.1,
+					"Radius": 7
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -2,
+					"Default": 0,
+					"Maximum": 3
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting9",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeSmileR"
+					},
+					"Weight": 56,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallSizeR"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.41,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7
+					},
+					"Mobility": 0.41,
+					"Delay": 0.81,
+					"Acceleration": 1.1,
+					"Radius": 7
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -2,
+					"Default": 0,
+					"Maximum": 3
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting10",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param70"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param72"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.95,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.9,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 8
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -8,
+					"Default": 0,
+					"Maximum": 8
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting11",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param78"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param76"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.95,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.95,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 15
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -8,
+					"Default": 0,
+					"Maximum": 8
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting12",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallHighLightSiteL"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallHighLightSizeL"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallHighLightSiteL2"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7.8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 7.8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15.8
+					},
+					"Mobility": 0.85,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 8
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting13",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallHighLightSiteR"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallHighLightSizeR"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallHighLightSiteR2"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7.8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 7.8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15.8
+					},
+					"Mobility": 0.85,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 8
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting14",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param4"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param67"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param120"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param121"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.85,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 0.85,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting15",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param6"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param35"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param85"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param36"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 0.85,
+					"Acceleration": 0.98,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.85,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 0.85,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting16",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallX"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param14"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.8,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.7,
+					"Delay": 1,
+					"Acceleration": 1.1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting17",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeBallY"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param15"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.8,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.7,
+					"Delay": 1,
+					"Acceleration": 1.1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting18",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param63"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.8,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.65,
+					"Delay": 1,
+					"Acceleration": 2,
+					"Radius": 20
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57,
+					"Default": 0,
+					"Maximum": 57
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting19",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param64"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.8,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.65,
+					"Delay": 1,
+					"Acceleration": 2,
+					"Radius": 20
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57,
+					"Default": 0,
+					"Maximum": 57
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting20",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLYY"
+					},
+					"Weight": 80,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLX"
+					},
+					"VertexIndex": 1,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLY"
+					},
+					"VertexIndex": 1,
+					"Scale": 3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLAngle"
+					},
+					"VertexIndex": 1,
+					"Scale": 5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 25
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting21",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRYY"
+					},
+					"Weight": 80,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRX"
+					},
+					"VertexIndex": 1,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRY"
+					},
+					"VertexIndex": 1,
+					"Scale": 3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRAngle"
+					},
+					"VertexIndex": 1,
+					"Scale": 5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 25
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting22",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthOpenY"
+					},
+					"Weight": 80,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamMouthPhysicY"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 13.7
+					},
+					"Mobility": 0.72,
+					"Delay": 0.9,
+					"Acceleration": 0.97,
+					"Radius": 13.7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23.7
+					},
+					"Mobility": 0.95,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -9,
+					"Default": 0,
+					"Maximum": 9
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting23",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 80,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamMouthPhysicX"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 13.7
+					},
+					"Mobility": 0.72,
+					"Delay": 0.9,
+					"Acceleration": 0.97,
+					"Radius": 13.7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23.7
+					},
+					"Mobility": 0.95,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -9,
+					"Default": 0,
+					"Maximum": 9
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting24",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRYY"
+					},
+					"Weight": 29,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthPuff"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRAngle"
+					},
+					"VertexIndex": 1,
+					"Scale": 5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": 0,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting25",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLYY"
+					},
+					"Weight": 25,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthPuff"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLAngle"
+					},
+					"VertexIndex": 1,
+					"Scale": 5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": 0,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting26",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRYY"
+					},
+					"Weight": 40,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 35,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowRForm"
+					},
+					"VertexIndex": 1,
+					"Scale": 6.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24.1
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24.1
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46.1
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -25,
+					"Default": 0,
+					"Maximum": 25
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting27",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLYY"
+					},
+					"Weight": 40,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamMouthForm"
+					},
+					"Weight": 35,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBrowLForm"
+					},
+					"VertexIndex": 1,
+					"Scale": 6.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 24.1
+					},
+					"Mobility": 0.6,
+					"Delay": 0.9,
+					"Acceleration": 1.68,
+					"Radius": 24.1
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46.1
+					},
+					"Mobility": 0.45,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -25,
+					"Default": 0,
+					"Maximum": 25
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting28",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamAngleXX"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamAngleXXX"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param46"
+					},
+					"VertexIndex": 1,
+					"Scale": 9,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.05,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.65,
+					"Delay": 1,
+					"Acceleration": 2,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting29",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 90,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamAngleYY"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamAngleYYY"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.05,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.65,
+					"Delay": 1,
+					"Acceleration": 2,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting30",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 42,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZZ"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZZZ"
+					},
+					"VertexIndex": 1,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.05,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.65,
+					"Delay": 1,
+					"Acceleration": 2,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting31",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 90,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"VertexIndex": 1,
+					"Scale": 12,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX2"
+					},
+					"VertexIndex": 1,
+					"Scale": 12,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param239"
+					},
+					"VertexIndex": 1,
+					"Scale": 12,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.05,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.8,
+					"Delay": 0.83,
+					"Acceleration": 0.05,
+					"Radius": 18
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.85,
+					"Delay": 0.8,
+					"Acceleration": 0.05,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 55
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting32",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 80,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param240"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.9,
+					"Delay": 0.88,
+					"Acceleration": 0.01,
+					"Radius": 15
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting33",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 90,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 67,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"VertexIndex": 1,
+					"Scale": 6.118,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param241"
+					},
+					"VertexIndex": 1,
+					"Scale": 6.118,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 0.85,
+					"Acceleration": 0.01,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.65,
+					"Delay": 1,
+					"Acceleration": 2,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.5,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting34",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 60,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ3"
+					},
+					"VertexIndex": 1,
+					"Scale": 8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.5,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.85,
+					"Delay": 0.85,
+					"Acceleration": 0.5,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.5,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting35",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 65,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 31,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ7"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.85,
+					"Delay": 0.6,
+					"Acceleration": 0.9,
+					"Radius": 8
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.5,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting36",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 65,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 31,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ17"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.85,
+					"Delay": 0.6,
+					"Acceleration": 0.9,
+					"Radius": 8
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.5,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting37",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 24,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 31,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 0,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "Param46"
+					},
+					"Weight": 39,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX3"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.85,
+					"Delay": 0.6,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.5,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting38",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 41,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 34,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ11"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.85,
+					"Delay": 0.6,
+					"Acceleration": 0.8,
+					"Radius": 20
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.5,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting39",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 39,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 41,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamShoulder"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 22
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -100,
+					"Default": 0,
+					"Maximum": 100
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting40",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 49,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 21,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamShoulder2"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.9,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -30,
+					"Default": 0,
+					"Maximum": 30
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting41",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 60,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamArmShake2"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamArmShake"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param56"
+					},
+					"VertexIndex": 3,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param57"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param119"
+					},
+					"VertexIndex": 4,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.9,
+					"Delay": 0.7,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 5
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -25,
+					"Default": 0,
+					"Maximum": 25
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting42",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 60,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param55"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param65"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param111"
+					},
+					"VertexIndex": 3,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param113"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param289"
+					},
+					"VertexIndex": 4,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.9,
+					"Delay": 0.7,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 5
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -25,
+					"Default": 0,
+					"Maximum": 25
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting43",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 10,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 10,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 30,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 15,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param294"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param281"
+					},
+					"VertexIndex": 1,
+					"Scale": 3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param86"
+					},
+					"VertexIndex": 2,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param278"
+					},
+					"VertexIndex": 3,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param280"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param290"
+					},
+					"VertexIndex": 3,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 14
+					},
+					"Mobility": 0.9,
+					"Delay": 0.95,
+					"Acceleration": 1,
+					"Radius": 14
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 26.5
+					},
+					"Mobility": 0.9,
+					"Delay": 0.9,
+					"Acceleration": 0.935,
+					"Radius": 12.5
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 34.5
+					},
+					"Mobility": 0.85,
+					"Delay": 0.6,
+					"Acceleration": 0.795,
+					"Radius": 8
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -16,
+					"Default": 0,
+					"Maximum": 16
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting44",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "Param42"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param43"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.515,
+					"Delay": 0.8,
+					"Acceleration": 2,
+					"Radius": 21
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 42
+					},
+					"Mobility": 0.68,
+					"Delay": 1.25,
+					"Acceleration": 1.87,
+					"Radius": 21
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": 0,
+					"Default": 0,
+					"Maximum": 57.5
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting45",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 40,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 30,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 8,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X1"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param26"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param104"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param105"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.7,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.9,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 17
+					},
+					"Mobility": 0.9,
+					"Delay": 0.83,
+					"Acceleration": 0.85,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 29
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 0.85,
+					"Radius": 12
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting46",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 40,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 30,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 8,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X23"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X24"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X25"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param105"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.9,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 17
+					},
+					"Mobility": 0.9,
+					"Delay": 0.83,
+					"Acceleration": 0.85,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 29
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 0.85,
+					"Radius": 12
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting47",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 10,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X2"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X3"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X4"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X8"
+					},
+					"VertexIndex": 4,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.9,
+					"Delay": 0.98,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 19
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 27
+					},
+					"Mobility": 0.83,
+					"Delay": 0.92,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 34
+					},
+					"Mobility": 0.81,
+					"Delay": 0.89,
+					"Acceleration": 0.8,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.77,
+					"Delay": 0.88,
+					"Acceleration": 0.8,
+					"Radius": 6
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -60,
+					"Default": 0,
+					"Maximum": 60
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting48",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 8,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X19"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X20"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X21"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X22"
+					},
+					"VertexIndex": 4,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.9,
+					"Delay": 0.98,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 19
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 27
+					},
+					"Mobility": 0.83,
+					"Delay": 0.92,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 34
+					},
+					"Mobility": 0.81,
+					"Delay": 0.89,
+					"Acceleration": 0.8,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.77,
+					"Delay": 0.88,
+					"Acceleration": 0.8,
+					"Radius": 6
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -30,
+					"Default": 0,
+					"Maximum": 30
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting49",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 8,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X30"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X32"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X33"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X34"
+					},
+					"VertexIndex": 4,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.9,
+					"Delay": 0.98,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 19
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 27
+					},
+					"Mobility": 0.83,
+					"Delay": 0.92,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 34
+					},
+					"Mobility": 0.81,
+					"Delay": 0.89,
+					"Acceleration": 0.8,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.77,
+					"Delay": 0.88,
+					"Acceleration": 0.8,
+					"Radius": 6
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -30,
+					"Default": 0,
+					"Maximum": 30
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting50",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X12"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X14"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X18"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.7,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.9,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 17
+					},
+					"Mobility": 0.9,
+					"Delay": 0.83,
+					"Acceleration": 0.85,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 29
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 0.85,
+					"Radius": 12
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting51",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 8,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X9"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X10"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.9,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.9,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 17
+					},
+					"Mobility": 0.9,
+					"Delay": 0.83,
+					"Acceleration": 0.85,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 29
+					},
+					"Mobility": 0.9,
+					"Delay": 0.8,
+					"Acceleration": 0.85,
+					"Radius": 12
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -12,
+					"Default": 0,
+					"Maximum": 12
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting52",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param79"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param80"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.92,
+					"Delay": 1,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.92,
+					"Delay": 0.88,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.92,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.92,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.92,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting53",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param149"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param150"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param153"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.997,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.88,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.88,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.87,
+					"Delay": 0.95,
+					"Acceleration": 0.88,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting54",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param157"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param158"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param164"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.88,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.88,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.87,
+					"Delay": 0.95,
+					"Acceleration": 0.88,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting55",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param151"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param152"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.9,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param154"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.92,
+					"Delay": 0.88,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.92,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 31
+					},
+					"Mobility": 0.92,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 43
+					},
+					"Mobility": 0.92,
+					"Delay": 0.75,
+					"Acceleration": 0.8,
+					"Radius": 12
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting56",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param173"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param254"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.9,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param259"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.92,
+					"Delay": 0.88,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.92,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 31
+					},
+					"Mobility": 0.92,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 43
+					},
+					"Mobility": 0.92,
+					"Delay": 0.75,
+					"Acceleration": 0.8,
+					"Radius": 12
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting57",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 25,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 5,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param50"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param44"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param45"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param51"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param58"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param75"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.91,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.91,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 38
+					},
+					"Mobility": 0.91,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting58",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 25,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 5,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param73"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param74"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param81"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param82"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.91,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.91,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 38
+					},
+					"Mobility": 0.91,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting59",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 25,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 35,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 5,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param52"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param66"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param71"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param51"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param58"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param83"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.91,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.91,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 38
+					},
+					"Mobility": 0.91,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting60",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 52,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 10,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 38,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param144"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param147"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 8
+					},
+					"Mobility": 0.85,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.85,
+					"Delay": 0.8,
+					"Acceleration": 0.9,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.85,
+					"Delay": 0.75,
+					"Acceleration": 0.9,
+					"Radius": 7
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting61",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 10,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 67,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 10,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 13,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param155"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param156"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.85,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 17
+					},
+					"Mobility": 0.95,
+					"Delay": 0.87,
+					"Acceleration": 0.92,
+					"Radius": 17
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 32
+					},
+					"Mobility": 0.92,
+					"Delay": 0.89,
+					"Acceleration": 0.91,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 45
+					},
+					"Mobility": 0.85,
+					"Delay": 0.91,
+					"Acceleration": 0.8,
+					"Radius": 13
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 55
+					},
+					"Mobility": 0.8,
+					"Delay": 0.91,
+					"Acceleration": 0.75,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting62",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S01"
+					},
+					"VertexIndex": 1,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S02"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S03"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S04"
+					},
+					"VertexIndex": 4,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 50
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 60
+					},
+					"Mobility": 0.85,
+					"Delay": 0.9,
+					"Acceleration": 0.85,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting63",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S15"
+					},
+					"VertexIndex": 1,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S16"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S17"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S18"
+					},
+					"VertexIndex": 4,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 50
+					},
+					"Mobility": 0.85,
+					"Delay": 1,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 60
+					},
+					"Mobility": 0.85,
+					"Delay": 0.9,
+					"Acceleration": 0.85,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting64",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 40,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 30,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S08"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S11"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S09"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S10"
+					},
+					"VertexIndex": 4,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.88,
+					"Acceleration": 0.83,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.88,
+					"Delay": 0.88,
+					"Acceleration": 0.83,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 31
+					},
+					"Mobility": 0.88,
+					"Delay": 0.88,
+					"Acceleration": 0.83,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.88,
+					"Delay": 0.88,
+					"Acceleration": 0.83,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 49
+					},
+					"Mobility": 0.88,
+					"Delay": 0.88,
+					"Acceleration": 0.83,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting65",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S06"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S07"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.95,
+					"Delay": 0.95,
+					"Acceleration": 1,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.94,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 13
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting66",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S12"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S13"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "HairBack_S14"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.95,
+					"Delay": 0.95,
+					"Acceleration": 1,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.94,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 13
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 39
+					},
+					"Mobility": 0.93,
+					"Delay": 0.88,
+					"Acceleration": 1,
+					"Radius": 11
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting67",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X16"
+					},
+					"VertexIndex": 1,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X17"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.95,
+					"Delay": 0.95,
+					"Acceleration": 1,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.94,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 13
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting68",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 0,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X9"
+					},
+					"VertexIndex": 1,
+					"Scale": 0.7,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamHair1X10"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.7,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.95,
+					"Delay": 0.95,
+					"Acceleration": 1,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.94,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 15
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting69",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S24"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S25"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S26"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S27"
+					},
+					"VertexIndex": 4,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 43
+					},
+					"Mobility": 0.8,
+					"Delay": 0.88,
+					"Acceleration": 1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting70",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamClothY1"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.4,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamClothY2"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.4,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamClothY3"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.4,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamClothY4"
+					},
+					"VertexIndex": 4,
+					"Scale": 1.4,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 42
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.95,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting71",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S29"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.4,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S30"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S31"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S32"
+					},
+					"VertexIndex": 4,
+					"Scale": 0.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 43
+					},
+					"Mobility": 0.8,
+					"Delay": 0.88,
+					"Acceleration": 0.98,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting72",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S37"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S38"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S39"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S40"
+					},
+					"VertexIndex": 4,
+					"Scale": 0.7,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 43
+					},
+					"Mobility": 0.8,
+					"Delay": 0.88,
+					"Acceleration": 0.98,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting73",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S33"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S34"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S35"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S36"
+					},
+					"VertexIndex": 4,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 42
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.95,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting74",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S41"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S42"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.88,
+					"Delay": 0.93,
+					"Acceleration": 0.95,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 42
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 0.95,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting75",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param_Angle_Rotation9"
+					},
+					"VertexIndex": 1,
+					"Scale": 25,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param_Angle_Rotation130"
+					},
+					"VertexIndex": 2,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param_Angle_Rotation131"
+					},
+					"VertexIndex": 3,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param_Angle_Rotation135"
+					},
+					"VertexIndex": 4,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param_Angle_Rotation136"
+					},
+					"VertexIndex": 5,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param_Angle_Rotation137"
+					},
+					"VertexIndex": 6,
+					"Scale": 30,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.82,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 23
+					},
+					"Mobility": 0.85,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 33
+					},
+					"Mobility": 0.89,
+					"Delay": 0.85,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 43
+					},
+					"Mobility": 0.92,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 53
+					},
+					"Mobility": 0.94,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 63
+					},
+					"Mobility": 0.95,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting76",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "physicsY10"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "physicsY11"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "physicsY12"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7
+					},
+					"Mobility": 0.87,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 14
+					},
+					"Mobility": 0.81,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.75,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 7
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting77",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param114"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param115"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param116"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param117"
+					},
+					"VertexIndex": 4,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.88,
+					"Delay": 1,
+					"Acceleration": 0.98,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7
+					},
+					"Mobility": 0.88,
+					"Delay": 0.85,
+					"Acceleration": 0.98,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 14
+					},
+					"Mobility": 0.88,
+					"Delay": 0.85,
+					"Acceleration": 1,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.88,
+					"Delay": 0.85,
+					"Acceleration": 0.9,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 28
+					},
+					"Mobility": 0.88,
+					"Delay": 0.85,
+					"Acceleration": 0.85,
+					"Radius": 7
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting78",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "physicsY7"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "physicsY8"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "physicsY9"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 7
+					},
+					"Mobility": 0.87,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 14
+					},
+					"Mobility": 0.81,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 7
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.75,
+					"Delay": 0.85,
+					"Acceleration": 1.1,
+					"Radius": 7
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting79",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY3"
+					},
+					"VertexIndex": 1,
+					"Scale": 13.562,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.95,
+					"Delay": 10,
+					"Acceleration": 10,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting80",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 50,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 45,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBreath"
+					},
+					"Weight": 5,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S12"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S13"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S18"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S14"
+					},
+					"VertexIndex": 4,
+					"Scale": 1.4,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.9,
+					"Delay": 0.98,
+					"Acceleration": 0.92,
+					"Radius": 20
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 29
+					},
+					"Mobility": 0.85,
+					"Delay": 0.88,
+					"Acceleration": 0.9,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 37
+					},
+					"Mobility": 0.85,
+					"Delay": 0.88,
+					"Acceleration": 0.92,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.99,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting81",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S15"
+					},
+					"VertexIndex": 2,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S16"
+					},
+					"VertexIndex": 3,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Qun_S17"
+					},
+					"VertexIndex": 4,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.9,
+					"Delay": 0.98,
+					"Acceleration": 0.92,
+					"Radius": 20
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 29
+					},
+					"Mobility": 0.85,
+					"Delay": 0.88,
+					"Acceleration": 0.9,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 37
+					},
+					"Mobility": 0.85,
+					"Delay": 0.88,
+					"Acceleration": 0.92,
+					"Radius": 8
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 46
+					},
+					"Mobility": 0.99,
+					"Delay": 0.95,
+					"Acceleration": 0.8,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting82",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 80,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param215"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param271"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param216"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param272"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.5,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 11
+					},
+					"Mobility": 0.88,
+					"Delay": 0.74,
+					"Acceleration": 0.7,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.88,
+					"Delay": 0.71,
+					"Acceleration": 0.7,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -40,
+					"Default": 0,
+					"Maximum": 40
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting83",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeSmileR"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "star_07"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "star_08"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 11
+					},
+					"Mobility": 0.88,
+					"Delay": 0.74,
+					"Acceleration": 0.7,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.88,
+					"Delay": 0.71,
+					"Acceleration": 0.85,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -40,
+					"Default": 0,
+					"Maximum": 0
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting84",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeLOpen"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeSmile"
+					},
+					"Weight": 20,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "star_04"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "star_05"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 11
+					},
+					"Mobility": 0.88,
+					"Delay": 0.74,
+					"Acceleration": 0.7,
+					"Radius": 11
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 21
+					},
+					"Mobility": 0.88,
+					"Delay": 0.71,
+					"Acceleration": 0.85,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -40,
+					"Default": 0,
+					"Maximum": 0
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting85",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "hudie_SR04"
+					},
+					"VertexIndex": 1,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "hudie_SR05"
+					},
+					"VertexIndex": 2,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "hudie_SR06"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting86",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 60,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 40,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "hudie_SL04"
+					},
+					"VertexIndex": 1,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "hudie_SL02"
+					},
+					"VertexIndex": 2,
+					"Scale": 2,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "hudie_SL03"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.6,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.88,
+					"Delay": 0.95,
+					"Acceleration": 0.96,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -20,
+					"Default": 0,
+					"Maximum": 20
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting87",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamArmShake"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param283"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param284"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param285"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.94,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.94,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 32
+					},
+					"Mobility": 0.94,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting88",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "Param65"
+					},
+					"Weight": 100,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param286"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param288"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param287"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 12
+					},
+					"Mobility": 0.94,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 12
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 22
+					},
+					"Mobility": 0.94,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 32
+					},
+					"Mobility": 0.94,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting89",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param60"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting90",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param87"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.8,
+					"Delay": 0.85,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting91",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleX"
+					},
+					"Weight": 90,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleZ"
+					},
+					"Weight": 20,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param274"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param275"
+					},
+					"VertexIndex": 2,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param276"
+					},
+					"VertexIndex": 3,
+					"Scale": 0.8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting92",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamBodyAngleY"
+					},
+					"Weight": 30,
+					"Type": "X",
+					"Reflect": true
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param277"
+					},
+					"VertexIndex": 1,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 20
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 30
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 40
+					},
+					"Mobility": 0.91,
+					"Delay": 0.9,
+					"Acceleration": 0.8,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -15,
+					"Default": 0,
+					"Maximum": 15
+				},
+				"Angle": {
+					"Minimum": -57.3,
+					"Default": 0,
+					"Maximum": 57.3
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting93",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamEyeROpen"
+					},
+					"Weight": 60,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param295"
+					},
+					"VertexIndex": 1,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param296"
+					},
+					"VertexIndex": 2,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param297"
+					},
+					"VertexIndex": 3,
+					"Scale": 1.3,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.95,
+					"Delay": 0.8,
+					"Acceleration": 1,
+					"Radius": 15
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 25
+					},
+					"Mobility": 0.97,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 10
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 35
+					},
+					"Mobility": 0.95,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 10
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -100,
+					"Default": 0,
+					"Maximum": 0
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting94",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleX"
+					},
+					"Weight": 49,
+					"Type": "X",
+					"Reflect": false
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleY"
+					},
+					"Weight": 46,
+					"Type": "X",
+					"Reflect": true
+				},
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "ParamAngleZ"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "huatonghudie05"
+					},
+					"VertexIndex": 2,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "huatonghudie07"
+					},
+					"VertexIndex": 3,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				},
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "huatonghudie06"
+					},
+					"VertexIndex": 4,
+					"Scale": 1,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 0.88,
+					"Delay": 0.8,
+					"Acceleration": 0.9,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 9
+					},
+					"Mobility": 0.88,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 18
+					},
+					"Mobility": 0.88,
+					"Delay": 0.8,
+					"Acceleration": 0.8,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 27
+					},
+					"Mobility": 0.88,
+					"Delay": 0.77,
+					"Acceleration": 0.78,
+					"Radius": 9
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 36
+					},
+					"Mobility": 0.88,
+					"Delay": 0.75,
+					"Acceleration": 0.76,
+					"Radius": 9
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -6,
+					"Default": 0,
+					"Maximum": 6
+				},
+				"Angle": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting95",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "Param46"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param48"
+					},
+					"VertexIndex": 1,
+					"Scale": 10,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.8,
+					"Delay": 0.9,
+					"Acceleration": 1,
+					"Radius": 15
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting96",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "Param46"
+					},
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param47"
+					},
+					"VertexIndex": 1,
+					"Scale": 12,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 15
+					},
+					"Mobility": 0.74,
+					"Delay": 0.88,
+					"Acceleration": 1,
+					"Radius": 15
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		},
+		{
+			"Id": "PhysicsSetting97",
+			"Input": [
+				{
+					"Source": {
+						"Target": "Parameter",
+						"Id": "Param46"
+					},
+					"Weight": 50,
+					"Type": "X",
+					"Reflect": false
+				}
+			],
+			"Output": [
+				{
+					"Destination": {
+						"Target": "Parameter",
+						"Id": "Param49"
+					},
+					"VertexIndex": 1,
+					"Scale": 8,
+					"Weight": 100,
+					"Type": "Angle",
+					"Reflect": false
+				}
+			],
+			"Vertices": [
+				{
+					"Position": {
+						"X": 0,
+						"Y": 0
+					},
+					"Mobility": 1,
+					"Delay": 1,
+					"Acceleration": 1,
+					"Radius": 0
+				},
+				{
+					"Position": {
+						"X": 0,
+						"Y": 10.5
+					},
+					"Mobility": 0.7,
+					"Delay": 0.94,
+					"Acceleration": 1,
+					"Radius": 10.5
+				}
+			],
+			"Normalization": {
+				"Position": {
+					"Minimum": -10,
+					"Default": 0,
+					"Maximum": 10
+				},
+				"Angle": {
+					"Minimum": -50,
+					"Default": 0,
+					"Maximum": 50
+				}
+			}
+		}
+	]
+}

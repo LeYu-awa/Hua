@@ -34,11 +34,16 @@ export function ContextMenuProvider({ children }: { children: React.ReactNode })
         tileCtrlCloseRef.current = c.tileCtrlClose ?? true;
       })
       .catch(() => {});
-    const unlisten = listen<AppConfig>("config-changed", (event) => {
-      tileCtrlCloseRef.current = event.payload.tileCtrlClose ?? true;
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<AppConfig>("config-changed", (event) => {
+        tileCtrlCloseRef.current = event.payload.tileCtrlClose ?? true;
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, []);
 

@@ -146,7 +146,9 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
   }, [user, onConfigChange]);
 
   // ─── loading ───
-  if (loading) {
+  // 注意：session=true 但 profile 尚未加载完成时也要显示加载状态，
+  // 避免中间态渲染登录表单导致闪烁
+  if (loading || (session && !profile)) {
     return (
       <ScrollFrame>
         <Card>

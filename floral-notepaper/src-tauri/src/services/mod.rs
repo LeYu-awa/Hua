@@ -1,4 +1,4 @@
-pub mod canvas;
+pub mod agent;
 pub mod cowrite;
 pub mod ink;
 pub mod notes;

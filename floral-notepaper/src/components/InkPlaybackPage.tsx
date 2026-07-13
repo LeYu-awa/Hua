@@ -1,14 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { getInkSession, listInkSessions } from "../features/ink/api";
-import { analyzeInkSession, getContentAtTimeMs } from "../features/ink/analyze";
-import type {
-  BehaviorType,
-  InkKeyPoint,
-  InkSession,
-  InkSessionSummary,
-} from "../features/ink/types";
-import { getNote } from "../features/notes/api";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { generateAgentReviewReport, listAgentReplayMarkers } from "../features/agent/api";
+import type { AgentReplayMarker, AgentReviewReport } from "../features/agent/types";
 
 interface InkPlaybackPageProps {
   noteId: string;
@@ -46,35 +38,60 @@ function formatDuration(minutes: number): string {
   return min > 0 ? `${h} 小时 ${min} 分钟` : `${h} 小时`;
 }
 
-function formatDateLabel(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const isToday =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  if (isToday) return "今天";
-  const yesterday = new Date(now.getTime() - 86400000);
-  const isYesterday =
-    date.getFullYear() === yesterday.getFullYear() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getDate() === yesterday.getDate();
-  if (isYesterday) return "昨天";
-  return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function markerToBehavior(type: AgentReplayMarker["markerType"]): BehaviorType {
+  if (type === "stuck" || type === "conflict") return "停顿思考";
+  if (type === "handoff") return "结构调整";
+  if (type === "consensus") return "润色优化";
+  return "流畅创作";
 }
 
-function formatTimeLabel(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+function markerToKeyPointType(type: AgentReplayMarker["markerType"]): KeyPointType {
+  if (type === "stuck" || type === "conflict") return "delete";
+  if (type === "handoff") return "move";
+  if (type === "consensus") return "paste";
+  return "newParagraph";
 }
 
-export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
-  const { t } = useTranslation();
-  const [sessions, setSessions] = useState<InkSessionSummary[]>([]);
-  const [selectedSession, setSelectedSession] = useState<InkSession | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [noteTitle, setNoteTitle] = useState<string | null>(null);
+function buildAgentRecord(markers: AgentReplayMarker[]): EditRecord | null {
+  if (markers.length === 0) return null;
+
+  const sorted = [...markers].sort((a, b) => a.time - b.time);
+  const start = sorted[0].time;
+  const end = sorted[sorted.length - 1].time;
+  const durationMs = Math.max(5 * 60_000, end - start + 5 * 60_000);
+  const startDate = new Date(start);
+  const intervals: BehaviorInterval[] = sorted.map((marker, index) => {
+    const startMs = Math.max(0, marker.time - start);
+    const next = sorted[index + 1];
+    const endMs = next ? Math.max(startMs + 60_000, next.time - start) : durationMs;
+    return { startMs, endMs, type: markerToBehavior(marker.markerType) };
+  });
+
+  return {
+    id: 10_000,
+    noteTitle: "Agent 画布回放",
+    dateLabel: "最近",
+    timeLabel: startDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+    durationMinutes: Math.max(1, Math.ceil(durationMs / 60_000)),
+    summary: `Agent 已从画布事件中识别 ${sorted.length} 个关键节点`,
+    tags: Array.from(new Set(intervals.map((interval) => interval.type))),
+    intervals,
+    keyPoints: sorted.map((marker) => ({
+      timeMs: Math.max(0, marker.time - start),
+      type: markerToKeyPointType(marker.markerType),
+      description: `${marker.title}：${marker.summary}`,
+    })),
+  };
+}
+
+// ── 组件 ──────────────────────────────────────────────
+
+export function InkPlaybackPage() {
+  const [records, setRecords] = useState<EditRecord[]>(mockRecords);
+  const [agentReport, setAgentReport] = useState<AgentReviewReport | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number>(mockRecords[0]?.id ?? null);
   const [hoverMs, setHoverMs] = useState<number | null>(null);
   const [hoverKeyPoint, setHoverKeyPoint] = useState<InkKeyPoint | null>(null);
   // 播放状态
@@ -85,7 +102,35 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
   const rafRef = useRef<number | null>(null);
   const lastTickRef = useRef<number | null>(null);
 
-  const SPEEDS = [1, 2, 4, 8];
+  useEffect(() => {
+    const conversationId = localStorage.getItem("floral-last-conversation-id");
+    if (!conversationId) return;
+
+    setIsReportLoading(true);
+    setReportError(null);
+    Promise.all([
+      listAgentReplayMarkers(conversationId),
+      generateAgentReviewReport(conversationId),
+    ])
+      .then(([markers, report]) => {
+        const agentRecord = buildAgentRecord(markers);
+        if (agentRecord) {
+          setRecords([agentRecord, ...mockRecords]);
+          setSelectedId(agentRecord.id);
+        }
+        setAgentReport(report);
+      })
+      .catch((error) => {
+        console.warn(error);
+        setReportError("复盘报告生成失败，请稍后再试");
+      })
+      .finally(() => setIsReportLoading(false));
+  }, []);
+
+  const selectedRecord = useMemo(
+    () => records.find((r) => r.id === selectedId) ?? null,
+    [records, selectedId],
+  );
 
   const analyzed = useMemo(() => {
     if (!selectedSession) return null;
@@ -255,29 +300,8 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col min-h-0 bg-paper">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-[13px] text-ink-ghost">
-            {t("playback.loading", { defaultValue: "加载中…" })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex-1 flex flex-col min-h-0 bg-paper">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-[13px] text-red-400">{error}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (sessions.length === 0) {
+  // 空状态
+  if (records.length === 0) {
     return (
       <div className="flex-1 flex flex-col min-h-0 bg-paper">
         <div className="flex-1 flex items-center justify-center">
@@ -348,6 +372,67 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
           )}
 
           <div className="flex-1 overflow-y-auto px-8 py-5">
+            {(isReportLoading || reportError || agentReport) && (
+              <div className="mb-4 rounded-2xl border border-bamboo/20 bg-cloud/70 p-4 shadow-[0_10px_30px_rgba(40,48,38,0.08)] animate-fade-in">
+                {isReportLoading && (
+                  <p className="text-[11px] leading-relaxed text-ink-faint">
+                    Agent 正在生成协作复盘报告…
+                  </p>
+                )}
+                {reportError && (
+                  <p className="text-[11px] leading-relaxed text-clay">
+                    {reportError}
+                  </p>
+                )}
+                {agentReport && (
+                  <>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-display font-semibold text-ink-soft">
+                      {agentReport.title}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">
+                      {agentReport.summary}
+                    </p>
+                  </div>
+                  <div className="shrink-0 rounded-xl bg-bamboo/10 px-3 py-2 text-center text-bamboo">
+                    <p className="text-[10px]">健康度</p>
+                    <p className="text-lg font-semibold leading-none">{agentReport.healthScore}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {Object.entries(agentReport.markerCounts)
+                    .filter(([, count]) => count > 0)
+                    .map(([type, count]) => (
+                      <span key={type} className="rounded-full bg-paper/80 px-2 py-0.5 text-[10px] text-ink-faint">
+                        {type} × {count}
+                      </span>
+                    ))}
+                </div>
+
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  {[
+                    ["亮点", agentReport.highlights],
+                    ["风险", agentReport.risks],
+                    ["下一步", agentReport.nextSteps],
+                  ].map(([title, items]) => (
+                    <div key={title as string} className="rounded-xl bg-paper/70 p-3">
+                      <p className="text-[10px] font-medium text-ink-soft">{title as string}</p>
+                      <ul className="mt-1 space-y-1">
+                        {(items as string[]).slice(0, 2).map((item) => (
+                          <li key={item} className="text-[10px] leading-relaxed text-ink-faint">
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+                  </>
+                )}
+              </div>
+            )}
             <div
               className={`text-[15px] leading-[2] text-ink-soft font-body whitespace-pre-wrap transition-opacity duration-200 ${
                 playing ? "opacity-90" : currentMs !== null ? "opacity-70" : ""
@@ -369,7 +454,7 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
               {t("playback.sessions", { defaultValue: "编辑记录" })}
             </h3>
             <p className="text-[10px] text-ink-ghost mt-0.5">
-              {noteTitle || t("playback.untitled", { defaultValue: "无标题" })}
+              共 {records.length} 次编辑
             </p>
           </div>
 
@@ -377,8 +462,8 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
             <div className="relative pl-5">
               <div className="absolute left-[9px] top-2 bottom-2 w-px bg-paper-deep/40" />
 
-              {sessions.map((session) => {
-                const isSelected = session.id === selectedSession?.id;
+              {records.map((record) => {
+                const isSelected = record.id === selectedId;
 
                 return (
                   <div key={session.id} className="relative pb-4 last:pb-0">

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { Live2DCompanionSettings } from "../features/companion/components/Live2DCompanionSettings";
 
 // ---- Elysia 导航选项卡 ----
 type ElysiaTab = "general" | "live2d" | "tts" | "memory" | "rag" | "mcp" | "appearance";
@@ -281,7 +282,7 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
 
 // ---- Elysia 主页面 ----
 export function ElysiaPage() {
-  const [activeTab, setActiveTab] = useState<ElysiaTab>("tts");
+  const [activeTab, setActiveTab] = useState<ElysiaTab>("live2d");
   const [ttsConfig, setTTSConfig] = useState<TTSConfig>(() => {
     // 尝试从 localStorage 恢复配置
     try {
@@ -300,6 +301,8 @@ export function ElysiaPage() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case "live2d":
+        return <Live2DCompanionSettings />;
       case "tts":
         return <TTSSettings config={ttsConfig} onChange={handleTTSChange} />;
       default:

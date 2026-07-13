@@ -228,11 +228,16 @@ export function NotePad({
   }, [applyNote, initialNoteId, refreshNotes]);
 
   useEffect(() => {
-    const unlisten = listen("notes-changed", () => {
-      void refreshNotes().catch(() => undefined);
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen("notes-changed", () => {
+        void refreshNotes().catch(() => undefined);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, [refreshNotes]);
 
@@ -255,25 +260,28 @@ export function NotePad({
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<{
-      tileColor?: string;
-      tileColorMode?: TileColorMode;
-      surfaceFontSize?: number;
-      tileRenderMarkdown?: boolean;
-      agentEnabled?: boolean;
-    }>("config-changed", (event) => {
-      const mode = event.payload.tileColorMode ?? tileColorMode;
-      const raw = event.payload.tileColor ?? tileColorRaw;
-      setTileColorMode(mode);
-      setTileColorRaw(normalizeTileColor(raw));
-      setTileColor(resolveTileColor(mode, raw));
-      if (event.payload.surfaceFontSize != null) setSurfaceFontSize(event.payload.surfaceFontSize);
-      if (event.payload.tileRenderMarkdown != null)
-        setTileRenderMarkdown(event.payload.tileRenderMarkdown);
-      if (event.payload.agentEnabled != null) setAgentEnabled(event.payload.agentEnabled);
-    });
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<{
+        tileColor?: string;
+        tileColorMode?: TileColorMode;
+        surfaceFontSize?: number;
+        tileRenderMarkdown?: boolean;
+      }>("config-changed", (event) => {
+        const mode = event.payload.tileColorMode ?? tileColorMode;
+        const raw = event.payload.tileColor ?? tileColorRaw;
+        setTileColorMode(mode);
+        setTileColorRaw(normalizeTileColor(raw));
+        setTileColor(resolveTileColor(mode, raw));
+        if (event.payload.surfaceFontSize != null) setSurfaceFontSize(event.payload.surfaceFontSize);
+        if (event.payload.tileRenderMarkdown != null)
+          setTileRenderMarkdown(event.payload.tileRenderMarkdown);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, [tileColorMode, tileColorRaw]);
 
@@ -297,26 +305,31 @@ export function NotePad({
       // not in Tauri environment (tests)
     }
 
-    const unlisten = listen<string>("notepad:activate", (event) => {
-      if (event.payload !== myLabel) return;
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen<string>("notepad:activate", (event) => {
+        if (event.payload !== myLabel) return;
 
-      isStandby.current = false;
-      hasEnteredOnce.current = true;
-      setEditingNoteId(null);
-      setTitle("");
-      setContent("");
-      setMode("new");
-      setStatus("empty");
-      setErrorMessage(null);
-      setIsExiting(false);
-      setSurfaceMode("pad");
-      void refreshNotes().catch(() => undefined);
-      void showCurrentWindow()
-        .then(() => contentRef.current?.focus())
-        .catch(() => undefined);
-    });
+        isStandby.current = false;
+        hasEnteredOnce.current = true;
+        setEditingNoteId(null);
+        setTitle("");
+        setContent("");
+        setMode("new");
+        setStatus("empty");
+        setErrorMessage(null);
+        setIsExiting(false);
+        setSurfaceMode("pad");
+        void refreshNotes().catch(() => undefined);
+        void showCurrentWindow()
+          .then(() => contentRef.current?.focus())
+          .catch(() => undefined);
+      });
+    } catch {
+      unlisten = null;
+    }
     return () => {
-      void unlisten.then((fn) => fn());
+      void unlisten?.then((fn) => fn());
     };
   }, [refreshNotes]);
 

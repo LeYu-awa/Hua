@@ -1,0 +1,28 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "A.水瓶座之恋免费版.moc3",
+		"Textures": [
+			"A.水瓶座之恋免费版.8192/texture_00.png",
+			"A.水瓶座之恋免费版.8192/texture_01.png",
+			"A.水瓶座之恋免费版.8192/texture_02.png",
+			"A.水瓶座之恋免费版.8192/texture_03.png",
+			"A.水瓶座之恋免费版.8192/texture_04.png",
+			"A.水瓶座之恋免费版.8192/texture_05.png"
+		],
+		"Physics": "A.水瓶座之恋免费版.physics3.json",
+		"DisplayInfo": "A.水瓶座之恋免费版.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		}
+	]
+}

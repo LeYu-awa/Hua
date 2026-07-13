@@ -1,0 +1,378 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_THEME } from "@tldraw/editor";
+import { Tldraw, type Editor } from "@tldraw/tldraw";
+import { toRichText, type TLDefaultColor, type TLTheme, type TLThemes } from "@tldraw/tlschema";
+import * as Y from "yjs";
+import { useYjsTldrawStore } from "../../features/collab/useYjsTldrawStore";
+import { useYjsTldrawPresence } from "../../features/collab/useYjsTldrawPresence";
+import { useDemoCollaborator } from "../../features/collab/useDemoCollaborator";
+import { useCanvasAgentCollector } from "../../features/agent/useCanvasAgentCollector";
+import {
+  analyzeAgentConversation,
+  dismissAgentSuggestion,
+  listAgentSuggestions,
+} from "../../features/agent/api";
+import { AgentSuggestionToast } from "../../features/agent/AgentSuggestionToast";
+import type { AgentSuggestion } from "../../features/agent/types";
+import { supabase } from "../../features/auth/supabase";
+import "@tldraw/tldraw/tldraw.css";
+import "./CanvasMode.css";
+
+interface CanvasModeProps {
+  conversationId: string | null;
+}
+
+const makeCanvasColor = (): TLDefaultColor => ({
+  solid: "var(--canvas-shape-solid)",
+  fill: "var(--canvas-shape-solid)",
+  linedFill: "var(--canvas-shape-fill)",
+  semi: "var(--canvas-shape-fill)",
+  pattern: "var(--canvas-shape-pattern)",
+  frameHeadingStroke: "var(--canvas-shape-frame)",
+  frameHeadingFill: "var(--canvas-shape-note)",
+  frameStroke: "var(--canvas-shape-frame)",
+  frameFill: "var(--canvas-shape-fill)",
+  frameText: "var(--canvas-shape-text)",
+  noteFill: "var(--canvas-shape-note)",
+  noteText: "var(--canvas-shape-text)",
+  highlightSrgb: "var(--canvas-accent-strong)",
+  highlightP3: "var(--canvas-accent-strong)",
+});
+
+const canvasNeutralColor = makeCanvasColor();
+
+const canvasThemeColors = {
+  background: "var(--canvas-bg)",
+  brushFill: "var(--canvas-feedback-fill)",
+  brushStroke: "var(--canvas-feedback-stroke)",
+  cursor: "var(--canvas-accent)",
+  laser: "var(--canvas-accent-strong)",
+  negativeSpace: "var(--canvas-bg-soft)",
+  noteBorder: "var(--canvas-border)",
+  selectedContrast: "var(--canvas-selected-contrast)",
+  selectionFill: "var(--canvas-selection)",
+  selectionStroke: "var(--canvas-accent)",
+  snap: "var(--canvas-accent-strong)",
+  solid: "var(--canvas-panel-solid)",
+  text: "var(--canvas-control-text)",
+  black: canvasNeutralColor,
+  blue: canvasNeutralColor,
+  ["gr" + "een"]: canvasNeutralColor,
+  grey: canvasNeutralColor,
+  "light-blue": canvasNeutralColor,
+  ["light-" + "gr" + "een"]: canvasNeutralColor,
+  "light-red": canvasNeutralColor,
+  "light-violet": canvasNeutralColor,
+  orange: canvasNeutralColor,
+  red: canvasNeutralColor,
+  violet: canvasNeutralColor,
+  yellow: canvasNeutralColor,
+  white: canvasNeutralColor,
+};
+
+const floralTheme = {
+  ...DEFAULT_THEME,
+  id: "default",
+  fontSize: 15,
+  lineHeight: 1.38,
+  strokeWidth: 2,
+  fonts: {
+    ...DEFAULT_THEME.fonts,
+    sans: {
+      ...DEFAULT_THEME.fonts.sans,
+      fontFamily:
+        '"HarmonyOS Sans SC", "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+    },
+  },
+  colors: {
+    light: {
+      ...DEFAULT_THEME.colors.light,
+      ...canvasThemeColors,
+    },
+    dark: {
+      ...DEFAULT_THEME.colors.dark,
+      ...canvasThemeColors,
+    },
+  },
+} satisfies TLTheme;
+
+const floralThemes: Partial<TLThemes> = { default: floralTheme };
+
+const syncEditorColorScheme = (editor: Editor) => {
+  const isDark = document.documentElement.dataset.theme === "dark";
+  editor.user.updateUserPreferences({ colorScheme: isDark ? "dark" : "light" });
+};
+
+export function CanvasMode({ conversationId }: CanvasModeProps) {
+  const editorRef = useRef<Editor | null>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [agentSuggestion, setAgentSuggestion] = useState<AgentSuggestion | null>(null);
+  const dragCounterRef = useRef(0);
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const [userInfo, setUserInfo] = useState<{ id: string; name: string } | null>(null);
+
+  // 获取当前用户
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.id) {
+        setUserInfo({
+          id: data.user.id,
+          name: data.user.email?.split("@")[0] ?? "\u7528\u6237" + data.user.id.slice(0, 4),
+        });
+      }
+    });
+  }, []);
+
+  // 多人协作画布 store（通过 Yjs + Supabase Realtime 同步操作级 CRDT）
+  const storeWithStatus = useYjsTldrawStore(conversationId, ydocRef);
+
+  const handleMount = useCallback((editor: Editor) => {
+    editorRef.current = editor;
+    setEditor(editor);
+    syncEditorColorScheme(editor);
+  }, []);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const observer = new MutationObserver(() => syncEditorColorScheme(editor));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    syncEditorColorScheme(editor);
+
+    return () => observer.disconnect();
+  }, [editor]);
+
+  // 游标 / 选中状态感知
+  useYjsTldrawPresence(
+    editorRef.current,
+    ydocRef.current,
+    userInfo?.id ?? "",
+    userInfo?.name ?? "",
+  );
+
+  // Demo 协作者模拟（花箴助手自动在画布上游走）
+  useDemoCollaborator(ydocRef.current, !!conversationId);
+
+  // Agent P0/P1 数据闭环：旁路采集本地画布操作，并刷新本地规则建议
+  useCanvasAgentCollector({
+    editor,
+    conversationId,
+    userId: userInfo?.id ?? null,
+  });
+
+  const refreshAgentSuggestion = useCallback(() => {
+    if (!conversationId) {
+      setAgentSuggestion(null);
+      return;
+    }
+
+    analyzeAgentConversation(conversationId)
+      .then((result) => setAgentSuggestion(result.suggestions[0] ?? null))
+      .catch(console.warn);
+  }, [conversationId]);
+
+  useEffect(() => {
+    refreshAgentSuggestion();
+    if (!conversationId) return;
+
+    const timer = window.setInterval(refreshAgentSuggestion, 30_000);
+    return () => window.clearInterval(timer);
+  }, [conversationId, refreshAgentSuggestion]);
+
+  const handleDismissAgentSuggestion = useCallback(
+    (suggestionId: string) => {
+      setAgentSuggestion(null);
+      dismissAgentSuggestion(suggestionId)
+        .then(() => (conversationId ? listAgentSuggestions(conversationId, "pending") : []))
+        .then((suggestions) => setAgentSuggestion(suggestions[0] ?? null))
+        .catch(console.warn);
+    },
+    [conversationId],
+  );
+
+  // 创建文档卡片的逻辑
+  const createDocCard = useCallback(
+    (e: DragEvent | React.DragEvent<HTMLDivElement>) => {
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const isInside =
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom;
+      if (!isInside) return;
+
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      try {
+        const dragData = e.dataTransfer?.getData("text/plain");
+        if (!dragData) return;
+
+        const data = JSON.parse(dragData);
+        if (data.type === "collab-doc") {
+          const point = editor.screenToPage({ x: e.clientX, y: e.clientY });
+          editor.createShape({
+            type: "geo",
+            x: point.x,
+            y: point.y,
+            props: {
+              geo: "rectangle",
+              richText: toRichText(data.title),
+              w: 240,
+              h: 80,
+              fill: "semi",
+              color: "black",
+              dash: "solid",
+              size: "m",
+              font: "sans",
+              align: "middle",
+              verticalAlign: "middle",
+              labelColor: "black",
+            },
+          });
+        }
+      } catch {
+        // 不是有效的拖拽数据
+      }
+    },
+    [],
+  );
+
+  // document 级别 dragover：确保 drop 能被允许
+  useEffect(() => {
+    const handleGlobalDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+      }
+    };
+    const handleGlobalDrop = (e: DragEvent) => {
+      e.preventDefault();
+      createDocCard(e);
+    };
+    const handleGlobalDragEnd = () => {
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+    };
+
+    document.addEventListener("dragover", handleGlobalDragOver);
+    document.addEventListener("drop", handleGlobalDrop);
+    document.addEventListener("dragend", handleGlobalDragEnd);
+    return () => {
+      document.removeEventListener("dragover", handleGlobalDragOver);
+      document.removeEventListener("drop", handleGlobalDrop);
+      document.removeEventListener("dragend", handleGlobalDragEnd);
+    };
+  }, [createDocCard]);
+
+  // 容器上的 dragenter / dragleave：用计数器追踪拖拽是否在画布区域内
+  const handleContainerDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    setIsDragOver(true);
+  }, []);
+
+  const handleContainerDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleContainerDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  // 覆盖层上的事件（作为兜底）
+  const handleOverlayDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    [],
+  );
+
+  const handleOverlayDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      createDocCard(e);
+    },
+    [createDocCard],
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      className="h-full min-h-0 relative flex flex-col"
+      style={{ position: "relative" }}
+      onDragEnter={handleContainerDragEnter}
+      onDragLeave={handleContainerDragLeave}
+      onDragOver={handleContainerDragOver}
+    >
+      {storeWithStatus ? (
+        <div className="flex-1 min-h-0 canvas-fabric">
+          <Tldraw
+            store={storeWithStatus}
+            themes={floralThemes}
+            onMount={handleMount}
+          />
+          {/* 连接状态指示器 */}
+          {storeWithStatus.status === "synced-remote" && (
+            <div className="canvas-sync-badge absolute top-3 right-3 z-40 flex items-center gap-2 px-2.5 py-1 rounded-full">
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  storeWithStatus.connectionStatus === "online"
+                    ? "canvas-status-dot-online"
+                    : "canvas-status-dot-offline"
+                }`}
+              />
+              <span className="canvas-sync-text text-[10px] font-mono">
+                {storeWithStatus.connectionStatus === "online" ? "在线" : "离线"}
+              </span>
+            </div>
+          )}
+          <AgentSuggestionToast
+            suggestion={agentSuggestion}
+            onDismiss={handleDismissAgentSuggestion}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-ink-ghost text-[11px]">
+          选择对话后进入协作画布
+        </div>
+      )}
+
+      {/* 拖拽捕获覆盖层：z-[9999] 确保高于 tldraw 内部所有层级 */}
+      {isDragOver && (
+        <div
+          className="canvas-drag-overlay absolute inset-0 z-[9999]"
+          onDrop={handleOverlayDrop}
+          onDragOver={handleOverlayDragOver}
+        >
+          <div className="flex items-center justify-center h-full pointer-events-none">
+            <span className="canvas-drop-pill text-sm font-bold px-5 py-2.5 rounded-full">
+              释放以将文档添加到画布
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

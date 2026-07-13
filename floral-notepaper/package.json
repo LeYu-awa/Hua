@@ -14,15 +14,21 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@hazart-pkg/live2d-core": "^1.0.1",
+    "@naari3/pixi-live2d-display": "^1.2.5",
     "@supabase/supabase-js": "^2.108.2",
     "@tauri-apps/api": "~2.11.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2",
+    "@tldraw/tldraw": "^5.1.1",
     "chroma-js": "^3.2.0",
     "i18next": "^26.2.0",
     "indent-textarea": "^4.0.0",
     "katex": "^0.16.47",
+    "live2dcubismcore": "^1.0.2",
+    "pixi-live2d-display": "^0.4.0",
+    "pixi.js": "^8.19.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-i18next": "^17.0.8",
@@ -33,7 +39,9 @@
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "y-indexeddb": "^9.0.12",
+    "yjs": "^13.6.31"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.4",
