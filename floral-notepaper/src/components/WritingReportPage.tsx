@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { WritingReport } from "../features/agent/writingReport";
 import { generateWritingReport } from "../features/agent/writingReport";
+import { listHistoricalDocs } from "../features/agent/profileApi";
+import {
+  summarizeWritingProfile,
+  type WritingProfileInsight,
+} from "../features/agent/writingProfile";
 import type { ProviderConfig } from "../features/settings/types";
 
 interface WritingReportPageProps {
@@ -22,6 +27,17 @@ export function WritingReportPage({ noteId, providers }: WritingReportPageProps)
   const [report, setReport] = useState<WritingReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 场景十二：跨项目写作画像
+  const [profile, setProfile] = useState<WritingProfileInsight | null>(null);
+
+  // 载入 / 生成报告后刷新跨项目画像（可降级：非 Tauri 环境返回空）
+  const refreshProfile = async () => {
+    const docs = await listHistoricalDocs();
+    setProfile(summarizeWritingProfile(docs));
+  };
+  useEffect(() => {
+    void refreshProfile();
+  }, []);
 
   const handleGenerate = async () => {
     if (!noteId) return;
@@ -34,6 +50,7 @@ export function WritingReportPage({ noteId, providers }: WritingReportPageProps)
     try {
       const result = await generateWritingReport(noteId, providers);
       setReport(result);
+      void refreshProfile();
       if (!result) {
         setError(t("report.noData", { defaultValue: "还没有足够的写作数据" }));
       }
@@ -71,6 +88,25 @@ export function WritingReportPage({ noteId, providers }: WritingReportPageProps)
         {error && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-danger-bg text-red-400 text-[12px]">
             {error}
+          </div>
+        )}
+
+        {/* 场景十二：跨项目写作画像（长期陪伴视角，独立于单篇报告） */}
+        {profile && (
+          <div className="mb-5 p-4 rounded-xl bg-paper-warm/40 border border-paper-deep/20 animate-fade-in">
+            <div className="flex items-center gap-2 mb-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-bamboo" aria-hidden="true">
+                <path d="M3 3v18h18" />
+                <path d="M18 9l-5 5-3-3-4 4" />
+              </svg>
+              <span className="text-[12px] font-medium text-ink-faint">
+                {t("report.profile", { defaultValue: "跨项目写作画像" })}
+              </span>
+              <span className="ml-auto text-[10px] text-ink-ghost">
+                {profile.docCount} {t("report.docs", { defaultValue: "篇" })} · {t("report.avgDelete", { defaultValue: "平均删改" })} {profile.avgDeleteRatio}%
+              </span>
+            </div>
+            <p className="text-[13px] text-ink-soft leading-relaxed">{profile.summary}</p>
           </div>
         )}
 

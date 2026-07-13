@@ -5,8 +5,15 @@ pub mod services;
 use locales::Locale;
 use services::canvas::{canvas_delete, canvas_get, canvas_list, canvas_save, CanvasStore};
 use services::cowrite::{self, CoWriteSession, CoWriteSessionSummary, MergeToNoteResult};
+use services::embedding_cache::{
+    embedding_cache_clear, embedding_cache_get, embedding_cache_put, EmbeddingCacheStore,
+};
 use services::ink::{ink_append_events, ink_clear, ink_get_session, ink_list_sessions, InkStore};
 use services::notes::{default_store, AppConfig, AppError, Note, NoteMetadata, SaveNoteRequest};
+use services::profile::{
+    profile_add_historical_doc, profile_clear, profile_get_baseline, profile_list_historical_docs,
+    profile_save_baseline, ProfileStore,
+};
 use services::stats;
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
@@ -422,6 +429,8 @@ pub fn run() {
                 let _ = scope.allow_directory(base.join("backgrounds"), true);
                 app.manage(InkStore::new(base));
                 app.manage(CanvasStore::new(base));
+                app.manage(EmbeddingCacheStore::new(base));
+                app.manage(ProfileStore::new(base));
             }
             desktop::setup_desktop(app)?;
             Ok(())
@@ -479,7 +488,15 @@ pub fn run() {
             canvas_save,
             canvas_get,
             canvas_delete,
-            canvas_list
+            canvas_list,
+            embedding_cache_get,
+            embedding_cache_put,
+            embedding_cache_clear,
+            profile_get_baseline,
+            profile_save_baseline,
+            profile_list_historical_docs,
+            profile_add_historical_doc,
+            profile_clear
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

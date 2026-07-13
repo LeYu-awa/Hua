@@ -84,8 +84,9 @@ export async function requestCoWriteAITurn(
   customPrompt: string | undefined,
   providers: ProviderConfig[],
   temperature = 0.8,
+  canvasContext?: string,
 ): Promise<string> {
-  const messages = buildCoWriteMessages(session, identity, customPrompt);
+  const messages = buildCoWriteMessages(session, identity, customPrompt, canvasContext);
   return callChatCompletion(providers, messages, temperature);
 }
 
@@ -94,8 +95,9 @@ export async function regenerateCoWriteAITurn(
   identity: CoWriteIdentity,
   customPrompt: string | undefined,
   providers: ProviderConfig[],
+  canvasContext?: string,
 ): Promise<string> {
-  const messages = buildCoWriteMessages(session, identity, customPrompt);
+  const messages = buildCoWriteMessages(session, identity, customPrompt, canvasContext);
   const lastMessage = messages[messages.length - 1];
   if (lastMessage && lastMessage.role === "user") {
     lastMessage.content += "\n\n换一种写法：";

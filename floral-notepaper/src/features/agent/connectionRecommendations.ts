@@ -1,5 +1,7 @@
 import { callChatCompletion, extractJsonArray } from "../cowrite/coWriteAI";
 import type { ProviderConfig } from "../settings/types";
+import { callEmbedding, cosineSimilarity, spatialDistance } from "./embeddingService";
+import { pairKey } from "./ruleEngine";
 
 export interface ConnectionRecommendation {
   /** 推荐连向的笔记/节点 ID */
@@ -82,4 +84,101 @@ function sanitizeReason(reason: string): string {
     .replace(/你应该|必须|效率低|遗漏|错误|差|糟糕/g, "")
     .trim()
     .slice(0, 120);
+}
+
+// ─── 基于 Embedding 的隐含连接（场景一） ───
+
+/** 带坐标与文本的画布节点，用于隐含连接分析 */
+export interface ConnectionCandidateNode {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+}
+
+/** 已存在的显式连线，用于去重 */
+export interface ExistingEdge {
+  fromNodeId: string;
+  toNodeId: string;
+}
+
+/** 一条隐含连接推荐 */
+export interface ImplicitConnection {
+  sourceId: string;
+  targetId: string;
+  /** 语义相似度 0-1 */
+  similarity: number;
+  /** 空间距离 px */
+  distance: number;
+  /** 温柔的提示文案 */
+  message: string;
+}
+
+export interface ImplicitConnectionOptions {
+  /** 相似度阈值，默认 0.7 */
+  similarityThreshold?: number;
+  /** 空间距离阈值（px），默认 100 */
+  minDistance?: number;
+  /** 最多返回条数，默认 3 */
+  maxResults?: number;
+}
+
+function connectionMessage(): string {
+  return "这两块好像都在聊同一件事，要不要先轻轻连起来看看？";
+}
+
+/**
+ * 基于 Embedding 的隐含连接发现（issue 场景一）。
+ * 规则：语义相似度 > 阈值 且 空间距离 > 阈值 且 两节点间无显式连线。
+ * 文案用中性模板，不依赖 LLM，保证 Embedding 可用即可降级出结果。
+ * 无 Embedding 供应商或调用失败时返回空数组（由调用方回退到 LLM 版）。
+ */
+export async function findImplicitConnections(
+  nodes: ConnectionCandidateNode[],
+  existingEdges: ExistingEdge[],
+  providers: ProviderConfig[],
+  options: ImplicitConnectionOptions = {},
+): Promise<ImplicitConnection[]> {
+  const similarityThreshold = options.similarityThreshold ?? 0.7;
+  const minDistance = options.minDistance ?? 100;
+  const maxResults = options.maxResults ?? 3;
+
+  const valid = nodes.filter((n) => n.text.trim().length > 0);
+  if (valid.length < 2) return [];
+
+  const existing = new Set(existingEdges.map((e) => pairKey(e.fromNodeId, e.toNodeId)));
+
+  let vectors: number[][];
+  try {
+    vectors = await callEmbedding(providers, valid.map((n) => n.text.slice(0, 500)));
+  } catch {
+    return [];
+  }
+
+  const found: ImplicitConnection[] = [];
+  for (let i = 0; i < valid.length; i++) {
+    for (let j = i + 1; j < valid.length; j++) {
+      const a = valid[i];
+      const b = valid[j];
+      if (existing.has(pairKey(a.id, b.id))) continue;
+
+      const similarity = cosineSimilarity(vectors[i], vectors[j]);
+      if (similarity < similarityThreshold) continue;
+
+      const distance = spatialDistance(a, b);
+      if (distance < minDistance) continue;
+
+      found.push({
+        sourceId: a.id,
+        targetId: b.id,
+        similarity,
+        distance,
+        message: connectionMessage(),
+      });
+    }
+  }
+
+  // 相似度高者优先
+  found.sort((x, y) => y.similarity - x.similarity);
+  return found.slice(0, maxResults);
 }

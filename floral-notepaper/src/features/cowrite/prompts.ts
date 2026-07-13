@@ -165,13 +165,15 @@ export function buildCoWriteMessages(
   session: CoWriteSession,
   identity: CoWriteIdentity,
   customPrompt?: string,
+  canvasContext?: string,
 ): Array<{ role: string; content: string }> {
   const systemPrompt = getSystemPrompt(identity, customPrompt);
   const fullText = blocksToText(session.blocks);
 
+  const contextPrefix = canvasContext ? `${canvasContext}\n\n` : "";
   const userMessage = fullText
-    ? `当前全文（<human> 是人写的，<ai> 是 AI 之前写的，交替标注）：\n\n${fullText}\n\n轮到你了，写下一段：`
-    : "开始写第一段吧。";
+    ? `${contextPrefix}当前全文（<human> 是人写的，<ai> 是 AI 之前写的，交替标注）：\n\n${fullText}\n\n轮到你了，写下一段：`
+    : `${contextPrefix}开始写第一段吧。`;
 
   return [
     { role: "system", content: systemPrompt },

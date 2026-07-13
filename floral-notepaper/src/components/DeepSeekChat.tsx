@@ -3,6 +3,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ProviderConfig } from "../features/settings/types";
 import { logUsage } from "../features/settings/stats";
+import {
+  distillChatMessages,
+  type ChatMessage,
+  type DistillSuggestion,
+} from "../features/agent/chatDistill";
+import { getCanvasDocument, saveCanvasDocument } from "../features/canvas/api";
+import type { CanvasNode } from "../features/canvas/types";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -15,6 +22,10 @@ interface DeepSeekChatProps {
   docTitle: string;
   docContent: string;
   providers: ProviderConfig[];
+  /** 当前笔记 ID，用于把聊天沉淀写入对应画布 */
+  noteId?: string;
+  /** Agent 总开关 */
+  agentEnabled?: boolean;
 }
 
 const SYSTEM_PROMPT =
@@ -35,6 +46,8 @@ export function DeepSeekChat({
   docTitle,
   docContent,
   providers,
+  noteId,
+  agentEnabled = false,
 }: DeepSeekChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -43,6 +56,9 @@ export function DeepSeekChat({
   const [panelHeight, setPanelHeight] = useState(320);
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [selectedModelId, setSelectedModelId] = useState<string>("");
+  // 场景九：聊天沉淀为画布节点
+  const [dismissedDistill, setDismissedDistill] = useState<Set<string>>(() => new Set());
+  const [sunkDistill, setSunkDistill] = useState<Set<string>>(() => new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -205,6 +221,69 @@ export function DeepSeekChat({
     }
   };
 
+  // 场景九：把「决策 / 待办 / 风险」类消息识别出来，建议沉淀成画布节点（可忽略）
+  const distillSuggestions = useMemo<DistillSuggestion[]>(() => {
+    if (!agentEnabled || !noteId) return [];
+    const chatMessages: ChatMessage[] = messages
+      .slice(2)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m, i) => ({
+        id: `chat-${i}`,
+        docId: noteId,
+        senderId: m.role,
+        content: m.content,
+        createdAt: i,
+      }));
+    return distillChatMessages(chatMessages);
+  }, [messages, agentEnabled, noteId]);
+
+  const visibleSuggestions = useMemo(
+    () =>
+      distillSuggestions.filter(
+        (s) => !dismissedDistill.has(s.messageId) && !sunkDistill.has(s.messageId),
+      ),
+    [distillSuggestions, dismissedDistill, sunkDistill],
+  );
+
+  const sinkToCanvas = useCallback(
+    async (suggestion: DistillSuggestion) => {
+      if (!noteId) return;
+      const docId = `canvas-${noteId}`;
+      try {
+        let canvasDoc = await getCanvasDocument(docId).catch(() => null);
+        if (!canvasDoc) {
+          canvasDoc = { id: docId, noteId, nodes: [], edges: [] };
+        }
+        const offset = canvasDoc.nodes.length;
+        const newNode: CanvasNode = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          type: "card",
+          x: 120 + (offset % 4) * 60,
+          y: 120 + (offset % 4) * 40,
+          width: 240,
+          height: 120,
+          // 保留来源可追溯：文案 + 来自聊天标注
+          text: `${suggestion.suggestedText}\n\n— 来自聊天`,
+          source: "agent",
+        };
+        await saveCanvasDocument({ ...canvasDoc, nodes: [...canvasDoc.nodes, newNode] });
+        setSunkDistill((prev) => new Set(prev).add(suggestion.messageId));
+      } catch {
+        // 写入失败静默降级（例如非 Tauri 运行时）
+        setSunkDistill((prev) => new Set(prev).add(suggestion.messageId));
+      }
+    },
+    [noteId],
+  );
+
+  const CATEGORY_LABEL: Record<string, string> = {
+    decision: "决策",
+    todo: "待办",
+    risk: "风险",
+    question: "问题",
+    chatter: "闲聊",
+  };
+
   return (
     <div
       className={`shrink-0 border-t border-paper-deep/30 bg-paper/90 transition-all duration-300 ease-out flex flex-col overflow-hidden ${
@@ -332,6 +411,46 @@ export function DeepSeekChat({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 场景九：聊天沉淀建议 */}
+        {visibleSuggestions.length > 0 && (
+          <div className="shrink-0 border-t border-bamboo/20 pt-2 pb-1 space-y-1.5">
+            {visibleSuggestions.map((s) => (
+              <div
+                key={s.messageId}
+                className="flex items-start gap-2 rounded-lg bg-bamboo-mist/40 border border-bamboo/20 px-2.5 py-1.5 animate-fade-in"
+              >
+                <span className="shrink-0 mt-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-bamboo/15 text-bamboo font-medium">
+                  {CATEGORY_LABEL[s.category] ?? s.category}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] text-ink-soft leading-snug truncate">
+                    {s.suggestedText}
+                  </div>
+                  <div className="text-[10px] text-ink-ghost/70 mt-0.5">{s.message}</div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void sinkToCanvas(s)}
+                    className="text-[10px] px-2 py-1 rounded-md bg-bamboo text-cloud hover:bg-bamboo-light transition-colors cursor-pointer"
+                  >
+                    沉淀到画布
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDismissedDistill((prev) => new Set(prev).add(s.messageId))
+                    }
+                    className="text-[10px] px-1.5 py-1 rounded-md text-ink-ghost hover:bg-paper-deep/20 transition-colors cursor-pointer"
+                  >
+                    忽略
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

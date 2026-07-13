@@ -423,6 +423,15 @@ input::placeholder {
 .animate-fade-in {
   animation: fade-in 0.25s ease-out forwards;
 }
+/* Agent 隐含连接建议：流动的蚂蚁线，暗示「可忽略的弱连接」 */
+@keyframes canvas-suggestion-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.canvas-suggestion-line {
+  animation: canvas-suggestion-march 1s linear infinite;
+}
 @keyframes note-enter {
   from {
     opacity: 0;

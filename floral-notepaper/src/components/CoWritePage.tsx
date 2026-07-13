@@ -23,6 +23,8 @@ import {
   type CoWriteInspiration,
 } from "../features/cowrite/coWriteAI";
 import { getNote } from "../features/notes/api";
+import { getCanvasDocument } from "../features/canvas/api";
+import { buildCanvasContext, type CanvasContextNode } from "../features/agent/canvasContext";
 import { computeCoWriteStats } from "../features/cowrite/coWriteUtils";
 import { SCENARIO_PRESETS, getScenario } from "../features/cowrite/prompts";
 
@@ -88,6 +90,9 @@ export function CoWritePage({
   const [inspirations, setInspirations] = useState<CoWriteInspiration[]>([]);
   const [inspirationsLoading, setInspirationsLoading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // 场景八：共笔注入画布上下文
+  const [canvasRefs, setCanvasRefs] = useState<CanvasContextNode[]>([]);
+  const canvasContextRef = useRef<string>("");
   const editRef = useRef<HTMLDivElement>(null);
 
   // 新内容自动滚动到底部
@@ -109,6 +114,33 @@ export function CoWritePage({
     getNote(noteId)
       .then((note) => setNoteTitle(note.title || null))
       .catch(() => setNoteTitle(null));
+  }, [noteId]);
+
+  // 场景八：加载当前笔记关联画布，构造共笔上下文（可降级：无画布/失败则为空）
+  useEffect(() => {
+    if (!noteId) {
+      setCanvasRefs([]);
+      canvasContextRef.current = "";
+      return;
+    }
+    let cancelled = false;
+    getCanvasDocument(`canvas-${noteId}`)
+      .then((canvasDoc) => {
+        if (cancelled) return;
+        const { contextText, referencedNodes } = buildCanvasContext(
+          canvasDoc.nodes.map((n) => ({ id: n.id, text: n.text })),
+        );
+        canvasContextRef.current = contextText;
+        setCanvasRefs(referencedNodes);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        canvasContextRef.current = "";
+        setCanvasRefs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [noteId]);
 
   // 切换到某个会话
@@ -164,6 +196,8 @@ export function CoWritePage({
           session.identity,
           session.customPrompt,
           providers,
+          0.8,
+          canvasContextRef.current || undefined,
         );
         if (!aiText.trim()) {
           throw new Error("AI 返回内容为空");
@@ -730,6 +764,18 @@ export function CoWritePage({
             <span className="cowrite-main-title-text" title={noteTitle ?? noteId}>
               {noteTitle || "（无标题）"}
             </span>
+            {canvasRefs.length > 0 && (
+              <span
+                className="ml-2 inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-bamboo-mist/60 text-bamboo cursor-default"
+                title={`已参考画布节点：\n${canvasRefs.map((n) => "· " + n.text).join("\n")}`}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M3 9h18M9 21V9" />
+                </svg>
+                已参考画布 {canvasRefs.length} 个节点
+              </span>
+            )}
           </div>
         </div>
         <div className="cowrite-note-content">

@@ -1,5 +1,6 @@
 import { callChatCompletion, extractJsonArray } from "../cowrite/coWriteAI";
 import type { ProviderConfig } from "../settings/types";
+import { callEmbedding, cosineSimilarity } from "../agent/embeddingService";
 import type { CanvasNode } from "./types";
 
 export interface ArchiveSuggestion {
@@ -75,4 +76,75 @@ ${nodeDescriptions}`;
   } catch {
     return [];
   }
+}
+
+// ─── 基于 Embedding 的语义归档（issue 场景九） ───
+
+export interface EmbeddingArchiveOptions {
+  /** 自定义标签库，默认用 PRESET_TAGS */
+  tags?: string[];
+  /** 节点归入某标签所需的最低相似度，默认 0.3 */
+  minSimilarity?: number;
+  /** 一个分组至少包含几个节点才建议，默认 2 */
+  minGroupSize?: number;
+}
+
+/**
+ * 基于 Embedding 的画布卡片语义归档。
+ * 每个节点取与标签库中相似度最高的标签，按标签聚合成组。
+ * 不依赖 LLM，Embedding 可用即可出结果；失败时返回空数组（可回退到 LLM 版）。
+ */
+export async function classifyNodesByEmbedding(
+  nodes: CanvasNode[],
+  providers: ProviderConfig[],
+  options: EmbeddingArchiveOptions = {},
+): Promise<ArchiveSuggestion[]> {
+  const tags = options.tags ?? PRESET_TAGS;
+  const minSimilarity = options.minSimilarity ?? 0.3;
+  const minGroupSize = options.minGroupSize ?? 2;
+
+  const valid = nodes.filter((n) => n.text.trim().length > 0);
+  if (valid.length < minGroupSize || tags.length === 0) return [];
+
+  let nodeVectors: number[][];
+  let tagVectors: number[][];
+  try {
+    nodeVectors = await callEmbedding(providers, valid.map((n) => n.text.slice(0, 300)));
+    tagVectors = await callEmbedding(providers, tags);
+  } catch {
+    return [];
+  }
+
+  // 每个节点归入最相似的标签（需达到阈值）
+  const groups = new Map<string, string[]>();
+  valid.forEach((node, ni) => {
+    let bestTag = "";
+    let bestSim = minSimilarity;
+    tags.forEach((tag, ti) => {
+      const sim = cosineSimilarity(nodeVectors[ni], tagVectors[ti]);
+      if (sim >= bestSim) {
+        bestSim = sim;
+        bestTag = tag;
+      }
+    });
+    if (bestTag) {
+      const arr = groups.get(bestTag) ?? [];
+      arr.push(node.id);
+      groups.set(bestTag, arr);
+    }
+  });
+
+  const suggestions: ArchiveSuggestion[] = [];
+  for (const [tag, nodeIds] of groups) {
+    if (nodeIds.length >= minGroupSize) {
+      suggestions.push({
+        tag,
+        nodeIds,
+        reason: `这几张好像都属于“${tag}”，要不要先收成一个小组？`,
+      });
+    }
+  }
+  // 组内节点多者优先
+  suggestions.sort((a, b) => b.nodeIds.length - a.nodeIds.length);
+  return suggestions.slice(0, 3);
 }
