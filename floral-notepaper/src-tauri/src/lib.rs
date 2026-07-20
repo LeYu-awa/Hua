@@ -8,6 +8,7 @@ use services::agent::{
     self, AgentAnalysisResult, AgentCanvasNode, AgentCollaborationSegment, AgentEvent,
     AgentEventInput, AgentReplayMarker, AgentReviewReport, AgentSuggestion,
 };
+use services::canvas::{canvas_delete, canvas_get, canvas_list, canvas_save, CanvasStore};
 use services::cowrite::{self, CoWriteSession, CoWriteSessionSummary, MergeToNoteResult};
 use services::embedding_cache::{
     embedding_cache_clear, embedding_cache_get, embedding_cache_put, EmbeddingCacheStore,

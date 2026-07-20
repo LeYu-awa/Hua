@@ -11,13 +11,8 @@ import { InkPlaybackPage } from "./components/InkPlaybackPage";
 import { CanvasPage } from "./components/CanvasPage";
 import { WritingReportPage } from "./components/WritingReportPage";
 import { CoWritePage } from "./components/CoWritePage";
-import { FriendsPage } from "./components/FriendsPage";
 import { ElysiaPage } from "./components/ElysiaPage";
 import { WindowFrame } from "./components/WindowFrame";
-import { BongoCompanionLayer } from "./features/companion/components/BongoCompanionLayer";
-import { Live2DCompanionLayer } from "./features/live2d/Live2DCompanionLayer";
-import { CompanionEventBridge } from "./features/companion/components/CompanionEventBridge";
-import { CompanionFloatingPage } from "./features/companion/components/CompanionFloatingPage";
 import { tabToIndentListener } from "indent-textarea";
 import { getConfig, saveConfig } from "./features/settings/api";
 import { applyTheme, watchSystemTheme } from "./features/settings/theme";
@@ -26,6 +21,7 @@ import type { AppView } from "./components/AppSidebar";
 import { getInitialRoute } from "./features/windows/windowRoutes";
 import { syncLanguage } from "./locales";
 import { listen } from "@tauri-apps/api/event";
+import { listNotes, getNote } from "./features/notes/api";
 import { supabase } from "./features/auth/supabase";
 import { uploadConfig, downloadConfig } from "./features/sync/api";
 
@@ -35,6 +31,8 @@ function App() {
   const [sidebarView, setSidebarView] = useState<AppView>("cowrite");
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);
+  const [currentNoteId, setCurrentNoteId] = useState("");
+  const [currentNoteContent, setCurrentNoteContent] = useState("");
 
   // 认证状态
   const [userId, setUserId] = useState<string | null>(null);
@@ -86,6 +84,26 @@ function App() {
     [userId],
   );
 
+  const handleCurrentNoteChange = useCallback((note: { id: string; content: string }) => {
+    console.log("[App] handleCurrentNoteChange", note);
+    setCurrentNoteId(note.id);
+    setCurrentNoteContent(note.content);
+  }, []);
+
+  // 启动时如果还没有选中笔记，自动选中最新的笔记，
+  // 这样用户可以直接点“共笔”而不必先进入笔记页手动选择。
+  useEffect(() => {
+    listNotes()
+      .then(async (notes) => {
+        if (notes.length > 0 && !currentNoteId) {
+          const note = await getNote(notes[0].id);
+          setCurrentNoteId(note.id);
+          setCurrentNoteContent(note.content);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     let cleanup = () => {};
     getConfig()
@@ -107,27 +125,22 @@ function App() {
 
   useEffect(() => {
     let themeCleanup = () => {};
-    let unlisten: Promise<() => void> | null = null;
-    try {
-      unlisten = listen<AppConfig>("config-changed", (event) => {
-        const theme = (event.payload.theme || "system") as ThemeOption;
-        applyTheme(theme);
-        themeCleanup();
-        themeCleanup = watchSystemTheme(theme);
-        document.documentElement.style.setProperty(
-          "--tab-indent-size",
-          String(event.payload.tabIndentSize ?? 2),
-        );
-        void syncLanguage(event.payload.locale);
-        setSettingsConfig(event.payload);
-        setProviders(event.payload.providers ?? []);
-      });
-    } catch {
-      unlisten = null;
-    }
+    const unlisten = listen<AppConfig>("config-changed", (event) => {
+      const theme = (event.payload.theme || "system") as ThemeOption;
+      applyTheme(theme);
+      themeCleanup();
+      themeCleanup = watchSystemTheme(theme);
+      document.documentElement.style.setProperty(
+        "--tab-indent-size",
+        String(event.payload.tabIndentSize ?? 2),
+      );
+      void syncLanguage(event.payload.locale);
+      setSettingsConfig(event.payload);
+      setProviders(event.payload.providers ?? []);
+    });
     return () => {
       themeCleanup();
-      void unlisten?.then((fn) => fn());
+      void unlisten.then((fn) => fn());
     };
   }, []);
 
@@ -210,19 +223,12 @@ function App() {
     );
   }
 
-  if (route.view === "companion") {
-    return <CompanionFloatingPage />;
-  }
-
   return (
     <ContextMenuProvider>
       <WindowFrame>
-        <div className="h-full font-body text-ink overflow-hidden flex bg-paper">
+        <div className="h-full font-body text-ink overflow-hidden flex">
           <AppSidebar activeView={sidebarView} onViewChange={setSidebarView} />
-          <div className="relative flex-1 flex flex-col min-w-0">
-            <CompanionEventBridge />
-            <BongoCompanionLayer />
-            <Live2DCompanionLayer />
+          <div className="flex-1 flex flex-col min-w-0">
             {sidebarView === "home" ? (
               <DashboardPage />
             ) : sidebarView === "playback" ? (
@@ -237,9 +243,12 @@ function App() {
             ) : sidebarView === "report" ? (
               <WritingReportPage noteId={currentNoteId} providers={providers} />
             ) : sidebarView === "cowrite" ? (
-              <CoWritePage />
-            ) : sidebarView === "friends" ? (
-              <FriendsPage />
+              <CoWritePage
+                providers={providers}
+                noteId={currentNoteId}
+                noteContent={currentNoteContent}
+                onNoteContentChange={setCurrentNoteContent}
+              />
             ) : sidebarView === "elysia" ? (
               <ElysiaPage />
             ) : sidebarView === "settings" && settingsConfig ? (
@@ -253,6 +262,7 @@ function App() {
             ) : (
               <MainWindow
                 initialConfig={settingsConfig ?? undefined}
+                onCurrentNoteChange={handleCurrentNoteChange}
               />
             )}
           </div>

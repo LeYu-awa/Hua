@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod canvas;
 pub mod cowrite;
 pub mod embedding_cache;
 pub mod ink;

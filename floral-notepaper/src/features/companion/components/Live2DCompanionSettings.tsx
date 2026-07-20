@@ -125,7 +125,7 @@ export function Live2DCompanionSettings() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-bamboo">Live2D Companion</p>
               <h2 className="mt-1 text-xl font-display font-bold text-ink">Live2D 本地模型</h2>
               <p className="mt-2 max-w-2xl text-xs leading-6 text-ink-soft">
-                可在 Haru 与水瓶座之恋之间切换，也支持手动指定 model3.json；不再挂载尤诺/Bongocat 图片层。
+                可自定义模型
               </p>
             </div>
             <label className="flex items-center gap-2 text-xs font-medium text-ink-soft">
