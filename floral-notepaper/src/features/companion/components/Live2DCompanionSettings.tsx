@@ -86,7 +86,7 @@ export function Live2DCompanionSettings() {
         });
       }
     } catch {
-      // 非 Tauri 环境下保持手动输入。
+      // 非 Tauri 环境下回退到手动输入。
     }
   };
 
