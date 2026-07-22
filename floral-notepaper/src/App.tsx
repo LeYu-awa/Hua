@@ -12,6 +12,10 @@ import { CanvasPage } from "./components/CanvasPage";
 import { WritingReportPage } from "./components/WritingReportPage";
 import { CoWritePage } from "./components/CoWritePage";
 import { ElysiaPage } from "./components/ElysiaPage";
+import { InfiniteCanvasPage } from "./features/infinite-canvas/InfiniteCanvasPage";
+import { GardenLayout } from "./features/garden/components/GardenLayout";
+import { MyProfilePage } from "./features/social/pages/MyProfilePage";
+import { StudioEditorPage } from './features/studio/pages/StudioEditorPage';
 import { WindowFrame } from "./components/WindowFrame";
 import { tabToIndentListener } from "indent-textarea";
 import { getConfig, saveConfig } from "./features/settings/api";
@@ -32,7 +36,6 @@ function App() {
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);
   const [currentNoteId, setCurrentNoteId] = useState("");
-  const [currentNoteContent, setCurrentNoteContent] = useState("");
 
   // 认证状态
   const [userId, setUserId] = useState<string | null>(null);
@@ -87,7 +90,6 @@ function App() {
   const handleCurrentNoteChange = useCallback((note: { id: string; content: string }) => {
     console.log("[App] handleCurrentNoteChange", note);
     setCurrentNoteId(note.id);
-    setCurrentNoteContent(note.content);
   }, []);
 
   // 启动时如果还没有选中笔记，自动选中最新的笔记，
@@ -98,7 +100,6 @@ function App() {
         if (notes.length > 0 && !currentNoteId) {
           const note = await getNote(notes[0].id);
           setCurrentNoteId(note.id);
-          setCurrentNoteContent(note.content);
         }
       })
       .catch(() => {});
@@ -234,21 +235,38 @@ function App() {
             ) : sidebarView === "playback" ? (
               <InkPlaybackPage noteId={currentNoteId} />
             ) : sidebarView === "canvas" ? (
-              <CanvasPage
-                documentId={`canvas-${currentNoteId || "draft"}`}
-                noteId={currentNoteId}
-                providers={providers}
-                agentEnabled={Boolean(settingsConfig?.agentEnabled)}
-              />
+              userId ? (
+                <InfiniteCanvasPage userId={userId} canvasId={`canvas-${currentNoteId || "draft"}`} />
+              ) : (
+                <CanvasPage
+                  documentId={`canvas-${currentNoteId || "draft"}`}
+                  noteId={currentNoteId}
+                  providers={providers}
+                  agentEnabled={Boolean(settingsConfig?.agentEnabled)}
+                />
+              )
             ) : sidebarView === "report" ? (
               <WritingReportPage noteId={currentNoteId} providers={providers} />
             ) : sidebarView === "cowrite" ? (
-              <CoWritePage
-                providers={providers}
-                noteId={currentNoteId}
-                noteContent={currentNoteContent}
-                onNoteContentChange={setCurrentNoteContent}
-              />
+              <CoWritePage />
+            ) : sidebarView === "garden" ? (
+              <GardenLayout userId={userId} />
+            ) : sidebarView === "studio" ? (
+              userId ? (
+                <StudioEditorPage userId={userId} />
+              ) : (
+                <div className="flex-1 flex items-center justify-center bg-paper">
+                  <div className="text-[13px] text-ink-ghost">请先登录</div>
+                </div>
+              )
+            ) : sidebarView === "profile" ? (
+              userId ? (
+                <MyProfilePage userId={userId} currentUserId={userId} />
+              ) : (
+                <div className="flex-1 flex items-center justify-center bg-paper">
+                  <div className="text-[13px] text-ink-ghost">请先登录</div>
+                </div>
+              )
             ) : sidebarView === "elysia" ? (
               <ElysiaPage />
             ) : sidebarView === "settings" && settingsConfig ? (

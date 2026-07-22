@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export type AppView = "home" | "main" | "settings" | "playback" | "cowrite" | "elysia" | "canvas" | "report";
+export type AppView = "home" | "main" | "settings" | "playback" | "cowrite" | "elysia" | "canvas" | "report" | "garden" | "profile" | "studio";
 
 interface AppSidebarProps {
   activeView: AppView;
@@ -157,6 +157,36 @@ function ReportIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+function GardenIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3c-4.97 0-9 3.58-9 8 0 2.52 1.32 4.76 3.36 6.22l-1.36 4.78 5.64-3.22c.44.14.9.22 1.36.22 4.97 0 9-3.58 9-8s-4.03-8-9-8z" />
+      <circle cx="9" cy="11" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="12" cy="10" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="15" cy="11" r="0.5" fill="currentColor" opacity="0.6" />
+    </svg>
+  );
+}
+
+function StudioIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" opacity="0.3" />
+    </svg>
+  );
+}
+
+function ProfileIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
 const sidebarItems: SidebarItem[] = [
   { view: "home", label: "首页", icon: HomeIcon },
   { view: "main", label: "笔记", icon: NoteIcon },
@@ -165,6 +195,9 @@ const sidebarItems: SidebarItem[] = [
   { view: "elysia", label: "Elysia", icon: ElysiaIcon },
   { view: "canvas", label: "画布", icon: CanvasIcon },
   { view: "report", label: "复盘", icon: ReportIcon },
+  { view: "garden", label: "花园", icon: GardenIcon },
+  { view: "studio", label: "创作台", icon: StudioIcon },
+  { view: "profile", label: "主页", icon: ProfileIcon },
 ];
 
 export function AppSidebar({ activeView, onViewChange }: AppSidebarProps) {
