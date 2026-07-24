@@ -117,7 +117,7 @@ describe("AppShell", () => {
     expect(screen.getByTestId("context-menu")).toBeTruthy();
     expect(screen.getByTestId("window-frame")).toBeTruthy();
     expect(screen.getByTestId("sidebar")).toBeTruthy();
-    expect(screen.getByTestId("main-view").textContent).toBe("cowrite");
+    expect(screen.getByTestId("main-view").textContent).toBe("home");
 
     await waitFor(() => expect(mockGetConfig).toHaveBeenCalled());
     expect(mockApplyTheme).toHaveBeenCalledWith("light");

@@ -18,7 +18,7 @@ import { renderMainView, renderSpecialRoute } from "./routeViews";
 export function AppShell() {
   const route = getInitialRoute();
 
-  const [sidebarView, setSidebarView] = useState<AppView>("cowrite");
+  const [sidebarView, setSidebarView] = useState<AppView>("home");
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);
   const [currentNoteId, setCurrentNoteId] = useState("");

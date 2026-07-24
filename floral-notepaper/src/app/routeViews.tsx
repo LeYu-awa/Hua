@@ -1,14 +1,10 @@
 import { lazy, Suspense } from "react";
 import { CanvasPage } from "../components/CanvasPage";
-import { CoWritePage } from "../components/CoWritePage";
 import { DashboardPage } from "../components/DashboardPage";
-import { ElysiaPage } from "../components/ElysiaPage";
-import { InkPlaybackPage } from "../components/InkPlaybackPage";
 import { MainWindow } from "../components/MainWindow";
 import { NotePad } from "../components/NotePad";
 import { SettingsPage } from "../components/SettingsPage";
 import { TileShowcase } from "../components/TileShowcase";
-import { WritingReportPage } from "../components/WritingReportPage";
 import type { AppView } from "../components/AppSidebar";
 import { GardenLayout } from "../features/garden/components/GardenLayout";
 import { InfiniteCanvasPage } from "../features/infinite-canvas/InfiniteCanvasPage";
@@ -67,7 +63,6 @@ export function renderMainView({
   onCloseSettings,
 }: RenderMainViewParams) {
   if (sidebarView === "home") return <DashboardPage />;
-  if (sidebarView === "playback") return <InkPlaybackPage noteId={currentNoteId} />;
   if (sidebarView === "canvas") {
     return userId ? (
       <InfiniteCanvasPage userId={userId} canvasId={`canvas-${currentNoteId || "draft"}`} />
@@ -80,10 +75,6 @@ export function renderMainView({
       />
     );
   }
-  if (sidebarView === "report") {
-    return <WritingReportPage noteId={currentNoteId} providers={providers} />;
-  }
-  if (sidebarView === "cowrite") return <CoWritePage />;
   if (sidebarView === "garden") return <GardenLayout userId={userId} />;
   if (sidebarView === "studio") {
     return userId ? <StudioEditorPage userId={userId} /> : <LoginRequiredState />;
@@ -97,12 +88,12 @@ export function renderMainView({
       <LoginRequiredState />
     );
   }
-  if (sidebarView === "elysia") return <ElysiaPage />;
   if (sidebarView === "settings" && settingsConfig) {
     return (
       <SettingsPage
         config={settingsConfig}
         providers={providers}
+        currentNoteId={currentNoteId}
         onConfigChange={onConfigChange}
         onProvidersChange={onProvidersChange}
         onClose={onCloseSettings}

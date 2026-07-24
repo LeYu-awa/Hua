@@ -24,6 +24,10 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ModelConfig } from "../features/settings/types";
 import { StatsPanel } from "../features/settings/components/StatsPanel";
 import { AccountPanelSkeleton } from "./AccountPanelSkeleton";
+import { CoWritePage } from "./CoWritePage";
+import { InkPlaybackPage } from "./InkPlaybackPage";
+import { ElysiaPage } from "./ElysiaPage";
+import { WritingReportPage } from "./WritingReportPage";
 
 const AccountPanel = lazy(() =>
   import("./AccountPanel").then((module) => ({ default: module.AccountPanel })),
@@ -37,7 +41,11 @@ type SettingsSection =
   | "hotkeys"
   | "account"
   | "stats"
-  | "about";
+  | "about"
+  | "playback"
+  | "cowrite"
+  | "elysia"
+  | "report";
 
 interface SectionDef {
   key: SettingsSection;
@@ -53,12 +61,17 @@ const SECTIONS: SectionDef[] = [
   { key: "account", label: "账户", icon: "user" },
   { key: "stats", label: "统计", icon: "chart" },
   { key: "about", label: "关于", icon: "info" },
+  { key: "playback", label: "墨迹回放", icon: "play" },
+  { key: "cowrite", label: "共笔", icon: "edit" },
+  { key: "elysia", label: "Elysia", icon: "sparkle" },
+  { key: "report", label: "复盘", icon: "clipboard" },
 ];
 
 /* ─── props ─── */
 interface SettingsPageProps {
   config: AppConfig;
   providers: ProviderConfig[];
+  currentNoteId?: string;
   onConfigChange: (config: AppConfig) => void;
   onProvidersChange: (providers: ProviderConfig[]) => void;
   onClose: () => void;
@@ -68,6 +81,7 @@ interface SettingsPageProps {
 export function SettingsPage({
   config,
   providers,
+  currentNoteId = "",
   onConfigChange,
   onProvidersChange,
 }: SettingsPageProps) {
@@ -105,6 +119,7 @@ export function SettingsPage({
             section={activeSection}
             config={config}
             providers={providers}
+            currentNoteId={currentNoteId}
             onConfigChange={onConfigChange}
             onProvidersChange={onProvidersChange}
           />
@@ -262,6 +277,35 @@ function SectionIcon({ type, size, color }: { type: string; size: number; color:
           <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
         </svg>
       );
+    case "play":
+      return (
+        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+          <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+      );
+    case "edit":
+      return (
+        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+          <path d="M15 5l4 4" />
+        </svg>
+      );
+    case "sparkle":
+      return (
+        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+      );
+    case "clipboard":
+      return (
+        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -272,12 +316,14 @@ function SectionContent({
   section,
   config,
   providers,
+  currentNoteId,
   onConfigChange,
   onProvidersChange,
 }: {
   section: SettingsSection;
   config: AppConfig;
   providers: ProviderConfig[];
+  currentNoteId: string;
   onConfigChange: (config: AppConfig) => void;
   onProvidersChange: (providers: ProviderConfig[]) => void;
 }) {
@@ -300,6 +346,14 @@ function SectionContent({
       return <StatsPanel providers={providers} />;
     case "about":
       return <AboutPanel />;
+    case "playback":
+      return <InkPlaybackPage noteId={currentNoteId} />;
+    case "cowrite":
+      return <CoWritePage />;
+    case "elysia":
+      return <ElysiaPage />;
+    case "report":
+      return <WritingReportPage noteId={currentNoteId} providers={providers} />;
   }
 }
 

@@ -9,12 +9,7 @@ vi.mock("../components/CanvasPage", () => ({
   ),
 }));
 
-vi.mock("../components/CoWritePage", () => ({ CoWritePage: () => <div data-testid="cowrite-page" /> }));
 vi.mock("../components/DashboardPage", () => ({ DashboardPage: () => <div data-testid="dashboard-page" /> }));
-vi.mock("../components/ElysiaPage", () => ({ ElysiaPage: () => <div data-testid="elysia-page" /> }));
-vi.mock("../components/InkPlaybackPage", () => ({
-  InkPlaybackPage: ({ noteId }: { noteId: string }) => <div data-testid="playback-page">{noteId}</div>,
-}));
 vi.mock("../components/MainWindow", () => ({
   MainWindow: () => <div data-testid="main-window" />,
 }));
@@ -26,9 +21,6 @@ vi.mock("../components/SettingsPage", () => ({
 }));
 vi.mock("../components/TileShowcase", () => ({
   TileShowcase: ({ noteId }: { noteId?: string }) => <div data-testid="tile-route">{noteId}</div>,
-}));
-vi.mock("../components/WritingReportPage", () => ({
-  WritingReportPage: ({ noteId }: { noteId: string }) => <div data-testid="report-page">{noteId}</div>,
 }));
 vi.mock("../features/garden/components/GardenLayout", () => ({
   GardenLayout: ({ userId }: { userId: string | null }) => <div data-testid="garden-page">{userId}</div>,
@@ -74,14 +66,6 @@ describe("routeViews", () => {
   it("按主侧边栏视图渲染核心页面", () => {
     render(renderMainView({ ...baseParams, sidebarView: "home" }));
     expect(screen.getByTestId("dashboard-page")).toBeTruthy();
-    cleanup();
-
-    render(renderMainView({ ...baseParams, sidebarView: "playback" }));
-    expect(screen.getByTestId("playback-page").textContent).toBe("note-1");
-    cleanup();
-
-    render(renderMainView({ ...baseParams, sidebarView: "report" }));
-    expect(screen.getByTestId("report-page").textContent).toBe("note-1");
   });
 
   it("未登录时画布回退本地 Canvas，登录后使用无限画布", () => {
