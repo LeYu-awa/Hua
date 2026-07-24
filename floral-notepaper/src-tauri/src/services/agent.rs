@@ -763,7 +763,7 @@ fn create_idle_suggestion(
         "先写下一小步",
         "卡在这里了？可以先写一句最想保留的话，后面再慢慢整理。",
         30,
-        &[last_event.id.clone()],
+        std::slice::from_ref(&last_event.id),
         &[],
         json!({ "idleMinutes": idle_for.num_minutes() }),
     )
@@ -795,7 +795,7 @@ fn create_chat_suggestions(
             "沉淀这条聊天",
             "这条聊天像是一个决定、待办或风险点，可以沉淀成画布节点。",
             60,
-            &[event.id.clone()],
+            std::slice::from_ref(&event.id),
             &[],
             json!({ "messageId": event.payload.get("messageId"), "content": content, "kind": kind }),
         )?;
@@ -864,7 +864,7 @@ fn create_replay_markers(
                 "flow",
                 "新增灵感节点",
                 "画布新增了一个节点，创作内容开始延展。",
-                &[event.id.clone()],
+                std::slice::from_ref(&event.id),
                 &payload_node_ids(event),
             )?,
             "canvas_shape_removed" => insert_replay_marker_if_missing(
@@ -875,7 +875,7 @@ fn create_replay_markers(
                 "stuck",
                 "删除了一个节点",
                 "这里出现了一次内容删改，可能是结构调整。",
-                &[event.id.clone()],
+                std::slice::from_ref(&event.id),
                 &payload_node_ids(event),
             )?,
             "canvas_binding_added" => insert_replay_marker_if_missing(
@@ -886,7 +886,7 @@ fn create_replay_markers(
                 "flow",
                 "建立了一个连接",
                 "两个画布元素在这里被连接起来。",
-                &[event.id.clone()],
+                std::slice::from_ref(&event.id),
                 &[],
             )?,
             _ => {}
@@ -944,7 +944,7 @@ fn create_collaboration_signal_markers(
             signal,
             title,
             summary,
-            &[event.id.clone()],
+            std::slice::from_ref(&event.id),
             &payload_node_ids(event),
         )?;
     }
@@ -1001,6 +1001,7 @@ fn create_handoff_segments(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn insert_suggestion_if_missing(
     conn: &Connection,
     conversation_id: &str,
@@ -1059,6 +1060,7 @@ fn suggestion_exists(
     Ok(count > 0)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn insert_collaboration_segment_if_missing(
     conn: &Connection,
     conversation_id: &str,
@@ -1106,6 +1108,7 @@ fn insert_collaboration_segment_if_missing(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn insert_replay_marker_if_missing(
     conn: &Connection,
     conversation_id: &str,

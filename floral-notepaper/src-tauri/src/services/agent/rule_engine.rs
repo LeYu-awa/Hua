@@ -127,7 +127,7 @@ impl RuleEngine {
                 self.log(rule.rule_id.clone(), false, "threshold not met".to_string());
             }
         }
-        instructions.sort_by(|a, b| b.priority.cmp(&a.priority));
+        instructions.sort_by_key(|instruction| std::cmp::Reverse(instruction.priority));
         instructions
     }
 

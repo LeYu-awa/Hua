@@ -4,10 +4,6 @@ import type { NoteMetadata } from "../features/notes/types";
 import { HeatmapView } from "./HeatmapView";
 import type { HeatmapCellData } from "./HeatmapView";
 
-interface DashboardPageProps {
-  onOpenSettings?: () => void;
-}
-
 function formatDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -15,7 +11,7 @@ function formatDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function DashboardPage({}: DashboardPageProps) {
+export function DashboardPage() {
   const [notes, setNotes] = useState<NoteMetadata[]>([]);
 
   useEffect(() => {
@@ -43,7 +39,6 @@ export function DashboardPage({}: DashboardPageProps) {
 
   const activeDays = heatmapData.length;
   const maxStreak = useMemo(() => {
-    // count consecutive days with activity
     const dates = new Set(heatmapData.map((d) => d.date));
     let max = 0;
     let current = 0;
@@ -75,9 +70,7 @@ export function DashboardPage({}: DashboardPageProps) {
     <div className="flex-1 flex flex-col min-h-0 bg-paper">
       <div className="flex-1 overflow-y-auto">
         <div className="h-full px-6 py-3 space-y-4">
-          {/* hero card: stats left + heatmap right */}
           <div className="rounded-2xl border border-paper-deep/30 bg-cloud p-6 flex gap-8">
-            {/* left: stats */}
             <div className="shrink-0">
               <h3 className="text-[15px] font-display font-bold text-ink mb-1">概览</h3>
               <p className="text-[11px] text-ink-ghost mb-5">
@@ -99,7 +92,6 @@ export function DashboardPage({}: DashboardPageProps) {
               </div>
             </div>
 
-            {/* right: heatmap */}
             <div className="flex-1 min-w-0">
               <label className="block text-[12px] font-medium text-ink-soft mb-2">
                 笔记活动热力图
@@ -108,7 +100,6 @@ export function DashboardPage({}: DashboardPageProps) {
             </div>
           </div>
 
-          {/* recent notes */}
           <div className="rounded-2xl border border-paper-deep/30 bg-cloud p-6">
             <h3 className="text-[13px] font-display font-semibold text-ink-soft mb-3">最近更新</h3>
             {recentNotes.length === 0 ? (

@@ -12,6 +12,7 @@ import {
 import { uploadConfig, downloadConfig } from "../features/sync/api";
 import type { UserProfile } from "../features/auth/types";
 import type { AppConfig } from "../features/settings/types";
+import { AccountPanelSkeleton } from "./AccountPanelSkeleton";
 
 interface AccountPanelProps {
   config: AppConfig;
@@ -149,13 +150,7 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
   // 注意：session=true 但 profile 尚未加载完成时也要显示加载状态，
   // 避免中间态渲染登录表单导致闪烁
   if (loading || (session && !profile)) {
-    return (
-      <ScrollFrame>
-        <Card>
-          <p className="text-[12px] text-ink-ghost text-center py-8">加载中...</p>
-        </Card>
-      </ScrollFrame>
-    );
+    return <AccountPanelSkeleton />;
   }
 
   // ─── logged in ───

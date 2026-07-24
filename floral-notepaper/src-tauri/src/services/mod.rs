@@ -6,3 +6,4 @@ pub mod ink;
 pub mod notes;
 pub mod profile;
 pub mod stats;
+pub mod workflow_engine;

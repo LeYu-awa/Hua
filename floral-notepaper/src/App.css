@@ -9,9 +9,9 @@
 }
 
 @theme {
-  --color-paper: #f8f8f8;
-  --color-paper-warm: #ededed;
-  --color-paper-deep: #e0e0e0;
+  --color-paper: #F6F8FB;
+  --color-paper-warm: #F0F3F6;
+  --color-paper-deep: #e2e8f0;
   --color-ink: #171717;
   --color-ink-soft: #4f4f4f;
   --color-ink-faint: #666666;
@@ -21,9 +21,9 @@
   --color-bamboo-mist: #e0efe5;
   --color-bamboo-glow: #c8e6d2;
   --color-stone: #6b6b62;
-  --color-cloud: #fcfcfc;
+  --color-cloud: #FAFCFF;
   --color-canvas-card: #ffffff;
-  --color-canvas-card-hover: #f5f5f5;
+  --color-canvas-card-hover: #F0F3F6;
   --color-canvas-border: #d0d0d0;
   --color-canvas-grid: rgba(0, 0, 0, 0.06);
   --color-shadow: rgba(0, 0, 0, 0.04);
@@ -1601,103 +1601,16 @@ input::placeholder {
   }
 }
 
-/* ── tldraw 黑色高级无限画布 ── */
+/* ── LiteGraph 工作流画布 ── */
 .canvas-fabric {
   position: relative;
   isolation: isolate;
-  --tl-color-background: var(--canvas-bg);
-  --tl-color-grid: var(--canvas-grid-dot);
-  --tl-color-panel: var(--canvas-panel);
-  --tl-color-panel-contrast: var(--canvas-panel-solid);
-  --tl-color-primary: var(--canvas-accent);
-  --tl-color-selected: var(--canvas-accent);
-  --tl-color-selected-contrast: var(--canvas-selected-contrast);
-  --tl-color-text: var(--canvas-control-text);
-  background:
-    radial-gradient(circle at 18% 16%, var(--canvas-orb-warm), transparent 34%),
-    radial-gradient(circle at 86% 78%, var(--canvas-orb-bamboo), transparent 38%),
-    linear-gradient(135deg, var(--canvas-bg-soft), var(--canvas-bg));
+  background: #141416;
   border-radius: 10px;
   box-shadow:
-    inset 0 0 90px rgba(26, 74, 46, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    inset 0 0 90px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   overflow: hidden;
-}
-
-.canvas-fabric::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background-image:
-    repeating-linear-gradient(
-      to right,
-      transparent 0,
-      transparent 6px,
-      var(--canvas-texture-line) 6px,
-      transparent 8px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 6px,
-      var(--canvas-texture-line) 6px,
-      transparent 8px
-    ),
-    repeating-radial-gradient(circle at 4px 4px, var(--canvas-texture-dot) 0, transparent 2px);
-  background-size:
-    8px 100%,
-    100% 8px,
-    14px 14px;
-  border-radius: inherit;
-}
-
-.canvas-fabric .tl-container,
-.canvas-fabric .tlui-layout {
-  font-family: var(--font-body);
-}
-
-.canvas-fabric .tl-background {
-  background-color: transparent !important;
-}
-
-.canvas-fabric .tl-grid-dot {
-  color: var(--canvas-grid-dot) !important;
-}
-
-.canvas-fabric .tlui-menu,
-.canvas-fabric .tlui-toolbar,
-.canvas-fabric .tlui-main-toolbar,
-.canvas-fabric .tlui-navigation-panel,
-.canvas-fabric .tlui-style-panel,
-.canvas-fabric .tlui-helper-buttons,
-.canvas-fabric .tlui-quick-actions {
-  color: var(--canvas-control-text);
-  background: var(--canvas-panel) !important;
-  border: 1px solid var(--canvas-border) !important;
-  border-radius: 18px !important;
-  box-shadow:
-    0 18px 44px rgba(26, 74, 46, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
-}
-
-.canvas-fabric .tlui-button,
-.canvas-fabric .tlui-icon {
-  color: var(--canvas-control-text);
-}
-
-.canvas-fabric .tlui-button:hover,
-.canvas-fabric .tlui-button[data-state="open"],
-.canvas-fabric .tlui-button[data-testid*="selected"] {
-  background: var(--canvas-panel-muted) !important;
-  color: var(--canvas-accent) !important;
-}
-
-.canvas-fabric .tlui-button[data-isactive="true"],
-.canvas-fabric .tlui-button[aria-pressed="true"] {
-  background: var(--canvas-accent) !important;
-  color: var(--canvas-selected-contrast) !important;
 }
 
 .canvas-sync-badge {

@@ -2070,8 +2070,12 @@ fn sync_autostart_to_config(app: &AppHandle) {
         return;
     };
 
-    if let Err(error) = apply_autostart(app, config.autostart) {
-        eprintln!("failed to sync autostart config: {error}");
+    // Only apply autostart if the current state differs from the config.
+    // Avoids errors when the autostart entry doesn't exist yet (e.g. fresh install).
+    if autostart_enabled(app, !config.autostart) != config.autostart {
+        if let Err(error) = apply_autostart(app, config.autostart) {
+            eprintln!("failed to sync autostart config: {error}");
+        }
     }
 }
 

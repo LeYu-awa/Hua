@@ -59,12 +59,14 @@ export function CanvasPage({
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveDismissed, setArchiveDismissed] = useState(false);
 
-  // ── Agent 智能覆盖层（场景一：隐含连接 / 场景二：语义空白区 / 场景三：共识分歧）──
+  // Agent 智能覆盖层（场景一：隐含连接 / 场景二：语义空白区 / 场景三：共识分歧）
   const agent = useCanvasAgent(providers, agentEnabled);
   const nodeById = useCallback(
     (id: string) => doc.nodes.find((n) => n.id === id) ?? null,
     [doc.nodes],
   );
+  const providersRef = useRef(providers);
+  providersRef.current = providers;
 
   // 接受一条隐含连接建议：写入一条 dashed 连线（可追溯到来源两节点），并从建议列表移除
   const acceptConnection = useCallback(
@@ -217,10 +219,10 @@ export function CanvasPage({
   }, [doc, onSave]);
 
   const handleArchiveSuggestions = useCallback(async () => {
-    if (doc.nodes.length < 2 || providers.length === 0) return;
+    if (doc.nodes.length < 2 || providersRef.current.length === 0) return;
     setArchiveLoading(true);
     try {
-      const suggestions = await generateArchiveSuggestions(doc.nodes, providers);
+      const suggestions = await generateArchiveSuggestions(doc.nodes, providersRef.current);
       setArchiveSuggestions(suggestions);
       setArchiveDismissed(false);
     } catch {
@@ -228,7 +230,7 @@ export function CanvasPage({
     } finally {
       setArchiveLoading(false);
     }
-  }, [doc.nodes, providers]);
+  }, [doc.nodes]);
 
   const applyArchiveTag = useCallback((nodeId: string, tag: string) => {
     setDoc((prev) => ({
@@ -380,7 +382,7 @@ export function CanvasPage({
         </div>
       )}
 
-      {/* 场景一：隐含连接建议气泡（定位在两节点连线中点，可接受/忽略） */}
+      {/* 场景一：隐含连接建议气泡（定位在两节点连线中点，可接受/忽略）*/}
       {agent.connections.map((c) => {
         const from = nodeById(c.sourceId);
         const to = nodeById(c.targetId);
@@ -417,7 +419,7 @@ export function CanvasPage({
         );
       })}
 
-      {/* 场景二：语义空白区提示（浮框 + 待补充视角，可生成占位节点） */}
+      {/* 场景二：语义空白区提示（浮框 + 待补充视角，可生成占位节点）*/}
       {agent.gap && (
         <div
           className="absolute z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-3 animate-fade-in"
@@ -452,7 +454,7 @@ export function CanvasPage({
         </div>
       )}
 
-      {/* 场景三：共识/分歧面板（分组光圈 + 桥梁方案） */}
+      {/* 场景三：共识/分歧面板（分组光环 + 桥梁方案）*/}
       {agent.discussion && (
         <div className="absolute top-16 right-4 z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-paper-deep/20 shadow-lg p-3 animate-fade-in">
           <div className="flex items-center justify-between mb-2">
@@ -497,7 +499,7 @@ export function CanvasPage({
         </div>
       )}
 
-      {/* 空结果轻提示（不静默，让用户知道分析已运行） */}
+      {/* 空结果轻提示（不静默，让用户知道分析已运行）*/}
       {(agent.emptyHint.connection || agent.emptyHint.gap || agent.emptyHint.discussion) && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-ink/75 text-cloud text-[10px] animate-fade-in pointer-events-none">
           {providers.length === 0
@@ -550,7 +552,7 @@ export function CanvasPage({
           );
         })}
 
-        {/* Agent 隐含连接建议：淡色动态虚线（区别于用户连线，可忽略） */}
+        {/* Agent 隐含连接建议：淡色动态虚线（区别于用户连线，可忽略）*/}
         {agent.connections.map((c) => {
           const from = nodeById(c.sourceId);
           const to = nodeById(c.targetId);

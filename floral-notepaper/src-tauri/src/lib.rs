@@ -20,6 +20,7 @@ use services::profile::{
     profile_save_baseline, ProfileStore,
 };
 use services::stats;
+use services::workflow_engine::{self, WorkflowDocument, WorkflowValidationResult};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -407,6 +408,16 @@ fn agent_record_chat_message_event(
 }
 
 #[tauri::command]
+fn workflow_validate(workflow: WorkflowDocument) -> Result<WorkflowValidationResult, AppError> {
+    workflow_engine::validate(workflow)
+}
+
+#[tauri::command]
+fn workflow_run(workflow: WorkflowDocument) -> Result<WorkflowValidationResult, AppError> {
+    workflow_engine::run(workflow)
+}
+
+#[tauri::command]
 fn cowrite_create_session(
     note_id: String,
     identity: String,
@@ -561,6 +572,8 @@ pub fn run() {
             agent_list_collaboration_segments,
             agent_generate_review_report,
             agent_record_chat_message_event,
+            workflow_validate,
+            workflow_run,
             cowrite_create_session,
             cowrite_append_human,
             cowrite_append_ai,

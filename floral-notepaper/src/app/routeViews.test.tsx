@@ -102,6 +102,12 @@ describe("routeViews", () => {
     expect(screen.getByText("请先登录")).toBeTruthy();
   });
 
+  it("登录后懒加载个人主页", async () => {
+    render(renderMainView({ ...baseParams, sidebarView: "profile", userId: "u1" }));
+    const profilePage = await screen.findByTestId("profile-page");
+    expect(profilePage.textContent).toContain("u1");
+  });
+
   it("设置未加载时回退主笔记窗口", () => {
     render(renderMainView({ ...baseParams, sidebarView: "settings", settingsConfig: null }));
     expect(screen.getByTestId("main-window")).toBeTruthy();

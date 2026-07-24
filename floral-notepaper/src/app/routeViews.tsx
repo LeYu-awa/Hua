@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { CanvasPage } from "../components/CanvasPage";
 import { CoWritePage } from "../components/CoWritePage";
 import { DashboardPage } from "../components/DashboardPage";
@@ -11,10 +12,16 @@ import { WritingReportPage } from "../components/WritingReportPage";
 import type { AppView } from "../components/AppSidebar";
 import { GardenLayout } from "../features/garden/components/GardenLayout";
 import { InfiniteCanvasPage } from "../features/infinite-canvas/InfiniteCanvasPage";
-import { MyProfilePage } from "../features/social/pages/MyProfilePage";
+import { ProfilePageSkeleton } from "../features/social/components/ProfilePageSkeleton";
 import { StudioEditorPage } from "../features/studio/pages/StudioEditorPage";
 import type { ProviderConfig, AppConfig } from "../features/settings/types";
 import type { AppRoute } from "../features/windows/windowRoutes";
+
+const MyProfilePage = lazy(() =>
+  import("../features/social/pages/MyProfilePage").then((module) => ({
+    default: module.MyProfilePage,
+  })),
+);
 
 interface RenderMainViewParams {
   sidebarView: AppView;
@@ -82,7 +89,13 @@ export function renderMainView({
     return userId ? <StudioEditorPage userId={userId} /> : <LoginRequiredState />;
   }
   if (sidebarView === "profile") {
-    return userId ? <MyProfilePage userId={userId} currentUserId={userId} /> : <LoginRequiredState />;
+    return userId ? (
+      <Suspense fallback={<ProfilePageSkeleton />}>
+        <MyProfilePage userId={userId} currentUserId={userId} />
+      </Suspense>
+    ) : (
+      <LoginRequiredState />
+    );
   }
   if (sidebarView === "elysia") return <ElysiaPage />;
   if (sidebarView === "settings" && settingsConfig) {

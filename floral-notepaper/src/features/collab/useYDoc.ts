@@ -29,7 +29,7 @@ interface UseYDocResult {
   provider: YjsSupabaseProvider | null;
 }
 
-export function useYDoc({ documentId, _title: _title }: UseYDocOptions): UseYDocResult {
+export function useYDoc({ documentId }: UseYDocOptions): UseYDocResult {
   const [content, setContentState] = useState("");
   const [saveState, setSaveState] = useState<UseYDocResult["saveState"]>("idle");
   const [peers, setPeers] = useState<UseYDocResult["peers"]>([]);

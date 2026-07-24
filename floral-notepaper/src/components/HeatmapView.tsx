@@ -62,8 +62,8 @@ export function HeatmapView({ data, cellSize = 12, cellGap = 5 }: HeatmapViewPro
     const gridHeight = 7 * cellSize + 6 * cellGap;
 
     // slots — flat array: weekIndex × 7 + dayIndex (0=Mon…6=Sun)
-    const slots: (Date | null)[] = new Array(totalWeeks * 7).fill(null);
-    const monthLabels: string[] = new Array(totalWeeks).fill("");
+    const slots: (Date | null)[] = Array.from({ length: totalWeeks * 7 }, () => null);
+    const monthLabels: string[] = Array.from({ length: totalWeeks }, () => "");
     let lastMonth = -1;
 
     for (let i = 0; i < totalDays; i++) {
