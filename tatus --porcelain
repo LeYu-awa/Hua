@@ -1,0 +1,5 @@
+[33mb5f9005[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m chore: add debug comment in browseModel catch
+[33m6a4c566[m chore: fix comment typo in Live2DCompanionSettings
+[33m2e945dd[m refactor: optimize ink playback, sidebar, and add canvas service support
+[33m6e894f5[m Create README.md
+[33mefffa33[m docs: update floral notepaper readme

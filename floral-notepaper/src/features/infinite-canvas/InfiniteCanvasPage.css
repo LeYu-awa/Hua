@@ -1,0 +1,11 @@
+/* InfiniteCanvasPage.css */
+.infinite-canvas-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.infinite-canvas-container {
+  position: relative;
+  overflow: hidden;
+}

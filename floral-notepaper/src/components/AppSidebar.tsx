@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export type AppView = "home" | "main" | "settings" | "canvas" | "garden" | "profile" | "studio";
+export type AppView = "home" | "main" | "settings" | "canvas" | "garden" | "profile" | "studio" | "community";
 
 interface AppSidebarProps {
   activeView: AppView;

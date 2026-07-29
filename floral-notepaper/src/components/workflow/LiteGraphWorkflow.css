@@ -1,0 +1,390 @@
+.litegraph-workflow {
+  --workflow-bg: var(--canvas-bg);
+  --workflow-bg-soft: var(--canvas-bg-soft);
+  --workflow-panel: var(--canvas-panel);
+  --workflow-panel-solid: var(--canvas-panel-solid);
+  --workflow-panel-muted: var(--canvas-panel-muted);
+  --workflow-border: var(--canvas-border);
+  --workflow-ink: var(--canvas-control-text);
+  --workflow-muted: color-mix(in srgb, var(--canvas-control-text) 58%, transparent);
+  --workflow-accent: var(--canvas-accent);
+  --workflow-accent-soft: var(--canvas-accent-soft);
+  --workflow-accent-strong: var(--canvas-accent-strong);
+  --workflow-selection: var(--canvas-selection);
+  --workflow-danger: #ef6b6b;
+  min-width: 0;
+  min-height: 0;
+  color: var(--workflow-ink);
+  background:
+    radial-gradient(circle at 18% 10%, var(--canvas-orb-warm), transparent 32%),
+    radial-gradient(circle at 78% 18%, var(--canvas-orb-bamboo), transparent 34%),
+    linear-gradient(180deg, var(--workflow-bg), var(--workflow-bg-soft));
+}
+
+.litegraph-workflow__main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 50% 30%, var(--workflow-selection), transparent 26%),
+    linear-gradient(180deg, var(--workflow-bg), var(--workflow-bg-soft));
+  border-left: 1px solid var(--workflow-border);
+  border-right: 1px solid var(--workflow-border);
+  overflow: hidden;
+  isolation: isolate;
+  contain: layout paint size;
+}
+
+.litegraph-workflow__main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--canvas-texture-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-texture-line) 1px, transparent 1px),
+    radial-gradient(circle, var(--canvas-grid-dot) 1px, transparent 1px);
+  background-size: 48px 48px, 48px 48px, 18px 18px;
+  opacity: 0.72;
+}
+
+.litegraph-workflow canvas {
+  display: block;
+  background: transparent !important;
+}
+
+.litegraph-workflow__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+  transform: translateZ(0);
+}
+
+.litegraph-workflow__library,
+.litegraph-workflow__inspector {
+  width: 224px;
+  z-index: 5;
+  padding: 14px;
+  color: var(--workflow-ink);
+  background: var(--workflow-panel);
+  border-color: var(--workflow-border);
+}
+
+.litegraph-workflow__library {
+  border-right: 1px solid var(--workflow-border);
+}
+
+.litegraph-workflow__inspector {
+  border-left: 1px solid var(--workflow-border);
+}
+
+.litegraph-workflow__panel-title {
+  margin-bottom: 10px;
+  color: var(--workflow-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.litegraph-workflow__search,
+.litegraph-workflow__properties textarea {
+  width: 100%;
+  color: var(--workflow-ink);
+  background: color-mix(in srgb, var(--workflow-panel-solid) 86%, transparent);
+  border: 1px solid var(--workflow-border);
+  border-radius: 12px;
+  outline: none;
+  transition:
+    border-color 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.litegraph-workflow__search {
+  height: 36px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.litegraph-workflow__search::placeholder,
+.litegraph-workflow__properties textarea::placeholder {
+  color: var(--workflow-muted);
+}
+
+.litegraph-workflow__search:focus,
+.litegraph-workflow__properties textarea:focus {
+  border-color: color-mix(in srgb, var(--workflow-accent) 44%, var(--workflow-border));
+  box-shadow: 0 0 0 3px var(--workflow-accent-soft);
+}
+
+.litegraph-workflow__node-list,
+.litegraph-workflow__properties {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.litegraph-workflow__node-button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  color: var(--workflow-ink);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--workflow-panel-solid) 94%, var(--workflow-accent-soft)), var(--workflow-panel-solid));
+  border: 1px solid var(--workflow-border);
+  border-radius: 14px;
+  cursor: grab;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.litegraph-workflow__node-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--workflow-accent) 44%, var(--workflow-border));
+  background: color-mix(in srgb, var(--workflow-panel-solid) 76%, var(--workflow-accent-soft));
+}
+
+.litegraph-workflow__node-button:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.litegraph-workflow__node-button small,
+.litegraph-workflow__empty,
+.litegraph-workflow__properties label {
+  color: var(--workflow-muted);
+  font-size: 10px;
+}
+
+.litegraph-workflow__toolbar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.litegraph-workflow__toolbar button,
+.litegraph-workflow__toolbar span {
+  pointer-events: auto;
+  min-height: 32px;
+  padding: 7px 12px;
+  color: var(--workflow-ink);
+  background: color-mix(in srgb, var(--workflow-panel-solid) 88%, transparent);
+  border: 1px solid var(--workflow-border);
+  border-radius: 999px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12);
+  font-size: 11px;
+}
+
+.litegraph-workflow__toolbar button {
+  cursor: pointer;
+  transition:
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.litegraph-workflow__toolbar button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--workflow-accent) 44%, var(--workflow-border));
+}
+
+.litegraph-workflow__run {
+  color: var(--canvas-selected-contrast) !important;
+  background: var(--workflow-accent-strong) !important;
+  border-color: var(--workflow-accent-strong) !important;
+}
+
+.litegraph-workflow__toolbar span {
+  margin-left: auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.litegraph-workflow__toolbar span.is-error {
+  color: var(--workflow-danger);
+  border-color: color-mix(in srgb, var(--workflow-danger) 48%, var(--workflow-border));
+  background: color-mix(in srgb, var(--workflow-danger) 14%, var(--workflow-panel-solid));
+}
+
+.litegraph-workflow__properties label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.litegraph-workflow__properties strong,
+.litegraph-workflow__properties code {
+  display: block;
+  color: var(--workflow-ink);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.litegraph-workflow__properties textarea {
+  min-height: 64px;
+  padding: 8px;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.graphdialog,
+.litegraph .dialog,
+.litegraph-workflow__managed-dialog {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(560px, calc(100vw - 48px)) !important;
+  max-width: calc(100vw - 48px) !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: min(70vh, 560px) !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 10000 !important;
+  overflow: auto !important;
+  color: var(--workflow-ink) !important;
+  background: var(--workflow-panel-solid) !important;
+  border: 1px solid var(--workflow-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.36) !important;
+}
+
+.graphdialog input,
+.graphdialog textarea,
+.graphdialog select,
+.litegraph .dialog input,
+.litegraph .dialog textarea,
+.litegraph .dialog select,
+.litegraph-workflow__managed-dialog input,
+.litegraph-workflow__managed-dialog textarea,
+.litegraph-workflow__managed-dialog select {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 8px 10px !important;
+  color: var(--workflow-ink) !important;
+  background: color-mix(in srgb, var(--workflow-panel-solid) 86%, transparent) !important;
+  border: 1px solid var(--workflow-border) !important;
+  border-radius: 10px !important;
+  outline: none !important;
+  font-size: 13px !important;
+}
+
+.graphdialog textarea,
+.litegraph .dialog textarea,
+.litegraph-workflow__managed-dialog textarea {
+  min-height: 120px !important;
+  resize: vertical !important;
+}
+
+.litegraph .dialog .dialog-header,
+.litegraph .dialog .dialog-content,
+.litegraph .dialog .dialog-alt-content,
+.litegraph .dialog .dialog-footer,
+.litegraph-workflow__managed-dialog .dialog-header,
+.litegraph-workflow__managed-dialog .dialog-content,
+.litegraph-workflow__managed-dialog .dialog-alt-content,
+.litegraph-workflow__managed-dialog .dialog-footer {
+  width: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  color: var(--workflow-ink) !important;
+  background: transparent !important;
+  border-color: var(--workflow-border) !important;
+}
+
+.litegraph-workflow__dialog-close,
+.litegraph .dialog .close {
+  position: sticky !important;
+  top: 8px !important;
+  float: right !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  margin: 8px !important;
+  color: var(--canvas-selected-contrast) !important;
+  background: var(--workflow-accent-strong) !important;
+  border: 1px solid var(--workflow-accent-strong) !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 720px) {
+  .litegraph-workflow {
+    flex-direction: column;
+  }
+
+  .litegraph-workflow__library,
+  .litegraph-workflow__inspector {
+    width: 100%;
+    max-height: 168px;
+    padding: 10px;
+    overflow: auto;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .litegraph-workflow__library {
+    border-bottom: 1px solid var(--workflow-border);
+  }
+
+  .litegraph-workflow__inspector {
+    border-top: 1px solid var(--workflow-border);
+  }
+
+  .litegraph-workflow__node-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .litegraph-workflow__main {
+    min-height: 420px;
+  }
+
+  .litegraph-workflow__toolbar {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-wrap: wrap;
+  }
+
+  .litegraph-workflow__toolbar span {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 460px) {
+  .litegraph-workflow__node-list {
+    grid-template-columns: 1fr;
+  }
+
+  .graphdialog,
+  .litegraph .dialog,
+  .litegraph-workflow__managed-dialog {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}

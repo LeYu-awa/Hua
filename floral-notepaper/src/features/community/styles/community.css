@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════
+   社区页面专用样式
+   小红书风格的文章分享社区
+   ═══════════════════════════════════════════ */
+
+/* ── 文章卡片入场动画 ── */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.community-card-enter {
+  animation: card-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.community-card-enter:nth-child(2) { animation-delay: 0.04s; }
+.community-card-enter:nth-child(3) { animation-delay: 0.08s; }
+.community-card-enter:nth-child(4) { animation-delay: 0.12s; }
+.community-card-enter:nth-child(5) { animation-delay: 0.16s; }
+
+/* ── 分类标签切换动画 ── */
+@keyframes category-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes category-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.community-category-left {
+  animation: category-slide-left 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.community-category-right {
+  animation: category-slide-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── 脉冲加载骨架 ── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.community-skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: var(--color-paper-deep);
+  border-radius: 8px;
+}
+
+/* ── 分享按钮脉冲效果 ── */
+@keyframes share-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 36, 66, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 36, 66, 0);
+  }
+}
+
+.community-share-pulse {
+  animation: share-pulse 2s ease-in-out infinite;
+}
+
+/* ── 详情页内容区域样式 ── */
+.community-detail-content h1,
+.community-detail-content h2,
+.community-detail-content h3 {
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+}
+
+.community-detail-content h1 { font-size: 1.5rem; }
+.community-detail-content h2 { font-size: 1.25rem; }
+.community-detail-content h3 { font-size: 1.1rem; }
+
+.community-detail-content p {
+  margin-bottom: 0.75em;
+  line-height: 1.85;
+}
+
+.community-detail-content blockquote {
+  border-left: 3px solid var(--color-bamboo);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--color-ink-soft);
+  font-style: italic;
+}
+
+.community-detail-content code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  background: var(--color-paper-warm);
+}
+
+.community-detail-content pre {
+  overflow-x: auto;
+  padding: 1em;
+  border-radius: 10px;
+  background: var(--color-paper-warm);
+  margin: 1em 0;
+}
+
+.community-detail-content pre code {
+  padding: 0;
+  background: none;
+}
+
+.community-detail-content ul,
+.community-detail-content ol {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+
+.community-detail-content li {
+  margin-bottom: 0.3em;
+}
