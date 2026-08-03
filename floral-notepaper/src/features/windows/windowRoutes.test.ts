@@ -15,9 +15,9 @@ describe("window routes", () => {
   });
 
   it("builds app urls for dynamic windows", () => {
-    expect(buildNotepadUrl()).toBe("index.html?view=notepad");
-    expect(buildNotepadUrl("abc 123")).toBe("index.html?view=notepad&noteId=abc+123");
-    expect(buildTileUrl("note-1")).toBe("index.html?view=tile&noteId=note-1");
+    expect(buildNotepadUrl()).toBe("/?view=notepad");
+    expect(buildNotepadUrl("abc 123")).toBe("/?view=notepad&noteId=abc+123");
+    expect(buildTileUrl("note-1")).toBe("/?view=tile&noteId=note-1");
   });
 
   it("reads the browser location by default", () => {

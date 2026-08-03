@@ -19,7 +19,7 @@ function formatCount(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1) + "k";
   return String(n);
 }
-
+   
 export function ArticleDetailPage({ article, onClose, onLike, onBookmark }: ArticleDetailPageProps) {
   const [exiting, setExiting] = useState(false);
   const [liked, setLiked] = useState(article.isLiked);

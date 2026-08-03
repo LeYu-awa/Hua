@@ -14,7 +14,6 @@ interface VirtualListProps<T> {
   isRefreshing?: boolean;
 }
 
-const SCROLL_DEBOUNCE = 16;
 const LOAD_MORE_THRESHOLD = 200;
 
 export function VirtualList<T>({
@@ -115,7 +114,7 @@ export function VirtualList<T>({
     setPullDistance(0);
   }, [onRefresh, isRefreshing, pullDistance]);
 
-  const { startIdx, endIdx, visibleItems, totalHeight, offsetY } = useMemo(() => {
+  const { startIdx, visibleItems, totalHeight, offsetY } = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
     const end = Math.min(items.length, Math.ceil((scrollTop + containerHeight) / itemHeight) + overscan);
     return {

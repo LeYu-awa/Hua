@@ -5,7 +5,9 @@ interface BottomTabBarProps {
   onChange: (tab: BottomTab) => void;
 }
 
-const TABS: { key: BottomTab; label: string; icon: React.ReactNode }[] = [
+type BottomTabItem = { key: BottomTab; label: string; icon: React.ReactNode; isWrite?: boolean };
+
+const TABS: BottomTabItem[] = [
   {
     key: "home",
     label: "首页",
@@ -66,7 +68,7 @@ export function BottomTabBar({ active, onChange }: BottomTabBarProps) {
     <nav className="flex items-center justify-around px-2 pt-1.5 pb-3 bg-[var(--color-cloud)]/90 backdrop-blur-lg border-t border-[var(--color-paper-deep)]">
       {TABS.map((tab) => {
         const isActive = tab.key === active;
-        const isWrite = (tab as any).isWrite;
+        const isWrite = tab.isWrite;
 
         if (isWrite) {
           return (

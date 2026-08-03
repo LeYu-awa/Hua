@@ -7,6 +7,7 @@ import { SettingsPage } from "../components/SettingsPage";
 import { TileShowcase } from "../components/TileShowcase";
 import type { AppView } from "../components/AppSidebar";
 import { GardenLayout } from "../features/garden/components/GardenLayout";
+import { CompanionFloatingPage } from "../features/companion/components/CompanionFloatingPage";
 import { InfiniteCanvasPage } from "../features/infinite-canvas/InfiniteCanvasPage";
 import { ProfilePageSkeleton } from "../features/social/components/ProfilePageSkeleton";
 import { StudioEditorPage } from "../features/studio/pages/StudioEditorPage";
@@ -46,6 +47,10 @@ export function renderSpecialRoute(route: AppRoute) {
 
   if (route.view === "tile") {
     return <TileShowcase noteId={route.noteId} />;
+  }
+
+  if (route.view === "companion") {
+    return <CompanionFloatingPage />;
   }
 
   return null;

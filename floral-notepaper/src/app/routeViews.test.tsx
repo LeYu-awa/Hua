@@ -22,6 +22,9 @@ vi.mock("../components/SettingsPage", () => ({
 vi.mock("../components/TileShowcase", () => ({
   TileShowcase: ({ noteId }: { noteId?: string }) => <div data-testid="tile-route">{noteId}</div>,
 }));
+vi.mock("../features/companion/components/CompanionFloatingPage", () => ({
+  CompanionFloatingPage: () => <div data-testid="companion-route" />,
+}));
 vi.mock("../features/garden/components/GardenLayout", () => ({
   GardenLayout: ({ userId }: { userId: string | null }) => <div data-testid="garden-page">{userId}</div>,
 }));
@@ -61,6 +64,8 @@ describe("routeViews", () => {
 
     render(renderSpecialRoute({ view: "tile", noteId: "n2" }));
     expect(screen.getByTestId("tile-route").textContent).toBe("n2");
+    render(renderSpecialRoute({ view: "companion" }));
+    expect(screen.getByTestId("companion-route")).toBeTruthy();
   });
 
   it("按主侧边栏视图渲染核心页面", () => {

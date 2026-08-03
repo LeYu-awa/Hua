@@ -22,7 +22,7 @@ const reportLive2DDebug = (hypothesisId: string, location: string, msg: string, 
   fetch("http://127.0.0.1:7777/event", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-cubism5", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
+    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
   }).catch(() => undefined);
 };
 // #endregion
@@ -55,6 +55,20 @@ function resolveLive2DAssetPath(modelPath: string, assetPath: string) {
   return new URL(assetPath, modelUrl).pathname;
 }
 
+function isCanvasLayoutReady(canvas: HTMLCanvasElement) {
+  const parent = canvas.parentElement;
+  const rect = canvas.getBoundingClientRect();
+  return Boolean(parent && parent.isConnected && rect.width > 0 && rect.height > 0 && parent.clientWidth > 0 && parent.clientHeight > 0);
+}
+
+async function waitForCanvasLayout(canvas: HTMLCanvasElement) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (isCanvasLayoutReady(canvas)) return true;
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
+  return false;
+}
+
 async function assertFetchOk(path: string) {
   const response = await fetch(path);
   if (!response.ok) {
@@ -72,7 +86,16 @@ async function validateLive2DModelAssets(modelPath: string) {
   }
 
   const assets = [refs.Moc, ...refs.Textures, refs.Physics, refs.DisplayInfo].filter(Boolean) as string[];
-  await Promise.all(assets.map((asset) => assertFetchOk(resolveLive2DAssetPath(modelPath, asset))));
+  const resolvedAssets = assets.map((asset) => resolveLive2DAssetPath(modelPath, asset));
+  reportLive2DDebug("A", "Live2DCompanionLayer.tsx:validateLive2DModelAssets", "validating model asset references", {
+    modelPath,
+    moc: refs.Moc,
+    textureCount: refs.Textures.length,
+    physics: refs.Physics ?? null,
+    displayInfo: refs.DisplayInfo ?? null,
+    resolvedAssets,
+  });
+  await Promise.all(resolvedAssets.map((asset) => assertFetchOk(asset)));
 }
 
 export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: Live2DCompanionLayerProps) {
@@ -82,6 +105,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
   const configRef = useRef<CompanionConfig>(loadCompanionConfig());
   const loadedModelPathRef = useRef<string | null>(null);
   const loadingModelRef = useRef(false);
+  const lastFedSuggestionIdRef = useRef<string | null>(null);
   const [bubbleText, setBubbleText] = useState<string | null>(null);
   const bubbleTimerRef = useRef<number | null>(null);
   const [config, setConfig] = useState<CompanionConfig>(loadCompanionConfig());
@@ -131,6 +155,17 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     });
     return unsub;
   }, [surface]);
+
+  const showBubble = useCallback((text: string) => {
+    setBubbleText(text);
+    if (bubbleTimerRef.current !== null) {
+      window.clearTimeout(bubbleTimerRef.current);
+    }
+    bubbleTimerRef.current = window.setTimeout(() => {
+      setBubbleText(null);
+      bubbleTimerRef.current = null;
+    }, 5000);
+  }, []);
 
   const loadCurrentModel = useCallback(async () => {
     const scene = sceneRef.current;
@@ -207,6 +242,37 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         return;
       }
 
+      const layoutReady = await waitForCanvasLayout(canvas);
+      if (cancelled) return;
+      if (!layoutReady) {
+        reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "canvas layout not ready", {
+          isConnected: canvas.isConnected,
+          parentConnected: canvas.parentElement?.isConnected ?? false,
+          parentClientWidth: canvas.parentElement?.clientWidth ?? null,
+          parentClientHeight: canvas.parentElement?.clientHeight ?? null,
+          rect: (() => {
+            const rect = canvas.getBoundingClientRect();
+            return { width: rect.width, height: rect.height };
+          })(),
+        });
+        setLoadError("Live2D canvas layout not ready");
+        return;
+      }
+
+      reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "canvas resolved before init", {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        clientWidth: canvas.clientWidth,
+        clientHeight: canvas.clientHeight,
+        boundingRect: (() => {
+          const rect = canvas.getBoundingClientRect();
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        })(),
+        parentTag: canvas.parentElement?.tagName ?? null,
+        parentClientWidth: canvas.parentElement?.clientWidth ?? null,
+        parentClientHeight: canvas.parentElement?.clientHeight ?? null,
+      });
+
       try {
         reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "calling ensureCubismCore", { modelPath: configRef.current.modelPath });
         await ensureCubismCore();
@@ -227,7 +293,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "creating Live2D scene");
         scene = await createLive2DScene(canvas);
         sceneRef.current = scene;
-        controller = createLive2DModelController(scene);
+        controller = createLive2DModelController(scene, { onReply: showBubble });
         controllerRef.current = controller;
 
         await loadCurrentModel();
@@ -404,16 +470,18 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
           const controller = controllerRef.current;
           if (!controller) return;
 
-          processAgentUICommands(controller, result.suggestions.map((s) => s.payload as unknown as AgentUICommand).flat(), (text) => {
-            setBubbleText(text);
-            if (bubbleTimerRef.current !== null) {
-              window.clearTimeout(bubbleTimerRef.current);
-            }
-            bubbleTimerRef.current = window.setTimeout(() => {
-              setBubbleText(null);
-              bubbleTimerRef.current = null;
-            }, 5000);
-          });
+          processAgentUICommands(
+            controller,
+            result.suggestions.map((s) => s.payload as unknown as AgentUICommand).flat(),
+            showBubble,
+          );
+
+          // 把新建议交给 Soullink 会话运行时 → LLM 反应规划（情绪 + 回复）
+          const top = result.suggestions[0];
+          if (top && top.id !== lastFedSuggestionIdRef.current && top.message) {
+            lastFedSuggestionIdRef.current = top.id;
+            void controller.sendMessage(top.message).catch(() => undefined);
+          }
         })
         .catch(() => undefined);
     };

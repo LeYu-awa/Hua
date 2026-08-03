@@ -7,7 +7,7 @@ const reportSceneDebug = (hypothesisId: string, location: string, msg: string, d
   fetch("http://127.0.0.1:7777/event", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-cubism5", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
+    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
   }).catch(() => undefined);
 };
 // #endregion
@@ -41,6 +41,18 @@ export async function createLive2DScene(canvas: HTMLCanvasElement): Promise<Live
     resizeTo: parent,
     preference: "webgl",
     autoStart: true,
+  });
+
+  reportSceneDebug("B", "scene.ts:createLive2DScene", "Pixi application initialized", {
+    rendererType: app.renderer.type,
+    screenWidth: app.screen.width,
+    screenHeight: app.screen.height,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    canvasClientWidth: canvas.clientWidth,
+    canvasClientHeight: canvas.clientHeight,
+    parentWidth: parent.clientWidth,
+    parentHeight: parent.clientHeight,
   });
 
   canvas.style.background = "transparent";

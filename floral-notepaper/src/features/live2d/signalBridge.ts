@@ -33,7 +33,9 @@ export function processAgentUICommand(
 ): void {
   if (command.type !== "live2d_signal") return;
 
-  const { mood, animation, bubbleText } = command;
+  const { mood, animation, bubbleText, priority } = command;
+
+  controller.triggerEmotion(mood, Math.min(1, Math.max(0.35, priority / 100)));
 
   // 1. 切换表情
   const expressionId = MOOD_TO_EXPRESSION[mood];

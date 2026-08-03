@@ -1,7 +1,6 @@
 import type {
   CommunityArticle,
   Category,
-  SortMode,
   CommunityFilters,
 } from "./types";
 
@@ -172,12 +171,12 @@ export async function toggleBookmark(articleId: string, bookmarked: boolean): Pr
   }
 }
 
-export async function reportNotInterested(articleId: string): Promise<void> {
+export async function reportNotInterested(_articleId: string): Promise<void> {
   await delay(100);
   // 实际项目中会记录用户偏好，此处仅模拟
 }
 
-export async function addToReadLater(articleId: string): Promise<void> {
+export async function addToReadLater(_articleId: string): Promise<void> {
   await delay(100);
   // 模拟添加到稍后读
 }

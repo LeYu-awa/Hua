@@ -1,6 +1,9 @@
 // Type-only import — 编译时完全擦除，不会触发模块级副作用
 import type { Live2DModel, MotionPriority as Live2DMotionPriority } from "@naari3/pixi-live2d-display/cubism5";
 import type { Container, FederatedPointerEvent, FederatedWheelEvent } from "pixi.js";
+import type { EmotionIntent } from "@soullink-emotion/engine";
+import type { SoullinkCoreModelApi, SoullinkLocalMood } from "./soullinkLocalEngine";
+import { SoullinkLocalEngineAdapter } from "./soullinkLocalEngine";
 import type { Live2DScene } from "./scene";
 
 const MotionPriority = {
@@ -16,7 +19,7 @@ const reportModelDebug = (hypothesisId: string, location: string, msg: string, d
   fetch("http://127.0.0.1:7777/event", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-cubism5", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
+    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
   }).catch(() => undefined);
 };
 // #endregion
@@ -57,12 +60,7 @@ type Live2DCoreModelParameterId = {
   getString?: () => { s?: string } | string;
 };
 
-type Live2DCoreModelParameterApi = {
-  getParameterCount?: () => number;
-  getParameterId?: (index: number) => Live2DCoreModelParameterId | string;
-  getParameterValueByIndex?: (index: number) => number;
-  setParameterValueByIndex?: (index: number, value: number, weight?: number) => void;
-};
+type Live2DCoreModelParameterApi = SoullinkCoreModelApi;
 
 const AQUARIUS_MODEL_MARKER = "aquarius-love";
 const AQUARIUS_COPYRIGHT_HIDE_DELAY_MS = 1000;
@@ -187,13 +185,24 @@ export interface Live2DModelController {
   removeAllExpressions: () => void;
   setMouthValue: (value: number) => void;
   pulseMouth: (durationMs?: number) => void;
+  triggerEmotion: (mood: SoullinkLocalMood, intensity?: number) => void;
+  /** 把消息交给 Soullink 会话运行时（触发引擎/LLM 反应规划） */
+  sendMessage: (message: string) => Promise<EmotionIntent | null>;
   focusAt: (clientX: number, clientY: number) => void;
   enableEyeFollow: (enabled: boolean) => void;
   setMouseFollowStrength: (strength: number) => void;
   destroy: () => void;
 }
 
-export function createLive2DModelController(live2dScene: Live2DScene): Live2DModelController {
+export interface Live2DModelControllerOptions {
+  /** LLM 生成的回复回调（用于展示气泡） */
+  onReply?: (reply: string) => void;
+}
+
+export function createLive2DModelController(
+  live2dScene: Live2DScene,
+  options: Live2DModelControllerOptions = {},
+): Live2DModelController {
   let model: Live2DModel | null = null;
   let eyeFollowEnabled = false;
   let mouseFollowStrength = 1;
@@ -208,6 +217,7 @@ export function createLive2DModelController(live2dScene: Live2DScene): Live2DMod
   let aquariusCopyrightHidden = false;
   let aquariusCopyrightHandler: (() => void) | null = null;
   let runtimeTick: (() => void) | null = null;
+  let soullinkLocalEngine: SoullinkLocalEngineAdapter | null = null;
   let heartbeatPhase = 0;
 
   const clearIdleTimer = () => {
@@ -296,7 +306,12 @@ export function createLive2DModelController(live2dScene: Live2DScene): Live2DMod
 
       const deltaMs = Math.min(live2dScene.app.ticker.deltaMS || 16.67, 66.67);
       model.update(deltaMs);
-      applyHeartbeat(deltaMs);
+      const core = getCoreModelParameterApi(model);
+      if (core && soullinkLocalEngine) {
+        soullinkLocalEngine.update(core, deltaMs);
+      } else {
+        applyHeartbeat(deltaMs);
+      }
 
       if (mouthValue > 0) {
         mouthValue = Math.max(0, mouthValue - deltaMs / 420);
@@ -369,6 +384,19 @@ export function createLive2DModelController(live2dScene: Live2DScene): Live2DMod
       currentModel.x = screenWidth / 2;
       currentModel.y = screenHeight * 0.56;
 
+      reportModelDebug("D", "modelController.ts:load", "model placement computed", {
+        modelUrl,
+        screenWidth,
+        screenHeight,
+        modelWidth,
+        modelHeight,
+        baseScale,
+        x: currentModel.x,
+        y: currentModel.y,
+        visible: currentModel.visible,
+        alpha: currentModel.alpha,
+      });
+
       characterLayer.addChild(currentModel as unknown as Container);
 
       currentModel.on("pointerdown", handlePointerDown);
@@ -378,6 +406,19 @@ export function createLive2DModelController(live2dScene: Live2DScene): Live2DMod
       live2dScene.stage.on("wheel", handleWheel);
 
       if (currentModel.internalModel) {
+        const core = getCoreModelParameterApi(currentModel);
+        if (core) {
+          // runtime-core 会话运行时：异步加载模型专属 Profile + 自动接入 LLM 规划器
+          const engine = await SoullinkLocalEngineAdapter.create(core, modelUrl, {
+            onReply: options.onReply,
+          });
+          if (model === currentModel) {
+            soullinkLocalEngine = engine;
+          } else {
+            engine.stop();
+          }
+        }
+
         mouthHandler = applyMouthValue;
         currentModel.internalModel.on("beforeModelUpdate", mouthHandler);
         if (isAquariusModel(modelUrl)) {
@@ -441,6 +482,10 @@ export function createLive2DModelController(live2dScene: Live2DScene): Live2DMod
       }
       model.destroy();
       model = null;
+      if (soullinkLocalEngine) {
+        soullinkLocalEngine.stop();
+        soullinkLocalEngine = null;
+      }
       dragging = false;
       aquariusCopyrightHidden = false;
       mouthValue = 0;
@@ -492,6 +537,15 @@ export function createLive2DModelController(live2dScene: Live2DScene): Live2DMod
         mouthValue = 0;
         mouthTimer = null;
       }, durationMs);
+    },
+
+    triggerEmotion(mood: SoullinkLocalMood, intensity = 0.75) {
+      soullinkLocalEngine?.triggerEmotion(mood, intensity);
+    },
+
+    sendMessage(message: string): Promise<EmotionIntent | null> {
+      if (!soullinkLocalEngine) return Promise.resolve(null);
+      return soullinkLocalEngine.sendMessage(message);
     },
 
     focusAt(clientX: number, clientY: number) {

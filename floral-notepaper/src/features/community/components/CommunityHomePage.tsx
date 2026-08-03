@@ -125,7 +125,7 @@ export function CommunityHomePage() {
         <div className="flex-shrink-0 px-4 pt-1 pb-1.5 bg-[var(--color-cloud)] border-b border-[var(--color-paper-deep)]">
           <CategoryBar
             categories={categories}
-            activeId={filters.categoryId}
+            activeId={filters.categoryId ?? "all"}
             onSelect={setCategory}
           />
           <div className="flex justify-end mt-1">

@@ -35,5 +35,5 @@ export function buildCompanionUrl(): string {
 function buildUrl(view: AppView, noteId?: string): string {
   const params = new URLSearchParams({ view });
   if (noteId) params.set("noteId", noteId);
-  return `index.html?${params.toString()}`;
+  return `/?${params.toString()}`;
 }

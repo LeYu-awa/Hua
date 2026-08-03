@@ -10,6 +10,7 @@
     "lint": "oxlint",
     "fmt": "oxfmt",
     "preview": "vite preview",
+    "profiles:generate": "node scripts/soullink-profiles.mjs",
     "tauri": "tauri",
     "prepare": "husky"
   },
@@ -17,6 +18,10 @@
     "@comfyorg/litegraph": "^0.17.2",
     "@hazart-pkg/live2d-core": "^1.0.1",
     "@naari3/pixi-live2d-display": "^1.2.5",
+    "@soullink-emotion/engine": "^0.1.0-beta.1",
+    "@soullink-emotion/planner-openai": "^0.1.0-beta.1",
+    "@soullink-emotion/profile-generator": "^0.1.0-beta.1",
+    "@soullink-emotion/runtime-core": "^0.1.0-beta.1",
     "@supabase/supabase-js": "^2.108.2",
     "@tauri-apps/api": "~2.11.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",

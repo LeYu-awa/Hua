@@ -80,7 +80,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   /* ── 切换分类 ── */
   setCategory: (id: string) => {
     const { filters } = get();
-    const currentId = filters.categoryId;
+    const currentId = filters.categoryId ?? "all";
     const dir = id > currentId ? "right" : "left";
 
     // 更新分类时要重置文章列表
@@ -113,7 +113,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   /* ── 加载文章列表 ── */
-  loadArticles: async (reset = false) => {
+  loadArticles: async () => {
     const { filters } = get();
     const page = 1;
     set({ page, isLoading: true, articles: [] });
