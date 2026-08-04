@@ -1,5 +1,15 @@
 import { useState, useCallback } from "react";
 import { Live2DCompanionSettings } from "../features/companion/components/Live2DCompanionSettings";
+import {
+  DEFAULT_TTS,
+  OPENAI_TTS_VOICES,
+  TTS_ENGINE_OPTIONS,
+  loadTTSConfig,
+  saveTTSConfig,
+  speakText,
+  stopSpeech,
+  type TTSConfig,
+} from "../features/tts";
 
 // ---- Elysia 导航选项卡 ----
 type ElysiaTab = "general" | "live2d" | "tts" | "memory" | "rag" | "mcp" | "appearance";
@@ -19,29 +29,6 @@ const TABS: TabDef[] = [
   { key: "mcp", label: "MCP", icon: "⎔" },
   { key: "appearance", label: "外观", icon: "◒" },
 ];
-
-// ---- TTS 配置状态 ----
-interface TTSConfig {
-  engine: string;
-  model: string;
-  apiUrl: string;
-  gptWeightsPath: string;
-  sovitsWeightsPath: string;
-  refAudioDir: string;
-  defaultSpeed: number;
-}
-
-const TTS_ENGINES = ["GPT-SoVITS (本地)", "VITS (本地)", "Edge TTS (云端)", "OpenAI TTS (云端)"];
-
-const DEFAULT_TTS: TTSConfig = {
-  engine: "GPT-SoVITS (本地)",
-  model: "",
-  apiUrl: "http://127.0.0.1:9880",
-  gptWeightsPath: "",
-  sovitsWeightsPath: "",
-  refAudioDir: "",
-  defaultSpeed: 1.1,
-};
 
 // ---- 占位页面 ----
 function PlaceholderContent({ tab }: { tab: ElysiaTab }) {
@@ -108,33 +95,96 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl">
-        <h2 className="text-lg font-display font-bold text-ink mb-6">GPT-SoVITS 配置</h2>
+        <h2 className="text-lg font-display font-bold text-ink mb-6">TTS 语音合成配置</h2>
+
+        {/* 触发条件 */}
+        <div className="mb-5 p-3.5 rounded-xl bg-bamboo-mist/30 border border-bamboo/15">
+          <label className="flex items-center gap-2.5 text-xs font-medium text-ink-soft cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.enabled}
+              onChange={(e) => update({ enabled: e.target.checked })}
+              className="accent-bamboo"
+            />
+            启用语音合成（关闭后所有朗读请求将被静默跳过）
+          </label>
+          <label className="flex items-center gap-2.5 text-xs font-medium text-ink-soft mt-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.autoSpeak}
+              onChange={(e) => update({ autoSpeak: e.target.checked })}
+              className="accent-bamboo"
+            />
+            AI 助手回复后自动朗读（左侧 AI 对话窗口）
+          </label>
+        </div>
 
         {/* TTS 引擎 */}
         <div className="mb-5">
           <label className="block text-xs font-medium text-ink-soft mb-1.5">TTS 引擎</label>
           <select
             value={config.engine}
-            onChange={(e) => update({ engine: e.target.value })}
+            onChange={(e) => update({ engine: e.target.value as TTSConfig["engine"] })}
             className="w-full h-9 px-3 rounded-lg text-sm font-body text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none cursor-pointer"
           >
-            {TTS_ENGINES.map((e) => (
-              <option key={e} value={e}>{e}</option>
+            {TTS_ENGINE_OPTIONS.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
             ))}
           </select>
         </div>
 
-        {/* 模型选择 */}
+        {/* 模型（GPT-SoVITS / OpenAI 为文本输入，其余沿用占位） */}
         <div className="mb-5">
           <label className="block text-xs font-medium text-ink-soft mb-1.5">模型</label>
-          <select
-            value={config.model}
-            onChange={(e) => update({ model: e.target.value })}
-            className="w-full h-9 px-3 rounded-lg text-sm font-body text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none cursor-pointer"
-          >
-            <option value="">-- 请先加载模型权重 --</option>
-          </select>
-          <p className="text-[10px] text-ink-ghost mt-1">启动 api_v2.py 并加载权重后，模型将在此处显示</p>
+          {config.engine === "openai" ? (
+            <input
+              type="text"
+              value={config.model}
+              onChange={(e) => update({ model: e.target.value })}
+              className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
+              placeholder="tts-1"
+            />
+          ) : (
+            <input
+              type="text"
+              value={config.model}
+              onChange={(e) => update({ model: e.target.value })}
+              className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
+              placeholder="加载权重后填写模型名（不影响合成请求，仅作标识）"
+            />
+          )}
+        </div>
+
+        {/* 音色（voice） */}
+        <div className="mb-5">
+          <label className="block text-xs font-medium text-ink-soft mb-1.5">
+            音色
+            <span className="text-ink-ghost font-normal ml-1">
+              {config.engine === "gpt-sovits" && "— 参考音频文件名（位于参考音频目录下）"}
+              {config.engine === "vits" && "— 说话人 id（MoeTTS speaker）"}
+              {config.engine === "edge" && "— 浏览器语音名，留空自动选中文女声"}
+              {config.engine === "openai" && "— 标准音色名"}
+            </span>
+          </label>
+          {config.engine === "openai" ? (
+            <select
+              value={config.voice}
+              onChange={(e) => update({ voice: e.target.value })}
+              className="w-full h-9 px-3 rounded-lg text-sm font-body text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none cursor-pointer"
+            >
+              {OPENAI_TTS_VOICES.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={config.voice}
+              onChange={(e) => update({ voice: e.target.value })}
+              className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
+              placeholder={config.engine === "gpt-sovits" ? "参考音频名.wav" : "0"}
+            />
+          )}
         </div>
 
         {/* API 地址 */}
@@ -145,10 +195,34 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             value={config.apiUrl}
             onChange={(e) => update({ apiUrl: e.target.value })}
             className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
-            placeholder="http://127.0.0.1:9880"
+            placeholder={
+              config.engine === "openai"
+                ? "https://api.openai.com/v1"
+                : "http://127.0.0.1:9880"
+            }
           />
-          <p className="text-[10px] text-ink-ghost mt-1">GPT-SoVITS 本地服务的 HTTP API 地址</p>
+          <p className="text-[10px] text-ink-ghost mt-1">
+            {config.engine === "gpt-sovits" && "GPT-SoVITS 本地服务的 HTTP API 地址（api_v2.py，POST /tts）"}
+            {config.engine === "vits" && "MoeTTS / VITS 服务地址（GET /tts?text=...&id=<说话人>）"}
+            {config.engine === "edge" && "无需填写，使用系统内置 Edge / 中文语音"}
+            {config.engine === "openai" && "OpenAI 兼容服务地址（POST /audio/speech）"}
+          </p>
         </div>
+
+        {/* OpenAI TTS 专用 API Key */}
+        {config.engine === "openai" && (
+          <div className="mb-5">
+            <label className="block text-xs font-medium text-ink-soft mb-1.5">API Key</label>
+            <input
+              type="password"
+              value={config.apiKey}
+              onChange={(e) => update({ apiKey: e.target.value })}
+              className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
+              placeholder="sk-..."
+            />
+            <p className="text-[10px] text-ink-ghost mt-1">仅保存在本机 localStorage，用于云端 TTS 请求</p>
+          </div>
+        )}
 
         {/* GPT 模型权重 (CKPT) */}
         <div className="mb-5">
@@ -257,17 +331,59 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
           </div>
         </div>
 
+        {/* 音量 */}
+        <div className="mb-5">
+          <label className="block text-xs font-medium text-ink-soft mb-1.5">音量</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={config.volume}
+              onChange={(e) => update({ volume: parseFloat(e.target.value) })}
+              className="flex-1 h-1.5 rounded-full bg-paper-deep/30 appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-bamboo [&::-webkit-slider-thumb]:cursor-pointer"
+            />
+            <span className="w-12 text-center text-sm font-mono text-ink-soft tabular-nums">
+              {Math.round(config.volume * 100)}%
+            </span>
+          </div>
+        </div>
+
         {/* 提示信息 */}
         <div className="mb-6 p-3 rounded-lg bg-bamboo-mist/40 border border-bamboo/15">
           <p className="text-xs text-ink-soft leading-relaxed">
             <span className="font-semibold text-bamboo">提示：</span>
-            请先启动 GPT-SoVITS 的 <code className="bg-paper-deep/30 px-1 rounded">api_v2.py</code> 服务，
-            然后通过 HTTP API 加载模型权重。服务启动后，模型列表将自动填充。
+            {config.engine === "gpt-sovits" && (
+              <>请先启动 GPT-SoVITS 的 <code className="bg-paper-deep/30 px-1 rounded">api_v2.py</code> 服务
+              并加载权重，再填写参考音频（音色），即可在左侧 AI 对话窗口听到角色朗读。</>
+            )}
+            {config.engine === "vits" && (
+              <>启动 MoeTTS 服务后，音色填说话人 id（默认 0），请求路径为 <code className="bg-paper-deep/30 px-1 rounded">GET /tts?text=...&id=&lt;说话人&gt;</code>。</>
+            )}
+            {config.engine === "edge" && (
+              <>使用系统内置 Edge / 中文语音，无需服务端；音色留空自动选择中文女声。</>
+            )}
+            {config.engine === "openai" && (
+              <>需填写 API 地址与 Key，请求路径为 <code className="bg-paper-deep/30 px-1 rounded">POST /audio/speech</code>。</>
+            )}
           </p>
         </div>
 
         {/* 操作按钮 */}
         <div className="flex items-center gap-3 pt-2 border-t border-paper-deep/20">
+          <button
+            onClick={() => void speakText("你好，我是花笺的语音助手，很高兴见到你。", { emotion: "happy" })}
+            className="px-5 h-9 rounded-lg text-xs font-medium text-cloud bg-bamboo hover:bg-bamboo-light transition-all cursor-pointer"
+          >
+            试听
+          </button>
+          <button
+            onClick={stopSpeech}
+            className="px-5 h-9 rounded-lg text-xs font-medium text-ink-faint bg-paper-warm/80 hover:bg-paper-deep/30 hover:text-ink-soft border border-paper-deep/30 transition-all cursor-pointer"
+          >
+            停止
+          </button>
           <button
             onClick={handleReset}
             className="px-5 h-9 rounded-lg text-xs font-medium text-ink-faint bg-paper-warm/80 hover:bg-paper-deep/30 hover:text-ink-soft border border-paper-deep/30 transition-all cursor-pointer"
@@ -283,20 +399,11 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
 // ---- Elysia 主页面 ----
 export function ElysiaPage() {
   const [activeTab, setActiveTab] = useState<ElysiaTab>("live2d");
-  const [ttsConfig, setTTSConfig] = useState<TTSConfig>(() => {
-    // 尝试从 localStorage 恢复配置
-    try {
-      const saved = localStorage.getItem("elysia_tts_config");
-      if (saved) return { ...DEFAULT_TTS, ...JSON.parse(saved) };
-    } catch { /* ignore */ }
-    return { ...DEFAULT_TTS };
-  });
+  const [ttsConfig, setTTSConfig] = useState<TTSConfig>(() => loadTTSConfig());
 
   const handleTTSChange = useCallback((config: TTSConfig) => {
     setTTSConfig(config);
-    try {
-      localStorage.setItem("elysia_tts_config", JSON.stringify(config));
-    } catch { /* ignore */ }
+    saveTTSConfig(config);
   }, []);
 
   const renderContent = () => {

@@ -28,9 +28,6 @@ vi.mock("../features/companion/components/CompanionFloatingPage", () => ({
 vi.mock("../features/garden/components/GardenLayout", () => ({
   GardenLayout: ({ userId }: { userId: string | null }) => <div data-testid="garden-page">{userId}</div>,
 }));
-vi.mock("../features/infinite-canvas/InfiniteCanvasPage", () => ({
-  InfiniteCanvasPage: ({ canvasId }: { canvasId: string }) => <div data-testid="infinite-canvas-page">{canvasId}</div>,
-}));
 vi.mock("../features/social/pages/MyProfilePage", () => ({
   MyProfilePage: ({ userId }: { userId: string }) => <div data-testid="profile-page">{userId}</div>,
 }));
@@ -73,13 +70,13 @@ describe("routeViews", () => {
     expect(screen.getByTestId("dashboard-page")).toBeTruthy();
   });
 
-  it("未登录时画布回退本地 Canvas，登录后使用无限画布", () => {
+  it("登录与未登录状态统一渲染本地画布", () => {
     render(renderMainView({ ...baseParams, sidebarView: "canvas", userId: null }));
     expect(screen.getByTestId("canvas-page").textContent).toBe("canvas-note-1:agent");
     cleanup();
 
     render(renderMainView({ ...baseParams, sidebarView: "canvas", userId: "u1" }));
-    expect(screen.getByTestId("infinite-canvas-page").textContent).toBe("canvas-note-1");
+    expect(screen.getByTestId("canvas-page").textContent).toBe("canvas-note-1:agent");
   });
 
   it("需要登录的视图显示登录提示", () => {

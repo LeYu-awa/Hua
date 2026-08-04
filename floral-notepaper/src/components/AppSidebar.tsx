@@ -5,6 +5,10 @@ export type AppView = "home" | "main" | "settings" | "canvas" | "garden" | "prof
 interface AppSidebarProps {
   activeView: AppView;
   onViewChange: (view: AppView) => void;
+  /** AI 对话窗口展开状态 */
+  chatOpen?: boolean;
+  /** 切换 AI 对话窗口展开/收起 */
+  onToggleChat?: () => void;
 }
 
 interface SidebarItem {
@@ -120,6 +124,14 @@ function ProfileIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+function ChatIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
 const sidebarItems: SidebarItem[] = [
   { view: "home", label: "首页", icon: HomeIcon },
   { view: "main", label: "笔记", icon: NoteIcon },
@@ -129,12 +141,29 @@ const sidebarItems: SidebarItem[] = [
   { view: "profile", label: "主页", icon: ProfileIcon },
 ];
 
-export function AppSidebar({ activeView, onViewChange }: AppSidebarProps) {
+export function AppSidebar({ activeView, onViewChange, chatOpen = false, onToggleChat }: AppSidebarProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const settingsActive = activeView === "settings";
 
   return (
     <nav className="w-[110px] h-full bg-paper flex flex-col py-4 gap-0.5 shrink-0 border-r border-paper-deep/15">
+      {/* AI 对话窗口开关 */}
+      <button
+        type="button"
+        onClick={onToggleChat}
+        title={chatOpen ? "收起 AI 助手" : "展开 AI 助手"}
+        className={`flex items-center gap-2.5 mx-1.5 px-2.5 h-10 rounded-xl transition-all duration-200 cursor-pointer ${
+          chatOpen
+            ? "text-bamboo bg-bamboo-mist/80"
+            : "text-ink-ghost hover:text-ink-soft hover:bg-paper-warm/80"
+        }`}
+      >
+        <ChatIcon size={20} />
+        <span className="text-[12px] font-medium">AI 助手</span>
+      </button>
+
+      <div className="mx-2 my-1 h-px bg-paper-deep/15" />
+
       {sidebarItems.map((item, idx) => {
         const isActive = activeView === item.view;
         const isHovered = hoveredIdx === idx;

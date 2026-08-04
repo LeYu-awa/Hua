@@ -13,12 +13,15 @@ import type { AppConfig, ProviderConfig, ThemeOption } from "../features/setting
 import { uploadConfig, downloadConfig } from "../features/sync/api";
 import { getInitialRoute } from "../features/windows/windowRoutes";
 import { syncLanguage } from "../locales";
+import { Live2DCompanionLayer } from "../features/live2d/Live2DCompanionLayer";
+import { SidebarChat } from "../features/sidebarChat";
 import { renderMainView, renderSpecialRoute } from "./routeViews";
 
 export function AppShell() {
   const route = getInitialRoute();
 
   const [sidebarView, setSidebarView] = useState<AppView>("home");
+  const [chatOpen, setChatOpen] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);
   const [currentNoteId, setCurrentNoteId] = useState("");
@@ -195,7 +198,14 @@ export function AppShell() {
     <ContextMenuProvider>
       <WindowFrame>
         <div className="h-full font-body text-ink overflow-hidden flex">
-          <AppSidebar activeView={sidebarView} onViewChange={setSidebarView} />
+          <AppSidebar
+            activeView={sidebarView}
+            onViewChange={setSidebarView}
+            chatOpen={chatOpen}
+            onToggleChat={() => setChatOpen((v) => !v)}
+          />
+          {/* 左侧 AI 对话窗口（类 workbuddy 首页对话模式，可展开/收起） */}
+          <SidebarChat open={chatOpen} onClose={() => setChatOpen(false)} providers={providers} />
           <div className="flex-1 flex flex-col min-w-0">
             {renderMainView({
               sidebarView,
@@ -210,6 +220,8 @@ export function AppShell() {
             })}
           </div>
         </div>
+        {/* 主窗口嵌入式 Live2D 层（surface=embedded，position:fixed 覆盖在主界面之上） */}
+        <Live2DCompanionLayer surface="embedded" />
       </WindowFrame>
     </ContextMenuProvider>
   );

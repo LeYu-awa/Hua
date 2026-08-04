@@ -81,6 +81,10 @@ vi.mock("../components/AppSidebar", () => ({
   ),
 }));
 
+vi.mock("../features/sidebarChat", () => ({
+  SidebarChat: () => <div data-testid="sidebar-chat" />,
+}));
+
 vi.mock("./routeViews", () => ({
   renderSpecialRoute: vi.fn((route: { view: string; noteId?: string }) => {
     if (route.view === "notepad") return <div data-testid="special-route">notepad:{route.noteId}</div>;

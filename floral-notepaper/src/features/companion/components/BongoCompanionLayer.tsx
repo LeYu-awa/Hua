@@ -142,10 +142,9 @@ function FloatingBongoCompanionLayer() {
       config={config}
       state={state}
       surface="floating"
-      onPointerDown={() => {
-        void import("@tauri-apps/api/window")
-          .then(({ getCurrentWindow }) => getCurrentWindow().startDragging())
-          .catch(() => undefined);
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
       }}
     />
   );

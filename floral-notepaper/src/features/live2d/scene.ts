@@ -3,13 +3,7 @@ import * as PIXI from "pixi.js";
 (window as unknown as { PIXI?: typeof PIXI }).PIXI = PIXI;
 
 // #region debug-point B:scene-report
-const reportSceneDebug = (hypothesisId: string, location: string, msg: string, data: Record<string, unknown> = {}) => {
-  fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
-  }).catch(() => undefined);
-};
+const reportSceneDebug = (..._args: unknown[]) => {};
 // #endregion
 
 export interface Live2DScene {
@@ -41,6 +35,13 @@ export async function createLive2DScene(canvas: HTMLCanvasElement): Promise<Live
     resizeTo: parent,
     preference: "webgl",
     autoStart: true,
+    eventMode: "none",
+    eventFeatures: {
+      move: false,
+      globalMove: false,
+      click: false,
+      wheel: false,
+    },
   });
 
   reportSceneDebug("B", "scene.ts:createLive2DScene", "Pixi application initialized", {
@@ -54,6 +55,12 @@ export async function createLive2DScene(canvas: HTMLCanvasElement): Promise<Live
     parentWidth: parent.clientWidth,
     parentHeight: parent.clientHeight,
   });
+
+  // 透明窗口首帧时序下 parent 可能瞬时为 0 尺寸，导致 Pixi 初始化为 0x0；
+  // 布局就绪后主动 resize 一次，确保渲染尺寸与容器一致。
+  if (app.screen.width === 0 || app.screen.height === 0) {
+    app.resize();
+  }
 
   canvas.style.background = "transparent";
   canvas.style.backgroundColor = "transparent";

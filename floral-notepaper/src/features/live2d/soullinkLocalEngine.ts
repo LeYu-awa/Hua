@@ -3,9 +3,16 @@ import {
   loadModelProfile,
   motionStylePresets,
   type EmotionIntent,
+  type ExpressionBinding,
   type Live2DParamState,
   type ModelProfile,
+  type MotionBinding,
+  type MotionStyleOptions,
+  type MotionStylePresetName,
+  type NativeAnimationCatalog,
+  type NativeExpressionEntry,
   type ParameterMap,
+  type RuntimeSnapshot,
   type VADVector,
 } from "@soullink-emotion/engine";
 import {
@@ -13,10 +20,16 @@ import {
   createManualClock,
   createSoullinkSession,
   type ManualClock,
+  type MessageClassifier,
   type PersonaConfig,
   type PlannerClient,
   type SoullinkSession,
 } from "@soullink-emotion/runtime-core";
+import {
+  EmbeddingMessageClassifier,
+  QwenEmbeddingClient,
+} from "@soullink-emotion/classifier-embedding";
+import type { Live2DMotionParameterInfo } from "@soullink-emotion/live2d-pixi";
 import {
   OpenAICompatibleClient,
   SoullinkLLMPlanner,
@@ -238,7 +251,7 @@ function buildPlanner(provider: ProviderConfig): PlannerClient | null {
       model,
       timeoutMs: 20000,
     });
-    if (!client.configured) return null;
+    if (!client.isConfigured) return null;
 
     const reactionPlanner = new SoullinkLLMPlanner(client);
     const reflectionPlanner = new SoullinkReflectionPlanner(client);
@@ -330,8 +343,161 @@ export interface SoullinkLocalEngineOptions {
   persona?: PersonaConfig;
   /** 显式指定规划器；undefined 时自动从配置的供应商构建 */
   planner?: PlannerClient | null;
+  /**
+   * 显式指定情绪分类器（MessageClassifier / 其 Promise，可空）。
+   * undefined 时自动从配置中挑选 embedding 能力供应商构建；
+   * null 表示关闭 embedding 分类，走引擎内置启发式。
+   */
+  classifier?: MessageClassifier | null | Promise<MessageClassifier | null>;
+  /**
+   * 动作风格预设（natural / lively / calm / shy）或部分覆盖；
+   * 默认 lively。
+   */
+  motionStyle?: MotionStylePresetName | Partial<MotionStyleOptions>;
   /** LLM 生成的回复回调（用于展示气泡） */
   onReply?: (reply: string) => void;
+}
+
+const EMBEDDING_DEFAULT_TIMEOUT_MS = 45_000;
+
+/** 从配置的供应商中挑选一个 embedding 供应商（模型声明 embedding 能力，或名称含 embed） */
+function pickEmbeddingProvider(providers: ProviderConfig[]): ProviderConfig | null {
+  const candidates = providers.filter(
+    (p) => p.enabled && !!p.apiKey && !!p.baseUrl && p.models.length > 0,
+  );
+  if (candidates.length === 0) return null;
+  const isEmbeddingModel = (m: ProviderConfig["models"][number]) =>
+    m.capabilities?.some((c) => c.toLowerCase().includes("embedding")) ||
+    m.modelTypes?.some((t) => t.toLowerCase().includes("embedding"));
+  return (
+    candidates.find((p) => p.models.some(isEmbeddingModel)) ??
+    candidates.find((p) => p.name.toLowerCase().includes("embed")) ??
+    null
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`embedding init timeout after ${ms}ms`)), ms);
+    }),
+  ]);
+}
+
+/**
+ * 从配置的供应商构建 Embedding 情绪分类器（README「不使用 LLM：直接接入 Embedding 分类」）。
+ * 初始化失败 / 超时返回 null —— 会话层会自动降级到内置启发式分类，不影响主链路。
+ */
+async function buildEmbeddingClassifier(provider: ProviderConfig): Promise<MessageClassifier | null> {
+  try {
+    const isEmbeddingModel = (m: ProviderConfig["models"][number]) =>
+      m.capabilities?.some((c) => c.toLowerCase().includes("embedding")) ||
+      m.modelTypes?.some((t) => t.toLowerCase().includes("embedding"));
+    const model = provider.models.find(isEmbeddingModel) ?? provider.models[0];
+    const client = new QwenEmbeddingClient({
+      baseURL: `${provider.baseUrl}${provider.apiPath}`.replace(/\/+$/, ""),
+      apiKey: provider.apiKey,
+      model: model.modelId,
+      timeoutMs: 30000,
+    });
+    if (!client.isConfigured) return null;
+    const classifier = new EmbeddingMessageClassifier(client, {
+      initializationBatchSize: 128,
+      queryCacheSize: 512,
+    });
+    await withTimeout(classifier.initialize(), EMBEDDING_DEFAULT_TIMEOUT_MS);
+    return {
+      classify: async (message) => ({ intent: await classifier.classify(message) }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 无 OpenAI 时 profile-generator 只输出 nativeAnimations catalog（F01-F08、Idle/TapBody），
+ * 不输出 emotion → expression/motion 映射；而 SoullinkRuntime 的 resolveNativeAnimation
+ * 必须依赖 expressionMap/motionMap，否则情绪驱动的原生表情/动作永远不触发。
+ * 这里用参数签名启发式从 catalog 派生映射，等价于 README 里「校准面板」要产出的内容。
+ */
+const EXPRESSION_SIGNATURES: Array<{
+  emotions: string[];
+  match: (params: string[]) => boolean;
+}> = [
+  // 害羞 / 恋爱 → 脸红表情（ParamTere / ParamCheek）
+  { emotions: ["shy", "love", "embarrassed"], match: (p) => p.includes("ParamTere") || p.includes("ParamCheek") },
+  // 开心 / 愉悦 → 眉眼微笑表情（EyeLSmile / EyeRSmile）
+  { emotions: ["happy", "cheerful", "delighted"], match: (p) => p.includes("ParamEyeLSmile") || p.includes("ParamEyeRSmile") },
+  // 兴奋 / 惊讶 → 睁眼 + 眼珠形态（EyeBallForm / EyeLOpen+ROpen）
+  { emotions: ["excited", "surprised", "amazed"], match: (p) => p.includes("ParamEyeBallForm") || (p.includes("ParamEyeLOpen") && p.includes("ParamEyeROpen") && !p.includes("ParamEyeLSmile")) },
+  // 悲伤 → 眉毛内侧 / 眉角
+  { emotions: ["sad", "grief", "lonely"], match: (p) => p.includes("ParamBrowLX") || p.includes("ParamBrowRX") || p.includes("ParamBrowLAngle") },
+  // 愤怒 → 张嘴 + 眉形
+  { emotions: ["angry", "frustrated"], match: (p) => p.includes("ParamMouthOpenY") && (p.includes("ParamBrowLForm") || p.includes("ParamBrowRForm")) },
+  // 平静 / 放松 → 参数最少的表情（最接近中性）
+  { emotions: ["calm", "relaxed"], match: (p) => p.length <= 2 },
+];
+
+function deriveNativeAnimationMaps(catalog: NativeAnimationCatalog): {
+  expressionMap: Record<string, ExpressionBinding | string>;
+  motionMap: Record<string, MotionBinding>;
+} {
+  const expressions: NativeExpressionEntry[] = catalog.expressions ?? [];
+  const motions = (catalog.motions ?? []).filter((m) => m.group !== "Idle");
+
+  const pickExpression = (emotions: string[]) => {
+    for (const sig of EXPRESSION_SIGNATURES) {
+      if (!sig.emotions.some((e) => emotions.includes(e))) continue;
+      const found = expressions.find((e) => sig.match(e.params ?? []));
+      if (found) return found.name;
+    }
+    return undefined;
+  };
+
+  const expressionMap: Record<string, ExpressionBinding | string> = {};
+  for (const sig of EXPRESSION_SIGNATURES) {
+    const name = pickExpression(sig.emotions);
+    if (!name) continue;
+    for (const emotion of sig.emotions) expressionMap[emotion] = name;
+  }
+
+  // 未命中的情绪（neutral / tired / anxiety / curious / guilty / relieved / proud …）
+  // 回退到参数最少的表情；calm 优先保留已命中的专属表情。
+  const fallback = expressions.reduce<NativeExpressionEntry | undefined>(
+    (best, e) =>
+      !best || (e.params?.length ?? Number.POSITIVE_INFINITY) < (best.params?.length ?? Number.POSITIVE_INFINITY) ? e : best,
+    undefined,
+  );
+  if (fallback?.name) {
+    expressionMap.neutral = fallback.name;
+    expressionMap.tired = fallback.name;
+    expressionMap.anxiety = fallback.name;
+    expressionMap.curious = fallback.name;
+    expressionMap.guilty = fallback.name;
+    expressionMap.relieved = fallback.name;
+    expressionMap.proud = fallback.name;
+    expressionMap.calm ??= fallback.name;
+    expressionMap.relaxed ??= fallback.name;
+  }
+
+  // 活泼情绪映射到非 Idle 动作（如 TapBody）作为情绪反应手势；悲伤/愤怒只做表情。
+  const motionMap: Record<string, MotionBinding> = {};
+  const firstMotion = motions[0];
+  if (firstMotion) {
+    const gesture: MotionBinding = { group: firstMotion.group, index: firstMotion.index, priority: "normal" };
+    for (const e of ["happy", "excited", "surprised", "amazed", "cheerful", "delighted"]) {
+      motionMap[e] = gesture;
+    }
+    const secondMotion = motions[1];
+    if (secondMotion) {
+      const shyGesture: MotionBinding = { group: secondMotion.group, index: secondMotion.index, priority: "normal" };
+      motionMap.shy = shyGesture;
+      motionMap.love = shyGesture;
+    }
+  }
+
+  return { expressionMap, motionMap };
 }
 
 /**
@@ -357,19 +523,39 @@ export class SoullinkLocalEngineAdapter {
     this.onReply = options.onReply;
     this.manualClock = createManualClock(0);
 
+    // 动作风格：字符串预设 or 部分覆盖（默认 lively），后续数值仅在未显式覆盖时兜底
+    const baseMotionStyle: MotionStyleOptions =
+      typeof options.motionStyle === "string"
+        ? { ...motionStylePresets[options.motionStyle] }
+        : { ...motionStylePresets.lively, ...options.motionStyle };
+    const motionStyle: MotionStyleOptions = {
+      ...baseMotionStyle,
+      ...(baseMotionStyle.gestureFrequency === undefined ? { gestureFrequency: 0.85 } : {}),
+      ...(baseMotionStyle.idleActionGain === undefined ? { idleActionGain: 0.72 } : {}),
+      ...(baseMotionStyle.microMotionGain === undefined ? { microMotionGain: 0.78 } : {}),
+      ...(baseMotionStyle.blinkRate === undefined ? { blinkRate: 1 } : {}),
+      ...(baseMotionStyle.breathRate === undefined ? { breathRate: 0.9 } : {}),
+    };
+
+    // embedding 分类器可空、可异步：await 失败时抛错让会话回退内置启发式分类
+    const classifierPort =
+      options.classifier === undefined || options.classifier === null
+        ? undefined
+        : ({
+            classify: async (message) => {
+              const classifier = await options.classifier;
+              if (!classifier) throw new Error("embedding-classifier-unavailable");
+              return classifier.classify(message);
+            },
+          } satisfies MessageClassifier);
+
     this.session = createSoullinkSession({
       profile: createProfile(modelPath, core),
       persona: options.persona ?? buildPersona(modelPath),
       planner: options.planner ?? undefined,
+      classifier: classifierPort,
       clock: this.manualClock,
-      motionStyle: {
-        ...motionStylePresets.lively,
-        gestureFrequency: 0.85,
-        idleActionGain: 0.72,
-        microMotionGain: 0.78,
-        blinkRate: 1,
-        breathRate: 0.9,
-      },
+      motionStyle,
       onSnapshot: (snapshot) => {
         // lastReply 会持久到下一次回复，仅在内容变化时回调一次
         if (snapshot.lastReply && snapshot.lastReply !== this.lastSeenReply && this.onReply) {
@@ -408,16 +594,41 @@ export class SoullinkLocalEngineAdapter {
       }
     }
 
+    // 未显式指定分类器时，从配置中尝试构建 Embedding 情绪分类器
+    let classifier: MessageClassifier | null | Promise<MessageClassifier | null> | undefined = options.classifier;
+    if (classifier === undefined) {
+      try {
+        const config = await getConfig();
+        const embeddingProvider = pickEmbeddingProvider(config.providers ?? []);
+        classifier = embeddingProvider ? buildEmbeddingClassifier(embeddingProvider) : null;
+      } catch {
+        classifier = null;
+      }
+    }
+
     const adapter = new SoullinkLocalEngineAdapter(core, modelPath, {
       persona: options.persona,
       planner,
+      classifier,
+      motionStyle: options.motionStyle,
       onReply: options.onReply,
     });
 
     try {
       const profileUrl = deriveProfileUrl(modelPath);
       const { profile } = await loadModelProfile(profileUrl);
-      adapter.session.setProfile(profile);
+      if (profile.nativeAnimations) {
+        // 生成器在无 OpenAI 时只输出 catalog，缺少 emotion → expression/motion 映射，
+        // 会导致情绪驱动的原生表情/动作不触发；用参数签名启发式派生补全。
+        const maps = deriveNativeAnimationMaps(profile.nativeAnimations);
+        adapter.session.setProfile({
+          ...profile,
+          expressionMap: profile.expressionMap ?? maps.expressionMap,
+          motionMap: profile.motionMap ?? maps.motionMap,
+        });
+      } else {
+        adapter.session.setProfile(profile);
+      }
     } catch {
       // 没有生成 profile 时沿用内置手动 profile
     }
@@ -455,16 +666,45 @@ export class SoullinkLocalEngineAdapter {
   }
 
   update(core: SoullinkCoreModelApi, deltaMs: number) {
+    const snapshot = this.tick(deltaMs);
+    if (snapshot) {
+      this.applyParams(core, snapshot.live2dParams);
+    }
+  }
+
+  /**
+   * 单步推进会话运行时（README 教程一帧循环），返回最新 RuntimeSnapshot。
+   * 官方 Live2DRenderer 路径用返回值驱动 setParameters / applyNativeAnimation；
+   * legacy 路径仍走 {@link update} 的索引直写。
+   */
+  tick(deltaMs: number): RuntimeSnapshot | null {
     const absoluteTime = performance.now() / 1000;
     const timeSeconds = absoluteTime - this.startedAt;
     const deltaSeconds = clamp(deltaMs / 1000 || absoluteTime - this.previousTime, 0.001, 0.1);
     this.previousTime = absoluteTime;
 
     this.manualClock.tick(timeSeconds, deltaSeconds);
-    const snapshot = this.session.getRuntimeSnapshot();
-    if (snapshot) {
-      this.applyParams(core, snapshot.live2dParams);
-    }
+    return this.session.getRuntimeSnapshot();
+  }
+
+  /** 把渲染器扫描出的运动参数元数据注入会话（lipsync / 说话动作规划使用）。 */
+  setSpeakingMotionParameters(parameters: Record<string, Live2DMotionParameterInfo>) {
+    this.session.setSpeakingMotionParameters(parameters);
+  }
+
+  /**
+   * 运行时切换动作风格（natural / lively / calm / shy 或部分覆盖），
+   * 对应 README 的 runtime.setMotionStyle。
+   */
+  setMotionStyle(style: MotionStylePresetName | Partial<MotionStyleOptions>) {
+    const resolved: MotionStyleOptions =
+      typeof style === "string" ? { ...motionStylePresets[style] } : style;
+    this.session.getRuntime()?.setMotionStyle(resolved);
+  }
+
+  /** 可用的动作风格预设名 */
+  static get motionStylePresetNames(): MotionStylePresetName[] {
+    return Object.keys(motionStylePresets) as MotionStylePresetName[];
   }
 
   resetClock() {

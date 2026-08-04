@@ -11,13 +11,7 @@ let initialized = false;
 let initializing: Promise<void> | null = null;
 
 // #region debug-point C:cubism-report
-const reportCubismDebug = (hypothesisId: string, location: string, msg: string, data: Record<string, unknown> = {}) => {
-  fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
-  }).catch(() => undefined);
-};
+const reportCubismDebug = (..._args: unknown[]) => {};
 // #endregion
 
 type CubismCoreGlobal = {

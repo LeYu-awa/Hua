@@ -18,10 +18,12 @@
     "@comfyorg/litegraph": "^0.17.2",
     "@hazart-pkg/live2d-core": "^1.0.1",
     "@naari3/pixi-live2d-display": "^1.2.5",
-    "@soullink-emotion/engine": "^0.1.0-beta.1",
-    "@soullink-emotion/planner-openai": "^0.1.0-beta.1",
-    "@soullink-emotion/profile-generator": "^0.1.0-beta.1",
-    "@soullink-emotion/runtime-core": "^0.1.0-beta.1",
+    "@soullink-emotion/classifier-embedding": "file:./soullink-emotion-sdk/packages/classifier-embedding",
+    "@soullink-emotion/engine": "file:./soullink-emotion-sdk/packages/engine",
+    "@soullink-emotion/live2d-pixi": "file:./soullink-emotion-sdk/packages/live2d-pixi",
+    "@soullink-emotion/planner-openai": "file:./soullink-emotion-sdk/packages/planner-openai",
+    "@soullink-emotion/profile-generator": "file:./soullink-emotion-sdk/packages/profile-generator",
+    "@soullink-emotion/runtime-core": "file:./soullink-emotion-sdk/packages/runtime-core",
     "@supabase/supabase-js": "^2.108.2",
     "@tauri-apps/api": "~2.11.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
@@ -52,7 +54,6 @@
     "indent-textarea": "^4.0.0",
     "katex": "^0.16.47",
     "live2dcubismcore": "^1.0.2",
-    "pixi-live2d-display": "^0.4.0",
     "pixi.js": "^8.19.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -90,6 +91,14 @@
     "unified": "^11.0.5",
     "vite": "^7.0.4",
     "vitest": "^4.0.0"
+  },
+  "overrides": {
+    "@soullink-emotion/live2d-pixi": {
+      "pixi.js": "^8.19.0"
+    },
+    "pixi-live2d-display": {
+      "pixi.js": "^8.19.0"
+    }
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,css,json,yml,yaml,html,md}": "oxfmt",

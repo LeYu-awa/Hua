@@ -8,7 +8,6 @@ import { TileShowcase } from "../components/TileShowcase";
 import type { AppView } from "../components/AppSidebar";
 import { GardenLayout } from "../features/garden/components/GardenLayout";
 import { CompanionFloatingPage } from "../features/companion/components/CompanionFloatingPage";
-import { InfiniteCanvasPage } from "../features/infinite-canvas/InfiniteCanvasPage";
 import { ProfilePageSkeleton } from "../features/social/components/ProfilePageSkeleton";
 import { StudioEditorPage } from "../features/studio/pages/StudioEditorPage";
 import type { ProviderConfig, AppConfig } from "../features/settings/types";
@@ -69,9 +68,8 @@ export function renderMainView({
 }: RenderMainViewParams) {
   if (sidebarView === "home") return <DashboardPage />;
   if (sidebarView === "canvas") {
-    return userId ? (
-      <InfiniteCanvasPage userId={userId} canvasId={`canvas-${currentNoteId || "draft"}`} />
-    ) : (
+    // 统一画布：无论登录状态如何，都加载本地画布（未登录回退实现的默认画布）
+    return (
       <CanvasPage
         documentId={`canvas-${currentNoteId || "draft"}`}
         noteId={currentNoteId}

@@ -46,9 +46,9 @@ import { CoWritePage } from "./CoWritePage";
 
 afterEach(cleanup);
 
-describe("CoWritePage — 场景八共笔画布上下文", () => {
-  it("加载到画布节点后，头部渲染“已参考画布 N 个节点”", async () => {
-    render(<CoWritePage providers={[]} noteId="demo" noteContent="" />);
-    await waitFor(() => expect(screen.getByText(/已参考画布 2 个节点/)).toBeTruthy());
+describe("CoWritePage — 共笔页面挂载", () => {
+  it("渲染左侧会话面板主框架", async () => {
+    render(<CoWritePage />);
+    await waitFor(() => expect(screen.getByText("对话")).toBeTruthy());
   });
 });

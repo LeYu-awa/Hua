@@ -144,7 +144,8 @@ export function loadCompanionConfig() {
 }
 
 export function saveCompanionConfig(config: CompanionConfig) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  const next = mergeCompanionConfig({ ...config, mode: "embedded" });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event(CONFIG_EVENT));
 }
 
@@ -244,6 +245,7 @@ function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig 
   if (isLegacyConfig || isBuiltInSkin || isStaleBuiltInSkin || isLegacySpriteSkin) {
     return {
       ...merged,
+      mode: "embedded",
       renderer: "live2d",
       inputMode: "keyboard",
       skinId: "haru-cdn",
@@ -261,6 +263,7 @@ function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig 
   if (builtInLive2DOption) {
     return {
       ...merged,
+      mode: "embedded",
       renderer: "live2d",
       inputMode: "keyboard",
       skinId: builtInLive2DOption.skinId,
@@ -277,6 +280,7 @@ function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig 
 
   return {
     ...merged,
+    mode: "embedded",
     inputMode: normalizeInputMode(merged.inputMode),
     skinRevision: merged.skinRevision || BUILT_IN_YUNO_SKIN_REVISION,
     modelPath: normalizeCompanionAssetPath(merged.modelPath || BUILT_IN_YUNO_GAMEPAD_MODEL_PATH),

@@ -2,6 +2,8 @@ import { ensureCubismCore } from "./cubismSetup";
 import { useCallback, useEffect, useRef, useState, type PointerEventHandler } from "react";
 import { createLive2DScene, createLive2DModelController, processAgentUICommands } from "./index";
 import type { Live2DModelController } from "./modelController";
+import { createOfficialLive2DController } from "./officialController";
+import { pickLive2DRenderBackend, type Live2DRenderBackend } from "./moc3Version";
 import type { Live2DScene } from "./scene";
 import { loadCompanionConfig, saveCompanionPosition, subscribeCompanionConfig } from "../../features/companion/companionConfig";
 import { useCompanionEvents } from "../../features/companion/useCompanionEvents";
@@ -17,15 +19,7 @@ interface Live2DCompanionLayerProps {
 const LIVE2D_WIDTH = 260;
 const LIVE2D_HEIGHT = 380;
 
-// #region debug-point D:live2d-layer-report
-const reportLive2DDebug = (hypothesisId: string, location: string, msg: string, data: Record<string, unknown> = {}) => {
-  fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
-  }).catch(() => undefined);
-};
-// #endregion
+const reportLive2DDebug = (..._args: unknown[]) => {};
 
 type Live2DModel3Json = {
   FileReferences?: {
@@ -61,12 +55,40 @@ function isCanvasLayoutReady(canvas: HTMLCanvasElement) {
   return Boolean(parent && parent.isConnected && rect.width > 0 && rect.height > 0 && parent.clientWidth > 0 && parent.clientHeight > 0);
 }
 
-async function waitForCanvasLayout(canvas: HTMLCanvasElement) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    if (isCanvasLayoutReady(canvas)) return true;
-    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-  }
-  return false;
+function waitForCanvasLayout(canvas: HTMLCanvasElement, timeoutMs = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const parent = canvas.parentElement;
+    if (!parent) {
+      resolve(false);
+      return;
+    }
+    if (isCanvasLayoutReady(canvas)) {
+      resolve(true);
+      return;
+    }
+
+    let settled = false;
+    let timeoutId = 0;
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+      resolve(ready);
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (isCanvasLayoutReady(canvas)) finish(true);
+    });
+
+    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+
+    // 透明悬浮窗首帧窗口尺寸可能尚未应用（WebView 视口为 0x0），
+    // 固定帧数探测不可靠，改为监听父容器/画布/根节点的尺寸变化。
+    observer.observe(parent);
+    observer.observe(canvas);
+    observer.observe(document.documentElement);
+  });
 }
 
 async function assertFetchOk(path: string) {
@@ -102,12 +124,14 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<Live2DScene | null>(null);
   const controllerRef = useRef<Live2DModelController | null>(null);
+  const backendRef = useRef<Live2DRenderBackend | null>(null);
   const configRef = useRef<CompanionConfig>(loadCompanionConfig());
   const loadedModelPathRef = useRef<string | null>(null);
   const loadingModelRef = useRef(false);
   const lastFedSuggestionIdRef = useRef<string | null>(null);
   const [bubbleText, setBubbleText] = useState<string | null>(null);
   const bubbleTimerRef = useRef<number | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
   const [config, setConfig] = useState<CompanionConfig>(loadCompanionConfig());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modelLoaded, setModelLoaded] = useState(false);
@@ -115,9 +139,11 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
   const dragStateRef = useRef<EmbeddedDragState | null>(null);
   const dragTimerRef = useRef<number | null>(null);
   const latestPositionRef = useRef(config.position);
+  // 嵌入式层仅在非浮动模式激活，浮动窗口仅在 floating 模式激活，避免同一配置双份渲染
+  const isSurfaceActive = surface === "floating" ? config.mode === "floating" : config.mode !== "floating";
   const actionState = useCompanionEvents({
     ...config,
-    enabled: config.enabled && config.visible && config.renderer === "live2d",
+    enabled: config.enabled && config.visible && config.renderer === "live2d" && isSurfaceActive,
   });
 
   useEffect(() => {
@@ -167,12 +193,50 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     }, 5000);
   }, []);
 
+  /**
+   * 按渲染后端构建控制器：
+   * - official：官方 @soullink-emotion/live2d-pixi 的 Live2DRenderer（Pixi v7 + Cubism 4 Core）
+   * - legacy：项目自研 Pixi v8 + @naari3/pixi-live2d-display（Cubism 5 Core）
+   */
+  const buildController = useCallback(
+    async (backend: Live2DRenderBackend): Promise<Live2DModelController> => {
+      const canvas = canvasRef.current;
+      if (!canvas) throw new Error("Live2D canvas not mounted");
+
+      if (backend === "official") {
+        const container = canvas.parentElement;
+        if (!container) throw new Error("Live2D container not mounted");
+        // 官方渲染器会向容器追加自己的 PIXI v7 canvas，隐藏 React 占位 canvas 防止双画布重叠
+        canvas.style.display = "none";
+        return createOfficialLive2DController(container, {
+          onReply: showBubble,
+          coreUrl: "/vendor/live2dcubismcore.min.js",
+        });
+      }
+
+      canvas.style.display = "block";
+      await ensureCubismCore();
+      const probeCanvas = document.createElement("canvas");
+      const gl = probeCanvas.getContext("webgl2") || probeCanvas.getContext("webgl");
+      if (!gl) throw new Error("WebGL not available in Tauri WebView");
+
+      const nextScene = await createLive2DScene(canvas);
+      const previousScene = sceneRef.current;
+      if (previousScene && previousScene !== nextScene) {
+        previousScene.destroy();
+      }
+      sceneRef.current = nextScene;
+      return createLive2DModelController(nextScene, { onReply: showBubble });
+    },
+    [showBubble],
+  );
+
   const loadCurrentModel = useCallback(async () => {
-    const scene = sceneRef.current;
     const controller = controllerRef.current;
     const currentConfig = configRef.current;
-    if (!scene || !controller || !currentConfig.modelPath || loadingModelRef.current) return;
+    if (!controller || !currentConfig.modelPath || loadingModelRef.current) return;
     if (!currentConfig.enabled || !currentConfig.visible || currentConfig.renderer !== "live2d") return;
+    if (surface === "floating" ? currentConfig.mode !== "floating" : currentConfig.mode === "floating") return;
     if (controller.model && loadedModelPathRef.current === currentConfig.modelPath) return;
 
     loadingModelRef.current = true;
@@ -187,10 +251,24 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       setLoadError(null);
       await validateLive2DModelAssets(currentConfig.modelPath);
       reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model assets validated", { modelPath: currentConfig.modelPath });
-      await controller.load(currentConfig.modelPath, scene.characterLayer);
+
+      // 后端分流：MOC3 v5 及以上回退 legacy（Cubism 5 Core 才可加载），
+      // 其余（v1/v3/v4）走官方 SDK 渲染器（Cubism 4 Core）。
+      const backend = await pickLive2DRenderBackend(currentConfig.modelPath);
+      if (backend !== backendRef.current) {
+        controllerRef.current?.destroy();
+        const next = await buildController(backend);
+        controllerRef.current = next;
+        backendRef.current = backend;
+        reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "render backend switched", { backend });
+      }
+
+      const active = controllerRef.current;
+      if (!active) throw new Error("Live2D controller not ready");
+      await active.load(currentConfig.modelPath, sceneRef.current?.characterLayer);
       loadedModelPathRef.current = currentConfig.modelPath;
-      controller.enableEyeFollow(true);
-      controller.setMouseFollowStrength(currentConfig.sensitivity.mouseFollowStrength ?? 0.75);
+      active.enableEyeFollow(true);
+      active.setMouseFollowStrength(currentConfig.sensitivity.mouseFollowStrength ?? 0.75);
       setModelLoaded(true);
       reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model load completed", { modelPath: currentConfig.modelPath });
     } catch (err) {
@@ -205,7 +283,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     } finally {
       loadingModelRef.current = false;
     }
-  }, []);
+  }, [surface, buildController]);
 
   useEffect(() => {
     reportLive2DDebug("D", "Live2DCompanionLayer.tsx:initEffect", "init effect evaluated", {
@@ -216,23 +294,30 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       modelPath: config.modelPath,
     });
 
-    if (!config.enabled || !config.visible || config.renderer !== "live2d") {
+    if (!config.enabled || !config.visible || config.renderer !== "live2d" || !isSurfaceActive) {
       reportLive2DDebug("D", "Live2DCompanionLayer.tsx:initEffect", "init skipped by companion config", {
         enabled: config.enabled,
         visible: config.visible,
         renderer: config.renderer,
+        mode: config.mode,
+        surface,
+        isSurfaceActive,
       });
       return;
     }
 
     let cancelled = false;
-    let scene: Live2DScene | null = null;
     let controller: Live2DModelController | null = null;
     let frameId: number | null = null;
 
     const init = async () => {
       await new Promise<void>((resolve) => {
         frameId = window.requestAnimationFrame(() => resolve());
+        // 透明悬浮窗首帧 rAF 可能被节流，兜底超时避免 init 永久挂起
+        window.setTimeout(() => {
+          if (frameId !== null) window.cancelAnimationFrame(frameId);
+          resolve();
+        }, 120);
       });
       if (cancelled) return;
 
@@ -255,7 +340,17 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
             return { width: rect.width, height: rect.height };
           })(),
         });
-        setLoadError("Live2D canvas layout not ready");
+        // 布局失败不永久停摆：3 秒后自动重试，直到窗口尺寸就绪
+        if (retryTimerRef.current === null) {
+          setLoadError("Live2D canvas layout not ready");
+          retryTimerRef.current = window.setTimeout(() => {
+            retryTimerRef.current = null;
+            if (!cancelled) {
+              setLoadError(null);
+              void init();
+            }
+          }, 3000);
+        }
         return;
       }
 
@@ -274,27 +369,17 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       });
 
       try {
-        reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "calling ensureCubismCore", { modelPath: configRef.current.modelPath });
-        await ensureCubismCore();
-        reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "ensureCubismCore resolved", { hasCore: !!(window as unknown as Record<string, unknown>).Live2DCubismCore });
+        reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "picking Live2D render backend", { modelPath: configRef.current.modelPath });
+        const backend = await pickLive2DRenderBackend(configRef.current.modelPath);
+        reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "render backend resolved", {
+          backend,
+          hasCubismCore: !!(window as unknown as Record<string, unknown>).Live2DCubismCore,
+        });
         if (cancelled) return;
 
-        const probeCanvas = document.createElement("canvas");
-        const gl = probeCanvas.getContext("webgl2") || probeCanvas.getContext("webgl");
-        reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "WebGL context checked", {
-          hasWebgl: !!gl,
-          maxTextureSize: gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : null,
-        });
-        if (!gl) {
-          setLoadError("WebGL not available in Tauri WebView");
-          return;
-        }
-
-        reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "creating Live2D scene");
-        scene = await createLive2DScene(canvas);
-        sceneRef.current = scene;
-        controller = createLive2DModelController(scene, { onReply: showBubble });
+        controller = await buildController(backend);
         controllerRef.current = controller;
+        backendRef.current = backend;
 
         await loadCurrentModel();
       } catch (err) {
@@ -310,20 +395,25 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     return () => {
       cancelled = true;
       if (frameId !== null) window.cancelAnimationFrame(frameId);
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       if (controller) controller.destroy();
-      if (scene) scene.destroy();
+      if (sceneRef.current) sceneRef.current.destroy();
       sceneRef.current = null;
       controllerRef.current = null;
+      backendRef.current = null;
       loadedModelPathRef.current = null;
       loadingModelRef.current = false;
     };
-  }, [config.enabled, config.visible, config.renderer, loadCurrentModel]);
+  }, [config.enabled, config.visible, config.renderer, config.mode, loadCurrentModel]);
 
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;
 
-    if (!config.enabled || !config.visible || config.renderer !== "live2d") {
+    if (!config.enabled || !config.visible || config.renderer !== "live2d" || !isSurfaceActive) {
       if (controller.model) controller.unload();
       loadedModelPathRef.current = null;
       setModelLoaded(false);
@@ -332,7 +422,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
 
     controller.setMouseFollowStrength(config.sensitivity.mouseFollowStrength ?? 0.75);
     void loadCurrentModel();
-  }, [config.enabled, config.visible, config.renderer, config.modelPath, config.sensitivity.mouseFollowStrength, loadCurrentModel]);
+  }, [config.enabled, config.visible, config.renderer, config.modelPath, config.mode, config.sensitivity.mouseFollowStrength, loadCurrentModel]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -426,13 +516,6 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
 
   const handlePointerDown: PointerEventHandler<HTMLButtonElement> = useCallback(
     (event) => {
-      if (surface === "floating") {
-        void import("@tauri-apps/api/window")
-          .then(({ getCurrentWindow }) => getCurrentWindow().startDragging())
-          .catch(() => undefined);
-        return;
-      }
-
       event.preventDefault();
       event.stopPropagation();
       const pointerId = event.pointerId;
@@ -458,7 +541,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         setDraggingEmbedded(true);
       }, 180);
     },
-    [surface],
+    [],
   );
 
   useEffect(() => {
@@ -496,7 +579,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     };
   }, [conversationId]);
 
-  if (!config.enabled || !config.visible || config.renderer !== "live2d") return null;
+  if (!config.enabled || !config.visible || config.renderer !== "live2d" || !isSurfaceActive) return null;
 
   return (
     <aside
@@ -548,11 +631,10 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
             width: 34,
             height: 34,
             zIndex: 2,
-            border: "1px solid rgba(255,255,255,0.22)",
             borderRadius: 999,
-            background: draggingEmbedded ? "rgba(0,112,192,0.76)" : "rgba(20,20,20,0.36)",
+            background: draggingEmbedded ? "rgba(71, 202, 54, 0.76)" : "rgba(20,20,20,0.36)",
             color: "#fff",
-            cursor: surface === "embedded" ? "grab" : "move",
+            cursor: "grab",
             fontSize: 16,
             lineHeight: "30px",
             pointerEvents: "auto",
@@ -587,7 +669,6 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
               textAlign: "center",
               wordBreak: "break-all",
               pointerEvents: "none",
-              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
             }}
           >
             {loadError}

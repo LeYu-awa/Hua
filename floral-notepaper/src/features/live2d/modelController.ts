@@ -1,6 +1,6 @@
 // Type-only import — 编译时完全擦除，不会触发模块级副作用
 import type { Live2DModel, MotionPriority as Live2DMotionPriority } from "@naari3/pixi-live2d-display/cubism5";
-import type { Container, FederatedPointerEvent, FederatedWheelEvent } from "pixi.js";
+import type { Container } from "pixi.js";
 import type { EmotionIntent } from "@soullink-emotion/engine";
 import type { SoullinkCoreModelApi, SoullinkLocalMood } from "./soullinkLocalEngine";
 import { SoullinkLocalEngineAdapter } from "./soullinkLocalEngine";
@@ -15,13 +15,7 @@ const MotionPriority = {
 type MotionPriority = Live2DMotionPriority;
 
 // #region debug-point A:model-controller-report
-const reportModelDebug = (hypothesisId: string, location: string, msg: string, data: Record<string, unknown> = {}) => {
-  fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: "live2d-invisible", runId: "post-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
-  }).catch(() => undefined);
-};
+const reportModelDebug = (..._args: unknown[]) => {};
 // #endregion
 
 type Live2DModel3Json = {
@@ -174,9 +168,25 @@ function scheduleAquariusCopyrightNoticeHide(modelUrl: string, live2dModel: Live
   }, AQUARIUS_COPYRIGHT_HIDE_DELAY_MS);
 }
 
+type PixiEventTargetPatch = {
+  eventMode?: string;
+  interactiveChildren?: boolean;
+};
+
+function disablePixiHitTesting(target: unknown) {
+  const patched = target as PixiEventTargetPatch | null;
+  if (!patched) return;
+  patched.eventMode = "none";
+  patched.interactiveChildren = false;
+}
+
 export interface Live2DModelController {
-  model: Live2DModel | null;
-  load: (modelUrl: string, characterLayer: Container) => Promise<void>;
+  /**
+   * 当前已加载模型的句柄。仅用于存在性判断（truthiness），
+   * official 渲染后端返回占位对象，legacy 后端返回 @naari3 的 Live2DModel。
+   */
+  model: unknown;
+  load: (modelUrl: string, characterLayer?: Container) => Promise<void>;
   unload: () => void;
   setPosition: (x: number, y: number) => void;
   setScale: (scale: number) => void;
@@ -208,9 +218,6 @@ export function createLive2DModelController(
   let mouseFollowStrength = 1;
   let mouthValue = 0;
   let baseScale = 1;
-  let dragging = false;
-  let dragOffsetX = 0;
-  let dragOffsetY = 0;
   let mouthTimer: number | null = null;
   let idleTimer: number | null = null;
   let aquariusCopyrightTimer: number | null = null;
@@ -234,41 +241,6 @@ export function createLive2DModelController(
     const dx = centerX > 0 ? (x - centerX) / centerX : 0;
     const dy = centerY > 0 ? (centerY - y) / centerY : 0;
     model.internalModel.focusController.focus(dx * mouseFollowStrength, dy * mouseFollowStrength);
-  };
-
-  const handlePointerDown = (e: FederatedPointerEvent) => {
-    if (!model) return;
-    dragging = true;
-    dragOffsetX = model.x - e.global.x;
-    dragOffsetY = model.y - e.global.y;
-
-    try {
-      const canvas = live2dScene.app.canvas as unknown as HTMLElement;
-      canvas.setPointerCapture(e.pointerId);
-    } catch {
-      // 当前 WebView 不支持 pointer capture 时忽略
-    }
-  };
-
-  const handlePointerMove = (e: FederatedPointerEvent) => {
-    if (dragging && model) {
-      model.x = e.global.x + dragOffsetX;
-      model.y = e.global.y + dragOffsetY;
-    }
-
-    focusAtStagePoint(e.global.x, e.global.y);
-  };
-
-  const handlePointerUp = () => {
-    dragging = false;
-  };
-
-  const handleWheel = (e: FederatedWheelEvent) => {
-    if (!model) return;
-    const currentScale = baseScale > 0 ? model.scale.x / baseScale : 1;
-    const delta = e.deltaY > 0 ? -0.08 : 0.08;
-    const nextScale = Math.min(2.4, Math.max(0.45, currentScale + delta));
-    model.scale.set(baseScale * nextScale);
   };
 
   let mouthHandler: (() => void) | null = null;
@@ -346,7 +318,7 @@ export function createLive2DModelController(
       return model;
     },
 
-    async load(modelUrl: string, characterLayer: Container) {
+    async load(modelUrl: string, characterLayer?: Container) {
       reportModelDebug("A", "modelController.ts:load", "model load enter", { modelUrl, hadExistingModel: !!model });
       if (model) {
         this.unload();
@@ -374,6 +346,13 @@ export function createLive2DModelController(
       const currentModel = model;
       (currentModel as unknown as { setRenderer?: (renderer: unknown) => void }).setRenderer?.(live2dScene.app.renderer);
       currentModel.anchor.set(0.5, 0.5);
+      // 交互由外层 React/DOM 拖动按钮负责；禁用 Pixi hitTest，避免 Pixi v8 递归 Live2D 内部对象树时报
+      // `currentTarget.isInteractive is not a function`（Live2D 内部节点并非完整 Pixi v8 Container）。
+      disablePixiHitTesting(live2dScene.stage);
+      disablePixiHitTesting(live2dScene.backgroundLayer);
+      disablePixiHitTesting(live2dScene.particleLayer);
+      disablePixiHitTesting(live2dScene.characterLayer);
+      disablePixiHitTesting(currentModel);
 
       const screenWidth = live2dScene.app.screen.width || 360;
       const screenHeight = live2dScene.app.screen.height || 520;
@@ -397,13 +376,9 @@ export function createLive2DModelController(
         alpha: currentModel.alpha,
       });
 
-      characterLayer.addChild(currentModel as unknown as Container);
-
-      currentModel.on("pointerdown", handlePointerDown);
-      live2dScene.stage.on("pointermove", handlePointerMove);
-      live2dScene.stage.on("pointerup", handlePointerUp);
-      live2dScene.stage.on("pointerupoutside", handlePointerUp);
-      live2dScene.stage.on("wheel", handleWheel);
+      if (characterLayer) {
+        characterLayer.addChild(currentModel as unknown as Container);
+      }
 
       if (currentModel.internalModel) {
         const core = getCoreModelParameterApi(currentModel);
@@ -448,12 +423,6 @@ export function createLive2DModelController(
     unload() {
       if (!model) return;
 
-      model.off("pointerdown", handlePointerDown);
-      live2dScene.stage.off("pointermove", handlePointerMove);
-      live2dScene.stage.off("pointerup", handlePointerUp);
-      live2dScene.stage.off("pointerupoutside", handlePointerUp);
-      live2dScene.stage.off("wheel", handleWheel);
-
       clearIdleTimer();
       if (aquariusCopyrightTimer !== null) {
         window.clearTimeout(aquariusCopyrightTimer);
@@ -486,8 +455,6 @@ export function createLive2DModelController(
         soullinkLocalEngine.stop();
         soullinkLocalEngine = null;
       }
-      dragging = false;
-      aquariusCopyrightHidden = false;
       mouthValue = 0;
       baseScale = 1;
     },

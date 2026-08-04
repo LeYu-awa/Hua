@@ -2,12 +2,10 @@ import { useState, type ReactNode } from "react";
 import {
   BUILT_IN_LIVE2D_MODEL_OPTIONS,
   DEFAULT_COMPANION_CONFIG,
-  HARU_LOCAL_MODEL_PATH,
   loadCompanionConfig,
   normalizeCompanionAssetPath,
   saveCompanionConfig,
 } from "../companionConfig";
-import { openCompanionWindow } from "../companionWindow";
 import type { CompanionConfig, CompanionSensitivity } from "../types";
 
 export function Live2DCompanionSettings() {
@@ -91,30 +89,6 @@ export function Live2DCompanionSettings() {
     }
   };
 
-  const openFloatingWindow = async () => {
-    const latest = loadCompanionConfig();
-    const builtInModel = BUILT_IN_LIVE2D_MODEL_OPTIONS.find((option) => option.skinId === latest.skinId);
-    const next = {
-      ...latest,
-      renderer: "live2d" as const,
-      inputMode: "keyboard" as const,
-      skinId: builtInModel?.skinId ?? latest.skinId,
-      skinRevision: builtInModel?.revision ?? latest.skinRevision,
-      modelPath: latest.modelPath || builtInModel?.modelPath || HARU_LOCAL_MODEL_PATH,
-      mode: "floating" as const,
-      visible: true,
-      carousel: {
-        ...latest.carousel,
-        enabled: false,
-        images: [],
-        currentIndex: 0,
-      },
-    };
-    setConfig(next);
-    saveCompanionConfig(next);
-    await openCompanionWindow(next);
-  };
-
   const reset = () => update({ ...DEFAULT_COMPANION_CONFIG });
 
   return (
@@ -142,25 +116,11 @@ export function Live2DCompanionSettings() {
 
         <section className="grid gap-4 rounded-2xl border border-paper-deep/40 bg-paper/80 p-5 md:grid-cols-2">
           <Field label="显示形态">
-            <select value={config.mode} onChange={(event) => update({ mode: event.target.value as CompanionConfig["mode"] })} className="companion-field">
-              <option value="embedded">主窗口内置透明层</option>
-              <option value="floating">桌面悬浮窗</option>
-            </select>
+            <div className="companion-field flex items-center text-xs text-ink-soft">主窗口内置透明层</div>
           </Field>
           <Field label="显示 / 隐藏">
-            <button type="button" onClick={() => update({ visible: !config.visible })} className="companion-action-button w-full">
+            <button type="button" onClick={() => update({ visible: !config.visible, mode: "embedded" })} className="companion-action-button w-full">
               {config.visible ? "隐藏 Live2D" : "显示 Live2D"}
-            </button>
-          </Field>
-          <Field label="悬浮窗置顶">
-            <label className="flex h-9 items-center gap-2 text-xs text-ink-soft">
-              <input checked={config.alwaysOnTop} onChange={(event) => update({ alwaysOnTop: event.target.checked })} type="checkbox" />
-              允许独立悬浮窗置顶
-            </label>
-          </Field>
-          <Field label="悬浮窗">
-            <button type="button" onClick={openFloatingWindow} className="companion-action-button w-full">
-              打开桌面悬浮窗
             </button>
           </Field>
         </section>
@@ -221,7 +181,7 @@ export function Live2DCompanionSettings() {
           <button type="button" onClick={reset} className="companion-secondary-button">
             恢复默认模型
           </button>
-          <span className="text-[11px] text-ink-ghost">配置会自动保存到本地，并实时同步到主窗口与桌面悬浮窗。</span>
+          <span className="text-[11px] text-ink-ghost">配置会自动保存到本地，并实时同步到主窗口内置透明层。</span>
         </div>
       </div>
     </div>
