@@ -4,7 +4,7 @@ import { L as Live2DRendererDeps, a as Live2DMotionParameterInfo, C as CubismCor
 export { b as CDI3Data, c as CDI3ParameterDefinition, d as CDI3ParameterGroupDefinition, e as CDIParameterMeta, f as CubismCoreModelLike, g as Live2DCoreParameterSource, h as Live2DMetadataFetch, i as Live2DMetadataLoadOptions, M as MetadataFetchResponse, j as Model3Data, k as buildMotionParameters, l as deriveCDIUrl, m as loadCDIParameterMeta, p as parseCDIParameterMeta, n as parseModel3DisplayInfo, r as resolveCDIUrl, o as resolveRelativeURL } from './metadata-B-v0PS5Q.js';
 
 /**
- * Renders a Live2D Cubism 4 model into a host element using PIXI v7 and
+ * Renders a Live2D Cubism 4 model into a host element using PIXI v8 and
  * `pixi-live2d-display`. The Cubism Core runtime is supplied by the integrator
  * through `deps.cubismLoader`, keeping this package free of any bundler-specific
  * asset import.

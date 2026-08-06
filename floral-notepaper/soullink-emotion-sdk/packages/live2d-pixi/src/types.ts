@@ -33,6 +33,8 @@ export interface Live2DRendererDeps {
    * If omitted, {@link Live2DRenderer.load} throws with a clear message.
    */
   cubismLoader?: CubismCoreLoader;
+  /** Existing canvas that PIXI should render into instead of appending a new one. */
+  canvas?: HTMLCanvasElement;
   /**
    * Invoked with a parameter id when the current model has no matching
    * parameter while applying values. The parameter is skipped regardless.

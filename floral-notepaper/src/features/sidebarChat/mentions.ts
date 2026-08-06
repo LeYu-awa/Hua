@@ -41,8 +41,6 @@ interface NoteReferenceTarget {
 
 const MENTION_RE = /([@#])([^\s]+)/g;
 const NOTE_REF_MARKER = "@note:";
-const NOTE_OPTIMIZE_INTENTS = ["优化", "润色", "改写", "重写"];
-const NOTE_READ_INTENTS = ["读取", "读", "看看", "总结", "整理", "分析", "复盘", "提炼", "归纳"];
 
 export function normalizeToken(value: string): string {
   return value.replace(/\s+/g, "").toLowerCase();
@@ -119,15 +117,6 @@ export function buildToolPlanFromMentions(text: string, notes: NoteMention[]): A
   const bare = trimmed.replace(/[@#][^\s]+/g, "").replace(/\s+/g, " ").trim();
   const noteTitle = noteRef?.title ?? null;
 
-  if (noteRef && !toolToken) {
-    if (includesAny(trimmed, NOTE_OPTIMIZE_INTENTS)) {
-      return noteOptimizePlan(noteRef, trimmed);
-    }
-    if (includesAny(trimmed, NOTE_READ_INTENTS)) {
-      return noteAnswerPlan(noteRef, trimmed);
-    }
-  }
-
   if (toolToken === "搜索笔记" || toolToken === "读笔记") {
     return noteRef?.id ? noteReadPlan(noteRef) : noteSearchPlan(noteTitle ?? payload);
   }
@@ -145,7 +134,14 @@ export function buildToolPlanFromMentions(text: string, notes: NoteMention[]): A
   if (toolToken === "优化笔记" || toolToken === "润色笔记") {
     const query = noteTitle ?? payload;
     if (!query && !noteRef?.id) return null;
-    return noteOptimizePlan(noteRef ?? { title: query }, trimmed);
+    return {
+      tool: "note.read",
+      params: noteRef?.id ? { id: noteRef.id } : { query },
+      title: "优化笔记内容",
+      description: `读取${noteRef?.id ? "已引用" : `标题为「${query}」的`}文档，生成优化稿后等待你确认写回。`,
+      workflow: "note.optimize",
+      instruction: trimmed,
+    };
   }
 
   if (toolToken === "归类笔记" || toolToken === "移动笔记") {
@@ -224,30 +220,6 @@ function noteReadPlan(target: NoteReferenceTarget): AssistantToolPlan {
   };
 }
 
-function noteOptimizePlan(target: NoteReferenceTarget, instruction: string): AssistantToolPlan {
-  const title = target.title || "笔记";
-  return {
-    tool: "note.read",
-    params: target.id ? { id: target.id } : { query: title },
-    title: "优化笔记内容",
-    description: `读取${target.id ? "已引用" : `标题为「${title}」的`}文档，生成优化稿后等待你确认写回。`,
-    workflow: "note.optimize",
-    instruction,
-  };
-}
-
-function noteAnswerPlan(target: NoteReferenceTarget, instruction: string): AssistantToolPlan {
-  const title = target.title || "笔记";
-  return {
-    tool: "note.read",
-    params: target.id ? { id: target.id } : { query: title },
-    title: "读取引用笔记",
-    description: `读取已引用笔记「${title}」，再根据你的问题回答。`,
-    workflow: "note.answer",
-    instruction,
-  };
-}
-
 function noteSearchPlan(query: string): AssistantToolPlan {
   const q = query || "";
   return {
@@ -263,8 +235,4 @@ function splitPipe(value: string): string[] {
   const parts = value.split(/[|｜]/).map((part) => part.trim());
   if (parts.length === 1) return parts;
   return [parts[0] ?? "", parts.slice(1).join(" ｜ ")].filter((part, i) => i === 0 || part);
-}
-
-function includesAny(text: string, words: string[]) {
-  return words.some((word) => text.includes(word));
 }

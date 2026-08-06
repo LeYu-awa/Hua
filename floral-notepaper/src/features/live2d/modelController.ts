@@ -1,6 +1,7 @@
 // Type-only import — 编译时完全擦除，不会触发模块级副作用
 import type { Live2DModel, MotionPriority as Live2DMotionPriority } from "@naari3/pixi-live2d-display/cubism5";
 import type { Container } from "pixi.js";
+import { Assets, Cache, TextureSource, loadTextures } from "pixi.js";
 import type { EmotionIntent } from "@soullink-emotion/engine";
 import type { SoullinkCoreModelApi, SoullinkLocalMood } from "./soullinkLocalEngine";
 import { SoullinkLocalEngineAdapter } from "./soullinkLocalEngine";
@@ -14,8 +15,21 @@ const MotionPriority = {
 } as const;
 type MotionPriority = Live2DMotionPriority;
 
-// #region debug-point A:model-controller-report
-const reportModelDebug = (..._args: unknown[]) => {};
+// #region debug-point D:model-controller-report
+const reportModelDebug = (hypothesisId: string, location: string, msg: string, data?: unknown) => {
+  fetch("http://127.0.0.1:7778/event", {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: "live2d-scale-bug",
+      runId: "post-fix",
+      hypothesisId,
+      location,
+      msg: `[DEBUG] ${msg}`,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => undefined);
+};
 // #endregion
 
 type Live2DModel3Json = {
@@ -27,7 +41,7 @@ type Live2DModel3Json = {
     Physics?: string;
     Pose?: string;
     DisplayInfo?: string;
-    Expressions?: Array<Record<string, unknown>>;
+    Expressions?: Array<{ Name?: string; File?: string }>;
     Motions?: Record<string, Array<Record<string, unknown>>>;
   };
 };
@@ -43,15 +57,106 @@ async function loadNormalizedModel3Json(modelUrl: string): Promise<Live2DModel3J
   json.HitAreas = Array.isArray(json.HitAreas) ? json.HitAreas : [];
 
   if (json.FileReferences) {
-    json.FileReferences.Expressions = Array.isArray(json.FileReferences.Expressions) ? json.FileReferences.Expressions : [];
+    const expressions = Array.isArray(json.FileReferences.Expressions)
+      ? json.FileReferences.Expressions.filter((expression) => typeof expression.File === "string" && expression.File.trim().length > 0)
+      : [];
+
+    if (expressions.length > 0) {
+      json.FileReferences.Expressions = expressions;
+    } else {
+      delete json.FileReferences.Expressions;
+    }
+
     json.FileReferences.Motions = json.FileReferences.Motions && typeof json.FileReferences.Motions === "object" ? json.FileReferences.Motions : {};
   }
 
   return json;
 }
 
+function resolveModelAssetUrl(modelUrl: string, path: string) {
+  try {
+    return new URL(path, modelUrl).href;
+  } catch {
+    const base = modelUrl.endsWith("/") ? modelUrl : modelUrl.slice(0, modelUrl.lastIndexOf("/") + 1);
+    return base + path;
+  }
+}
+
+function resolveModelAssetUrlCandidates(modelUrl: string, path: string) {
+  const resolved = resolveModelAssetUrl(modelUrl, path);
+  const candidates = [resolved];
+  try {
+    candidates.push(new URL(resolved, window.location.href).href);
+  } catch {
+    // Keep the runtime-style URL only.
+  }
+  return Array.from(new Set(candidates));
+}
+
+async function unloadCachedModelTextures(modelUrl: string, modelJson: Live2DModel3Json) {
+  const textures = modelJson.FileReferences?.Textures ?? [];
+  const urls = textures.flatMap((texture) => resolveModelAssetUrlCandidates(modelUrl, texture));
+  await Promise.all(
+    urls.map(async (url) => {
+      if (!Cache.has(url)) return;
+      try {
+        await Assets.unload(url);
+      } catch {
+        Cache.remove(url);
+      }
+    }),
+  );
+  return urls.length;
+}
+
+function configureLive2DTextureLoading() {
+  if (!loadTextures.config) return false;
+  loadTextures.config.preferWorkers = false;
+  loadTextures.config.preferCreateImageBitmap = false;
+  TextureSource.defaultOptions.autoGenerateMipmaps = true;
+  TextureSource.defaultOptions.magFilter = "linear";
+  TextureSource.defaultOptions.minFilter = "linear";
+  TextureSource.defaultOptions.mipmapFilter = "linear";
+  TextureSource.defaultOptions.maxAnisotropy = 16;
+  return true;
+}
+
+type Live2DTextureQualitySource = TextureSource & {
+  style?: {
+    maxAnisotropy?: number;
+    update?: () => void;
+  };
+};
+
+function configureTextureQuality(live2dModel: Live2DModel) {
+  const textures = ((live2dModel as unknown as { textures?: unknown[] }).textures ?? []) as Array<{ source?: Live2DTextureQualitySource }>;
+  let configured = 0;
+
+  textures.forEach((texture) => {
+    const source = texture.source;
+    if (!source) return;
+    source.autoGenerateMipmaps = true;
+    source.magFilter = "linear";
+    source.minFilter = "linear";
+    source.mipmapFilter = "linear";
+    source.maxAnisotropy = 16;
+    source.style?.update?.();
+    source.updateMipmaps();
+    configured += 1;
+  });
+
+  return configured;
+}
+
 type Live2DCoreModelParameterId = {
   getString?: () => { s?: string } | string;
+};
+
+type Live2DGlContext = WebGLRenderingContext | WebGL2RenderingContext;
+
+type Live2DInternalDrawPatch = {
+  draw?: (gl: Live2DGlContext) => void;
+  __transparentCanvasDrawPatched?: boolean;
 };
 
 type Live2DCoreModelParameterApi = SoullinkCoreModelApi;
@@ -128,6 +233,33 @@ function patchAquariusCopyrightTextureDraw(live2dModel: Live2DModel, shouldHide:
   return true;
 }
 
+function patchTransparentCanvasDraw(live2dModel: Live2DModel) {
+  const internalModel = live2dModel.internalModel as unknown as Live2DInternalDrawPatch | null;
+  if (!internalModel?.draw || internalModel.__transparentCanvasDrawPatched) return false;
+
+  const originalDraw = internalModel.draw.bind(internalModel);
+  internalModel.draw = (gl: Live2DGlContext) => {
+    const framebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
+    const viewport = gl.getParameter(gl.VIEWPORT) as Int32Array;
+    const scissorEnabled = gl.isEnabled(gl.SCISSOR_TEST);
+    const scissorBox = gl.getParameter(gl.SCISSOR_BOX) as Int32Array;
+
+    originalDraw(gl);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    gl.scissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
+    if (scissorEnabled) {
+      gl.enable(gl.SCISSOR_TEST);
+    } else {
+      gl.disable(gl.SCISSOR_TEST);
+    }
+    gl.clearColor(0, 0, 0, 0);
+  };
+  internalModel.__transparentCanvasDrawPatched = true;
+  return true;
+}
+
 function applyAquariusCopyrightNoticeHidden(live2dModel: Live2DModel) {
   const core = getCoreModelParameterApi(live2dModel);
   if (!core) return [false, false];
@@ -180,6 +312,150 @@ function disablePixiHitTesting(target: unknown) {
   patched.interactiveChildren = false;
 }
 
+function resetExpressionIfAvailable(live2dModel: Live2DModel) {
+  const expressionManager = live2dModel.internalModel?.motionManager?.expressionManager;
+  if (!expressionManager) return;
+  (expressionManager as { resetExpression?: () => void }).resetExpression?.();
+}
+
+function hasExpression(live2dModel: Live2DModel, expressionId: string) {
+  const expressionManager = live2dModel.internalModel?.motionManager?.expressionManager;
+  const definitions = (expressionManager as unknown as { definitions?: unknown[] })?.definitions;
+  return Array.isArray(definitions) && definitions.some((definition) => {
+    const item = definition as { Name?: unknown; File?: unknown };
+    return item.Name === expressionId || item.File === expressionId;
+  });
+}
+
+function ensureModelVisible(live2dModel: Live2DModel, scene: Live2DScene) {
+  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
+
+  canvas.style.display = "block";
+  canvas.style.background = "transparent";
+  canvas.style.backgroundColor = "transparent";
+  canvas.style.pointerEvents = "none";
+  scene.resizeToParent();
+  scene.app.stage.visible = true;
+  scene.app.stage.renderable = true;
+  scene.app.stage.alpha = 1;
+  scene.characterLayer.visible = true;
+  scene.characterLayer.renderable = true;
+  scene.characterLayer.alpha = 1;
+  live2dModel.visible = true;
+  live2dModel.renderable = true;
+  live2dModel.alpha = 1;
+}
+
+function sampleCanvasPixels(scene: Live2DScene) {
+  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
+  const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+  if (!gl) return null;
+
+  const samplePoints = [
+    [2, 2],
+    [Math.max(0, Math.floor(canvas.width / 2)), 2],
+    [Math.max(0, canvas.width - 3), 2],
+    [2, Math.max(0, Math.floor(canvas.height / 2))],
+    [Math.max(0, canvas.width - 3), Math.max(0, Math.floor(canvas.height / 2))],
+    [2, Math.max(0, canvas.height - 3)],
+    [Math.max(0, Math.floor(canvas.width / 2)), Math.max(0, canvas.height - 3)],
+    [Math.max(0, canvas.width - 3), Math.max(0, canvas.height - 3)],
+  ];
+
+  return samplePoints.map(([x, y]) => {
+    const pixel = new Uint8Array(4);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    return { x, y, rgba: Array.from(pixel) };
+  });
+}
+
+function getCanvasScaleSnapshot(scene: Live2DScene) {
+  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
+  return {
+    devicePixelRatio: window.devicePixelRatio || 1,
+    rendererResolution: scene.app.renderer.resolution,
+    screenWidth: scene.app.screen.width,
+    screenHeight: scene.app.screen.height,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    canvasClientWidth: canvas.clientWidth,
+    canvasClientHeight: canvas.clientHeight,
+    backingStoreScaleX: canvas.clientWidth ? canvas.width / canvas.clientWidth : null,
+    backingStoreScaleY: canvas.clientHeight ? canvas.height / canvas.clientHeight : null,
+  };
+}
+
+function getModelSourceSize(live2dModel: Live2DModel) {
+  const coreModel = live2dModel.internalModel?.coreModel as { getCanvasWidth?: () => number; getCanvasHeight?: () => number } | undefined;
+  return {
+    canvasWidth: coreModel?.getCanvasWidth?.() ?? null,
+    canvasHeight: coreModel?.getCanvasHeight?.() ?? null,
+    loadedWidth: live2dModel.width,
+    loadedHeight: live2dModel.height,
+  };
+}
+
+function getTextureQualitySnapshot(live2dModel: Live2DModel) {
+  const textures = ((live2dModel as unknown as { textures?: unknown[] }).textures ?? []) as Array<{
+    width?: number;
+    height?: number;
+    source?: {
+      pixelWidth?: number;
+      pixelHeight?: number;
+      resolution?: number;
+      alphaMode?: string;
+      scaleMode?: string;
+      magFilter?: string;
+      minFilter?: string;
+      mipmapFilter?: string;
+      autoGenerateMipmaps?: boolean;
+      mipLevelCount?: number;
+      antialias?: boolean;
+      style?: {
+        scaleMode?: string;
+        magFilter?: string;
+        minFilter?: string;
+        mipmapFilter?: string;
+        maxAnisotropy?: number;
+      };
+    };
+  }>;
+
+  return textures.map((texture, index) => ({
+    index,
+    width: texture.width ?? null,
+    height: texture.height ?? null,
+    sourcePixelWidth: texture.source?.pixelWidth ?? null,
+    sourcePixelHeight: texture.source?.pixelHeight ?? null,
+    sourceResolution: texture.source?.resolution ?? null,
+    alphaMode: texture.source?.alphaMode ?? null,
+    scaleMode: texture.source?.scaleMode ?? texture.source?.style?.scaleMode ?? null,
+    magFilter: texture.source?.magFilter ?? texture.source?.style?.magFilter ?? null,
+    minFilter: texture.source?.minFilter ?? texture.source?.style?.minFilter ?? null,
+    mipmapFilter: texture.source?.mipmapFilter ?? texture.source?.style?.mipmapFilter ?? null,
+    autoGenerateMipmaps: texture.source?.autoGenerateMipmaps ?? null,
+    mipLevelCount: texture.source?.mipLevelCount ?? null,
+    antialias: texture.source?.antialias ?? null,
+    maxAnisotropy: texture.source?.style?.maxAnisotropy ?? null,
+  }));
+}
+
+function getGlQualitySnapshot(scene: Live2DScene) {
+  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
+  const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+  if (!gl) return null;
+  return {
+    contextAttributes: gl.getContextAttributes?.() ?? null,
+    viewport: Array.from(gl.getParameter(gl.VIEWPORT) as Int32Array),
+    unpackPremultiplyAlpha: gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL),
+    blendEnabled: gl.isEnabled(gl.BLEND),
+    blendSrcRgb: gl.getParameter(gl.BLEND_SRC_RGB),
+    blendDstRgb: gl.getParameter(gl.BLEND_DST_RGB),
+    blendSrcAlpha: gl.getParameter(gl.BLEND_SRC_ALPHA),
+    blendDstAlpha: gl.getParameter(gl.BLEND_DST_ALPHA),
+  };
+}
+
 export interface Live2DModelController {
   /**
    * 当前已加载模型的句柄。仅用于存在性判断（truthiness），
@@ -224,8 +500,37 @@ export function createLive2DModelController(
   let aquariusCopyrightHidden = false;
   let aquariusCopyrightHandler: (() => void) | null = null;
   let runtimeTick: (() => void) | null = null;
+  let releaseSceneResize: (() => void) | null = null;
   let soullinkLocalEngine: SoullinkLocalEngineAdapter | null = null;
   let heartbeatPhase = 0;
+
+  const fitModelToViewport = (live2dModel: Live2DModel) => {
+    const screenWidth = Math.max(live2dScene.app.screen.width || 360, 1);
+    const screenHeight = Math.max(live2dScene.app.screen.height || 520, 1);
+    const availableWidth = Math.max(1, screenWidth - 32);
+    const availableHeight = Math.max(1, screenHeight - 32);
+
+    live2dModel.scale.set(1);
+    const modelWidth = Math.max(live2dModel.width || screenWidth, 1);
+    const modelHeight = Math.max(live2dModel.height || screenHeight, 1);
+
+    baseScale = Math.min(availableWidth / modelWidth, availableHeight / modelHeight) * 0.98;
+    live2dModel.scale.set(baseScale);
+    live2dModel.x = screenWidth / 2;
+    live2dModel.y = screenHeight / 2;
+
+    return {
+      screenWidth,
+      screenHeight,
+      modelWidth,
+      modelHeight,
+      baseScale,
+      displayWidth: modelWidth * baseScale,
+      displayHeight: modelHeight * baseScale,
+      x: live2dModel.x,
+      y: live2dModel.y,
+    };
+  };
 
   const clearIdleTimer = () => {
     if (idleTimer !== null) {
@@ -328,6 +633,13 @@ export function createLive2DModelController(
       const { Live2DModel: L2DModel } = await import("@naari3/pixi-live2d-display/cubism5");
       reportModelDebug("A", "modelController.ts:load", "cubism5 model runtime imported", { modelUrl });
       const normalizedModelJson = await loadNormalizedModel3Json(modelUrl);
+      const textureLoadingConfigured = configureLive2DTextureLoading();
+      const unloadedTextureCandidates = await unloadCachedModelTextures(modelUrl, normalizedModelJson);
+      reportModelDebug("A", "modelController.ts:load", "cached model textures invalidated before load", {
+        modelUrl,
+        textureLoadingConfigured,
+        unloadedTextureCandidates,
+      });
       reportModelDebug("A", "modelController.ts:load", "model3 json normalized", {
         modelUrl,
         hitAreaCount: normalizedModelJson.HitAreas?.length ?? 0,
@@ -344,7 +656,13 @@ export function createLive2DModelController(
 
       model = loaded as Live2DModel;
       const currentModel = model;
+      const configuredTextures = configureTextureQuality(currentModel);
       (currentModel as unknown as { setRenderer?: (renderer: unknown) => void }).setRenderer?.(live2dScene.app.renderer);
+      const transparentCanvasPatched = patchTransparentCanvasDraw(currentModel);
+      reportModelDebug("A", "modelController.ts:load", "transparent canvas draw guard applied", {
+        modelUrl,
+        transparentCanvasPatched,
+      });
       currentModel.anchor.set(0.5, 0.5);
       // 交互由外层 React/DOM 拖动按钮负责；禁用 Pixi hitTest，避免 Pixi v8 递归 Live2D 内部对象树时报
       // `currentTarget.isInteractive is not a function`（Live2D 内部节点并非完整 Pixi v8 Container）。
@@ -354,31 +672,68 @@ export function createLive2DModelController(
       disablePixiHitTesting(live2dScene.characterLayer);
       disablePixiHitTesting(currentModel);
 
-      const screenWidth = live2dScene.app.screen.width || 360;
-      const screenHeight = live2dScene.app.screen.height || 520;
-      const modelWidth = Math.max(currentModel.width || screenWidth, 1);
-      const modelHeight = Math.max(currentModel.height || screenHeight, 1);
-      baseScale = Math.min(screenWidth / modelWidth, screenHeight / modelHeight) * 0.96;
-      currentModel.scale.set(baseScale);
-      currentModel.x = screenWidth / 2;
-      currentModel.y = screenHeight * 0.56;
+      const placement = fitModelToViewport(currentModel);
+      const resolutionScale = live2dScene.app.renderer.resolution || 1;
+
+      releaseSceneResize?.();
+      releaseSceneResize = live2dScene.onResize(() => {
+        if (model !== currentModel) return;
+        const nextPlacement = fitModelToViewport(currentModel);
+        reportModelDebug("D", "modelController.ts:onSceneResize", "model placement recomputed after viewport resize", nextPlacement);
+      });
 
       reportModelDebug("D", "modelController.ts:load", "model placement computed", {
         modelUrl,
-        screenWidth,
-        screenHeight,
-        modelWidth,
-        modelHeight,
-        baseScale,
+        ...placement,
+        resolutionScale,
+        physicalDisplayWidth: placement.displayWidth * resolutionScale,
+        physicalDisplayHeight: placement.displayHeight * resolutionScale,
+        sourceSize: getModelSourceSize(currentModel),
+        effectiveScaleX: placement.baseScale,
+        effectiveScaleY: placement.baseScale,
         x: currentModel.x,
         y: currentModel.y,
         visible: currentModel.visible,
         alpha: currentModel.alpha,
       });
 
+      reportModelDebug("CROP", "modelController.ts:load", "model bounds after layout", {
+        bounds: (() => {
+          const bounds = currentModel.getBounds();
+          return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+        })(),
+        position: { x: currentModel.position.x, y: currentModel.position.y },
+        scale: { x: currentModel.scale.x, y: currentModel.scale.y },
+        pivot: { x: currentModel.pivot.x, y: currentModel.pivot.y },
+        anchor: { x: currentModel.anchor?.x ?? null, y: currentModel.anchor?.y ?? null },
+        rendererScreen: { width: live2dScene.app.screen.width, height: live2dScene.app.screen.height },
+        rendererResolution: live2dScene.app.renderer.resolution,
+      });
+
+      reportModelDebug("Q", "modelController.ts:load", "render quality configuration applied", {
+        modelUrl,
+        configuredTextures,
+        canvas: getCanvasScaleSnapshot(live2dScene),
+        sourceSize: getModelSourceSize(currentModel),
+        modelScale: { x: currentModel.scale.x, y: currentModel.scale.y },
+        textureQuality: getTextureQualitySnapshot(currentModel),
+        gl: getGlQualitySnapshot(live2dScene),
+      });
+
       if (characterLayer) {
         characterLayer.addChild(currentModel as unknown as Container);
       }
+      ensureModelVisible(currentModel, live2dScene);
+      live2dScene.app.render();
+      requestAnimationFrame(() => {
+        reportModelDebug("A", "modelController.ts:load", "canvas pixel sample after first model render", {
+          modelUrl,
+          canvasPixels: sampleCanvasPixels(live2dScene),
+          rendererBackgroundAlpha: live2dScene.app.renderer.background.alpha,
+          stageChildren: live2dScene.stage.children.length,
+          characterChildren: live2dScene.characterLayer.children.length,
+        });
+      });
 
       if (currentModel.internalModel) {
         const core = getCoreModelParameterApi(currentModel);
@@ -435,6 +790,11 @@ export function createLive2DModelController(
         mouthTimer = null;
       }
 
+      if (releaseSceneResize) {
+        releaseSceneResize();
+        releaseSceneResize = null;
+      }
+
       if (mouthHandler && model.internalModel) {
         model.internalModel.off("beforeModelUpdate", mouthHandler);
         mouthHandler = null;
@@ -449,7 +809,7 @@ export function createLive2DModelController(
       if (parent) {
         parent.removeChild(model);
       }
-      model.destroy();
+      model.destroy({ children: true, texture: true, baseTexture: true });
       model = null;
       if (soullinkLocalEngine) {
         soullinkLocalEngine.stop();
@@ -482,14 +842,14 @@ export function createLive2DModelController(
     },
 
     async setExpression(expressionId: string) {
-      if (model) {
+      if (model && hasExpression(model, expressionId)) {
         await model.expression(expressionId);
       }
     },
 
     removeAllExpressions() {
       if (model) {
-        model.expression(void 0).catch(() => undefined);
+        resetExpressionIfAvailable(model);
       }
     },
 

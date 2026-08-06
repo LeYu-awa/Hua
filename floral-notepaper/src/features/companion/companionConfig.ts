@@ -227,10 +227,20 @@ export function normalizeCompanionAssetPath(path: string) {
   return next.split("\\").join("/");
 }
 
+export const COMPANION_MIN_SCALE = 0.5;
+export const COMPANION_MAX_SCALE = 2;
+
+function sanitizeScale(scale: unknown) {
+  const value = Number(scale);
+  if (!Number.isFinite(value)) return DEFAULT_COMPANION_CONFIG.scale;
+  return Math.round(Math.min(COMPANION_MAX_SCALE, Math.max(COMPANION_MIN_SCALE, value)) * 100) / 100;
+}
+
 function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig {
   const merged = {
     ...DEFAULT_COMPANION_CONFIG,
     ...value,
+    scale: sanitizeScale(value.scale ?? DEFAULT_COMPANION_CONFIG.scale),
     position: sanitizePosition(value.position, DEFAULT_COMPANION_CONFIG.position),
     sensitivity: { ...DEFAULT_COMPANION_CONFIG.sensitivity, ...value.sensitivity },
     carousel: { ...DEFAULT_COMPANION_CONFIG.carousel, ...value.carousel },

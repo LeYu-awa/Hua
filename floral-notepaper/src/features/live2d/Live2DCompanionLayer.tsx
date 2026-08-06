@@ -2,10 +2,16 @@ import { ensureCubismCore } from "./cubismSetup";
 import { useCallback, useEffect, useRef, useState, type PointerEventHandler } from "react";
 import { createLive2DScene, createLive2DModelController, processAgentUICommands } from "./index";
 import type { Live2DModelController } from "./modelController";
-import { createOfficialLive2DController } from "./officialController";
 import { pickLive2DRenderBackend, type Live2DRenderBackend } from "./moc3Version";
 import type { Live2DScene } from "./scene";
-import { loadCompanionConfig, saveCompanionPosition, subscribeCompanionConfig } from "../../features/companion/companionConfig";
+import {
+  COMPANION_MAX_SCALE,
+  COMPANION_MIN_SCALE,
+  loadCompanionConfig,
+  saveCompanionConfig,
+  saveCompanionPosition,
+  subscribeCompanionConfig,
+} from "../../features/companion/companionConfig";
 import { useCompanionEvents } from "../../features/companion/useCompanionEvents";
 import type { CompanionConfig } from "../../features/companion/types";
 import type { AgentUICommand } from "../../features/agent/types";
@@ -18,10 +24,24 @@ interface Live2DCompanionLayerProps {
 
 const LIVE2D_WIDTH = 260;
 const LIVE2D_HEIGHT = 380;
-const LIVE2D_VIEWPORT_PADDING = 8;
-const DRAG_HANDLE_VISIBLE_MS = 3000;
+const LIVE2D_SCALE_STEP = 0.05;
+const LIVE2D_DRAG_HANDLE_SIZE = 34;
+const LIVE2D_SAFE_MARGIN = 8;
 
-const reportLive2DDebug = (..._args: unknown[]) => {};
+const reportLive2DDebug = (hypothesisId: string, location: string, msg: string, data?: unknown) => {
+  fetch("http://127.0.0.1:7778/event", {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: "live2d-scale-bug",
+      runId: "post-fix",
+      hypothesisId,
+      location,
+      msg: `[DEBUG] ${msg}`,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => undefined);
+};
 
 type Live2DModel3Json = {
   FileReferences?: {
@@ -46,22 +66,163 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getViewportFitScale(scale: number) {
-  if (typeof window === "undefined") return scale;
-  const widthScale = (window.innerWidth - LIVE2D_VIEWPORT_PADDING * 2) / LIVE2D_WIDTH;
-  const heightScale = (window.innerHeight - LIVE2D_VIEWPORT_PADDING * 2) / LIVE2D_HEIGHT;
-  return Math.max(0.45, Math.min(scale, widthScale, heightScale));
+function clampScale(scale: number) {
+  return Math.round(clamp(scale, COMPANION_MIN_SCALE, COMPANION_MAX_SCALE) * 100) / 100;
 }
 
-function clampPositionToViewport(position: { x: number; y: number }, scale: number) {
-  if (typeof window === "undefined") return position;
-  const width = LIVE2D_WIDTH * scale;
-  const height = LIVE2D_HEIGHT * scale;
-  const maxX = Math.max(LIVE2D_VIEWPORT_PADDING, window.innerWidth - width - LIVE2D_VIEWPORT_PADDING);
-  const maxY = Math.max(LIVE2D_VIEWPORT_PADDING, window.innerHeight - height - LIVE2D_VIEWPORT_PADDING);
+function getScaledLive2DSize(scale: number) {
+  const safeScale = clampScale(scale);
   return {
-    x: clamp(position.x, LIVE2D_VIEWPORT_PADDING, maxX),
-    y: clamp(position.y, LIVE2D_VIEWPORT_PADDING, maxY),
+    width: LIVE2D_WIDTH * safeScale,
+    height: LIVE2D_HEIGHT * safeScale,
+  };
+}
+
+function clampAxisPosition(position: number, size: number, viewportSize: number) {
+  const minWhenFits = LIVE2D_SAFE_MARGIN;
+  const maxWhenFits = viewportSize - size - LIVE2D_SAFE_MARGIN;
+
+  if (maxWhenFits >= minWhenFits) {
+    return clamp(position, minWhenFits, maxWhenFits);
+  }
+
+  return clamp(position, maxWhenFits, minWhenFits);
+}
+
+function getClampedPosition(position: CompanionConfig["position"], scale: number) {
+  const { width, height } = getScaledLive2DSize(scale);
+  return {
+    x: clampAxisPosition(position.x, width, window.innerWidth),
+    y: clampAxisPosition(position.y, height, window.innerHeight),
+  };
+}
+
+function getCenteredScalePosition(position: CompanionConfig["position"], fromScale: number, toScale: number) {
+  const fromSize = getScaledLive2DSize(fromScale);
+  const toSize = getScaledLive2DSize(toScale);
+  const center = {
+    x: position.x + fromSize.width / 2,
+    y: position.y + fromSize.height / 2,
+  };
+  return getClampedPosition(
+    {
+      x: Math.round(center.x - toSize.width / 2),
+      y: Math.round(center.y - toSize.height / 2),
+    },
+    toScale,
+  );
+}
+
+function isLive2DScaleKey(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey)) return 0;
+  if (event.altKey) return 0;
+  const key = event.key;
+  const code = event.code;
+  if (key === "+" || key === "=" || code === "Equal" || code === "NumpadAdd") return 1;
+  if (key === "-" || key === "_" || code === "Minus" || code === "NumpadSubtract") return -1;
+  return 0;
+}
+
+function resolveScaleUpdate(current: CompanionConfig, direction: number) {
+  const currentScale = clampScale(current.scale);
+  const nextScale = clampScale(currentScale + direction * LIVE2D_SCALE_STEP);
+  if (nextScale === currentScale) return null;
+  return {
+    ...current,
+    scale: nextScale,
+    position: getCenteredScalePosition(current.position, currentScale, nextScale),
+  };
+}
+
+function getElementDebugSnapshot(element: Element | null) {
+  if (!element) return null;
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+  return {
+    tagName: element.tagName,
+    className: typeof element.className === "string" ? element.className : null,
+    rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    client: element instanceof HTMLElement ? { width: element.clientWidth, height: element.clientHeight } : null,
+    css: {
+      width: style.width,
+      height: style.height,
+      maxWidth: style.maxWidth,
+      maxHeight: style.maxHeight,
+      overflow: style.overflow,
+      overflowX: style.overflowX,
+      overflowY: style.overflowY,
+      position: style.position,
+      transform: style.transform,
+      transformOrigin: style.transformOrigin,
+      willChange: style.willChange,
+      contain: style.contain,
+      isolation: style.isolation,
+    },
+  };
+}
+
+type PixiDebugObject = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  alpha?: number;
+  visible?: boolean;
+  renderable?: boolean;
+  scale?: { x?: number; y?: number };
+  position?: { x?: number; y?: number };
+  pivot?: { x?: number; y?: number };
+  getBounds?: () => { x: number; y: number; width: number; height: number };
+};
+
+function getPixiDebugSnapshot(value: unknown) {
+  const object = value as PixiDebugObject | null;
+  if (!object) return null;
+  let bounds: { x: number; y: number; width: number; height: number } | null = null;
+  try {
+    const nextBounds = object.getBounds?.();
+    bounds = nextBounds ? { x: nextBounds.x, y: nextBounds.y, width: nextBounds.width, height: nextBounds.height } : null;
+  } catch {
+    bounds = null;
+  }
+  return {
+    x: object.x ?? object.position?.x ?? null,
+    y: object.y ?? object.position?.y ?? null,
+    width: object.width ?? null,
+    height: object.height ?? null,
+    scale: { x: object.scale?.x ?? null, y: object.scale?.y ?? null },
+    pivot: { x: object.pivot?.x ?? null, y: object.pivot?.y ?? null },
+    visible: object.visible ?? null,
+    renderable: object.renderable ?? null,
+    alpha: object.alpha ?? null,
+    bounds,
+  };
+}
+
+function getLayerCropDebugSnapshot(container: HTMLElement | null, canvas: HTMLCanvasElement | null, scene: Live2DScene | null, scale: number) {
+  const card = canvas?.closest(".live2d-companion-card") ?? null;
+  const gl = canvas ? canvas.getContext("webgl2") || canvas.getContext("webgl") : null;
+  const model = scene?.characterLayer.children[0] ?? null;
+  return {
+    scale,
+    viewport: { width: window.innerWidth, height: window.innerHeight, devicePixelRatio: window.devicePixelRatio || 1 },
+    layer: getElementDebugSnapshot(container),
+    card: getElementDebugSnapshot(card),
+    canvas: getElementDebugSnapshot(canvas),
+    parentChain: [container, card, canvas?.parentElement, canvas]
+      .filter((element, index, list): element is Element => Boolean(element) && list.indexOf(element) === index)
+      .map((element) => getElementDebugSnapshot(element)),
+    canvasPixels: canvas ? { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight } : null,
+    renderer: scene
+      ? {
+          resolution: scene.app.renderer.resolution,
+          screen: { width: scene.app.screen.width, height: scene.app.screen.height },
+          canvasPixels: { width: scene.app.canvas.width, height: scene.app.canvas.height },
+          characterLayer: getPixiDebugSnapshot(scene.characterLayer),
+          model: getPixiDebugSnapshot(model),
+        }
+      : null,
+    gl: gl ? { viewport: Array.from(gl.getParameter(gl.VIEWPORT) as Int32Array), contextAttributes: gl.getContextAttributes?.() ?? null } : null,
   };
 }
 
@@ -142,8 +303,9 @@ async function validateLive2DModelAssets(modelPath: string) {
 }
 
 export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: Live2DCompanionLayerProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<Live2DScene | null>(null);
+  const layerRef = useRef<HTMLElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controllerRef = useRef<Live2DModelController | null>(null);
   const backendRef = useRef<Live2DRenderBackend | null>(null);
   const configRef = useRef<CompanionConfig>(loadCompanionConfig());
@@ -157,11 +319,8 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [draggingEmbedded, setDraggingEmbedded] = useState(false);
-  const [dragHandleVisible, setDragHandleVisible] = useState(false);
-  const [, setViewportTick] = useState(0);
   const dragStateRef = useRef<EmbeddedDragState | null>(null);
   const dragTimerRef = useRef<number | null>(null);
-  const dragHandleTimerRef = useRef<number | null>(null);
   const latestPositionRef = useRef(config.position);
   // 嵌入式层仅在非浮动模式激活，浮动窗口仅在 floating 模式激活，避免同一配置双份渲染
   const isSurfaceActive = surface === "floating" ? config.mode === "floating" : config.mode !== "floating";
@@ -178,9 +337,6 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     return () => {
       if (dragTimerRef.current !== null) {
         window.clearTimeout(dragTimerRef.current);
-      }
-      if (dragHandleTimerRef.current !== null) {
-        window.clearTimeout(dragHandleTimerRef.current);
       }
     };
   }, []);
@@ -220,45 +376,13 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     }, 5000);
   }, []);
 
-  const showDragHandleTemporarily = useCallback(() => {
-    if (surface !== "embedded") return;
-    setDragHandleVisible(true);
-    if (dragHandleTimerRef.current !== null) {
-      window.clearTimeout(dragHandleTimerRef.current);
-    }
-    dragHandleTimerRef.current = window.setTimeout(() => {
-      setDragHandleVisible(false);
-      dragHandleTimerRef.current = null;
-    }, DRAG_HANDLE_VISIBLE_MS);
-  }, [surface]);
-
-  useEffect(() => {
-    if (surface !== "embedded") return;
-    const handleResize = () => setViewportTick((tick) => tick + 1);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [surface]);
-
   /**
-   * 按渲染后端构建控制器：
-   * - official：官方 @soullink-emotion/live2d-pixi 的 Live2DRenderer（Pixi v7 + Cubism 4 Core）
-   * - legacy：项目自研 Pixi v8 + @naari3/pixi-live2d-display（Cubism 5 Core）
+   * 构建项目自研 Pixi v8 + @naari3/pixi-live2d-display 控制器。
    */
   const buildController = useCallback(
-    async (backend: Live2DRenderBackend): Promise<Live2DModelController> => {
+    async (_backend: Live2DRenderBackend): Promise<Live2DModelController> => {
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Live2D canvas not mounted");
-
-      if (backend === "official") {
-        const container = canvas.parentElement;
-        if (!container) throw new Error("Live2D container not mounted");
-        // 官方渲染器会向容器追加自己的 PIXI v7 canvas，隐藏 React 占位 canvas 防止双画布重叠
-        canvas.style.display = "none";
-        return createOfficialLive2DController(container, {
-          onReply: showBubble,
-          coreUrl: "/vendor/live2dcubismcore.min.js",
-        });
-      }
 
       canvas.style.display = "block";
       await ensureCubismCore();
@@ -266,7 +390,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       const gl = probeCanvas.getContext("webgl2") || probeCanvas.getContext("webgl");
       if (!gl) throw new Error("WebGL not available in Tauri WebView");
 
-      const nextScene = await createLive2DScene(canvas);
+      const nextScene = await createLive2DScene(canvas, clampScale(configRef.current.scale));
       const previousScene = sceneRef.current;
       if (previousScene && previousScene !== nextScene) {
         previousScene.destroy();
@@ -298,8 +422,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       await validateLive2DModelAssets(currentConfig.modelPath);
       reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model assets validated", { modelPath: currentConfig.modelPath });
 
-      // 后端分流：MOC3 v5 及以上回退 legacy（Cubism 5 Core 才可加载），
-      // 其余（v1/v3/v4）走官方 SDK 渲染器（Cubism 4 Core）。
+      // 统一走项目自研 Pixi v8 渲染器，避免低版本 MOC3 被误分流到 SDK renderer。
       const backend = await pickLive2DRenderBackend(currentConfig.modelPath);
       if (backend !== backendRef.current) {
         controllerRef.current?.destroy();
@@ -315,6 +438,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       loadedModelPathRef.current = currentConfig.modelPath;
       active.enableEyeFollow(true);
       active.setMouseFollowStrength(currentConfig.sensitivity.mouseFollowStrength ?? 0.75);
+      active.setScale(currentConfig.scale);
       setModelLoaded(true);
       reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model load completed", { modelPath: currentConfig.modelPath });
     } catch (err) {
@@ -409,6 +533,12 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
           const rect = canvas.getBoundingClientRect();
           return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
         })(),
+        canvasBackground: window.getComputedStyle(canvas).backgroundColor,
+        parentBackground: canvas.parentElement ? window.getComputedStyle(canvas.parentElement).backgroundColor : null,
+        layerBackground: canvas.closest(".live2d-companion-layer") ? window.getComputedStyle(canvas.closest(".live2d-companion-layer") as Element).backgroundColor : null,
+        cardBackground: canvas.closest(".live2d-companion-card") ? window.getComputedStyle(canvas.closest(".live2d-companion-card") as Element).backgroundColor : null,
+        live2dCanvasCount: document.querySelectorAll("canvas.live2d-canvas").length,
+        allCanvasCount: document.querySelectorAll("canvas").length,
         parentTag: canvas.parentElement?.tagName ?? null,
         parentClientWidth: canvas.parentElement?.clientWidth ?? null,
         parentClientHeight: canvas.parentElement?.clientHeight ?? null,
@@ -454,6 +584,42 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       loadingModelRef.current = false;
     };
   }, [config.enabled, config.visible, config.renderer, config.mode, loadCurrentModel]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const direction = isLive2DScaleKey(event);
+      if (!direction) return;
+      if (!configRef.current.enabled || !configRef.current.visible || configRef.current.renderer !== "live2d" || !isSurfaceActive) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      const latest = loadCompanionConfig();
+      const next = resolveScaleUpdate(latest, direction);
+      if (!next) return;
+
+      saveCompanionConfig(next);
+      configRef.current = next;
+      latestPositionRef.current = next.position;
+      setConfig(next);
+      sceneRef.current?.setQualityScale(next.scale);
+      reportLive2DDebug("S", "Live2DCompanionLayer.tsx:scaleShortcut", "keyboard scale shortcut applied", {
+        direction,
+        scale: next.scale,
+        position: next.position,
+        key: event.key,
+        code: event.code,
+      });
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [isSurfaceActive]);
+
+  useEffect(() => {
+    sceneRef.current?.setQualityScale(clampScale(config.scale));
+    controllerRef.current?.setScale(config.scale);
+    reportLive2DDebug("CROP", "Live2DCompanionLayer.tsx:scaleEffect", "layer scale snapshot", getLayerCropDebugSnapshot(layerRef.current, canvasRef.current, sceneRef.current, config.scale));
+  }, [config.scale]);
 
   useEffect(() => {
     const controller = controllerRef.current;
@@ -534,8 +700,8 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     const dragState = dragStateRef.current;
     if (!dragState?.active) return;
 
-    const scale = getViewportFitScale(dragState.scale);
-    const maxPosition = clampPositionToViewport(
+    const scale = clampScale(dragState.scale);
+    const position = getClampedPosition(
       {
         x: dragState.originX + event.clientX - dragState.startX,
         y: dragState.originY + event.clientY - dragState.startY,
@@ -543,8 +709,8 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       scale,
     );
 
-    latestPositionRef.current = maxPosition;
-    setConfig((current) => ({ ...current, position: maxPosition }));
+    latestPositionRef.current = position;
+    setConfig((current) => ({ ...current, position }));
   }, []);
 
   useEffect(() => {
@@ -570,22 +736,17 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         pointerId,
         startX: event.clientX,
         startY: event.clientY,
-        originX: latestPositionRef.current.x,
-        originY: latestPositionRef.current.y,
-        scale: getViewportFitScale(configRef.current.scale),
-        active: false,
+        originX: configRef.current.position.x,
+        originY: configRef.current.position.y,
+        scale: configRef.current.scale,
+        active: true,
       };
 
       if (dragTimerRef.current !== null) {
         window.clearTimeout(dragTimerRef.current);
+        dragTimerRef.current = null;
       }
-
-      dragTimerRef.current = window.setTimeout(() => {
-        const dragState = dragStateRef.current;
-        if (!dragState || dragState.pointerId !== pointerId) return;
-        dragState.active = true;
-        setDraggingEmbedded(true);
-      }, 180);
+      setDraggingEmbedded(true);
     },
     [],
   );
@@ -627,32 +788,26 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
 
   if (!config.enabled || !config.visible || config.renderer !== "live2d" || !isSurfaceActive) return null;
 
-  const renderedScale = surface === "embedded" ? getViewportFitScale(config.scale) : config.scale;
-  const renderedPosition = surface === "embedded" ? clampPositionToViewport(config.position, renderedScale) : config.position;
-  const showDragHandle = surface === "embedded" && (dragHandleVisible || draggingEmbedded);
+  const scaledSize = getScaledLive2DSize(config.scale);
 
   return (
     <aside
-      className={`live2d-companion-layer live2d-surface-${surface}`}
+      ref={layerRef}
       style={{
         position: surface === "embedded" ? "fixed" : "relative",
-        left: surface === "embedded" ? renderedPosition.x : undefined,
-        top: surface === "embedded" ? renderedPosition.y : undefined,
-        width: LIVE2D_WIDTH,
-        height: LIVE2D_HEIGHT,
+        left: surface === "embedded" ? config.position.x : undefined,
+        top: surface === "embedded" ? config.position.y : undefined,
+        width: scaledSize.width,
+        height: scaledSize.height,
         zIndex: 999,
-        opacity: config.opacity,
-        transform: `scale(${renderedScale})`,
-        transformOrigin: "top left",
-        pointerEvents: "auto",
+        opacity: clamp(config.opacity, 0.2, 1),
+        pointerEvents: draggingEmbedded ? "auto" : "none",
         overflow: "visible",
         background: "transparent",
         backgroundColor: "transparent",
         isolation: "isolate",
       }}
       aria-label="Live2D 写作陪伴"
-      onPointerEnter={showDragHandleTemporarily}
-      onPointerMove={showDragHandleTemporarily}
     >
       <div
         className="live2d-companion-card"
@@ -678,23 +833,20 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
           onPointerCancel={handleEmbeddedDragEnd}
           style={{
             position: "absolute",
-            top: 8,
-            right: 8,
-            width: 34,
-            height: 34,
+            left: LIVE2D_SAFE_MARGIN,
+            bottom: LIVE2D_SAFE_MARGIN,
+            width: LIVE2D_DRAG_HANDLE_SIZE,
+            height: LIVE2D_DRAG_HANDLE_SIZE,
             zIndex: 2,
             borderRadius: 999,
             background: draggingEmbedded ? "rgba(71, 202, 54, 0.76)" : "rgba(20,20,20,0.36)",
             color: "#fff",
-            cursor: draggingEmbedded ? "grabbing" : "grab",
+            cursor: "grab",
             fontSize: 16,
             lineHeight: "30px",
-            opacity: showDragHandle ? 1 : 0,
-            transform: showDragHandle ? "scale(1)" : "scale(0.82)",
-            pointerEvents: showDragHandle ? "auto" : "none",
+            pointerEvents: "auto",
             userSelect: "none",
             backdropFilter: "blur(6px)",
-            transition: "opacity 160ms ease, transform 160ms ease, background 160ms ease",
           }}
         >
           ↕

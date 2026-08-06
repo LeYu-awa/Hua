@@ -46,15 +46,19 @@ export interface Live2DMetadataLoadOptions {
   onWarning?: (message: string, cause?: unknown) => void;
 }
 
+export interface CubismCoreParameterIdLike {
+  getString?: () => { s?: string } | string;
+}
+
 export interface CubismCoreModelLike {
   getParameterCount?: () => number;
-  getParameterId?: (index: number) => string;
+  getParameterId?: (index: number) => CubismCoreParameterIdLike | string;
   getParameterMinimumValue?: (index: number) => number;
   getParameterMaximumValue?: (index: number) => number;
   getParameterDefaultValue?: (index: number) => number;
   _model?: {
     parameters?: {
-      ids?: string[];
+      ids?: Array<CubismCoreParameterIdLike | string>;
       minimumValues?: number[];
       maximumValues?: number[];
       defaultValues?: number[];
@@ -172,7 +176,7 @@ export function buildMotionParameters(
   const count = coreModel.getParameterCount?.();
   if (typeof count === "number" && count > 0 && coreModel.getParameterId) {
     for (let index = 0; index < count; index += 1) {
-      const id = coreModel.getParameterId(index);
+      const id = normalizeParameterId(coreModel.getParameterId(index));
       if (!id) continue;
       const fallback = defaultParameterInfo(id);
       addMotionParameter(result, id, {
@@ -185,7 +189,8 @@ export function buildMotionParameters(
 
   const rawParameters = coreModel._model?.parameters;
   const ids = rawParameters?.ids ?? [];
-  ids.forEach((id, index) => {
+  ids.forEach((rawId, index) => {
+    const id = normalizeParameterId(rawId);
     if (!id || result[id]) return;
     const fallback = defaultParameterInfo(id);
     addMotionParameter(result, id, {
@@ -233,8 +238,16 @@ function addMotionParameter(
   };
 }
 
+function normalizeParameterId(id: CubismCoreParameterIdLike | string | undefined): string | null {
+  if (typeof id === "string") return id;
+  const value = id?.getString?.();
+  if (typeof value === "string") return value;
+  return typeof value?.s === "string" ? value.s : null;
+}
+
 function defaultParameterInfo(id: string): { min: number; max: number; default: number } {
   const normalized = id.replace(/\s+/gu, "").replace(/[＿_\-　]/gu, "").toLowerCase();
+  if (normalized.includes("opacity")) return { min: 0, max: 1, default: 1 };
   if (normalized.includes("angle")) return { min: -30, max: 30, default: 0 };
   if (normalized.includes("eyeball") || normalized.includes("mouthform") || normalized.includes("brow")) {
     return { min: -1, max: 1, default: 0 };

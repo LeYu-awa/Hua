@@ -634,9 +634,7 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
 
     // 1) 显式工具命令（@工具、/命令）→ 快速路径，用户显式指定了工具；
     //    纯 #引用 不在此列，交给 Agent 作为上下文处理
-    const explicitPlan =
-      commandPlan ??
-      (mentionPlan && (hasExplicitToolMention(text) || mentionPlan.workflow) ? mentionPlan : null);
+    const explicitPlan = commandPlan ?? (mentionPlan && hasExplicitToolMention(text) ? mentionPlan : null);
     if (explicitPlan) {
       if (requiresConfirmation(explicitPlan.tool)) {
         const pending = { ...explicitPlan, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` };

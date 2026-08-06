@@ -4,7 +4,7 @@ export interface AssistantToolPlan extends AssistantToolRequest {
   title: string;
   description: string;
   destructive?: boolean;
-  workflow?: "note.optimize" | "note.answer";
+  workflow?: "note.optimize";
   instruction?: string;
 }
 

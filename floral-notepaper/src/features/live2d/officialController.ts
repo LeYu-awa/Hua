@@ -28,12 +28,12 @@ export interface OfficialLive2DControllerOptions {
  * 对外仍暴露与 legacy 控制器一致的 {@link Live2DModelController} 接口，
  * 因此 Live2DCompanionLayer / signalBridge 的既有调用链无需改动。
  *
- * 注意：Pixi v7 的 Live2DRenderer 会在构造时把 `window.PIXI` 指向 v7 实例，
- * 而 legacy 场景（scene.ts）会把 `window.PIXI` 指向 v8 实例。两者互斥使用，
+ * 注意：Live2DRenderer 与 legacy 场景都使用 Pixi v8，并按各自控制器生命周期创建/销毁。
  * 控制器被销毁/重建时各栈只加载自己那套，不会同时渲染两个模型。
  */
 export function createOfficialLive2DController(
   container: HTMLElement,
+  canvas: HTMLCanvasElement,
   options: OfficialLive2DControllerOptions = {},
 ): Live2DModelController {
   let renderer: Live2DRenderer | null = null;
@@ -153,6 +153,7 @@ export function createOfficialLive2DController(
 
       renderer = new Live2DRenderer(container, {
         cubismLoader: createScriptTagCubismLoader(coreUrl),
+        canvas,
       });
 
       try {
@@ -195,8 +196,7 @@ export function createOfficialLive2DController(
 
     removeAllExpressions() {
       if (!loaded) return;
-      // 置空 manual 后下一帧由引擎指令驱动（nativeAnimation 为 null 时会重置表情）
-      setManual(manual?.motion ? { expression: null, motion: manual.motion } : null);
+      setManual(manual?.motion ? { expression: "", motion: manual.motion } : null);
     },
 
     setMouthValue(value: number) {

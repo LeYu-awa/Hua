@@ -1,13 +1,10 @@
 /**
- * MOC3 格式版本检测：决定 Live2D 模型使用哪种渲染后端。
+ * MOC3 格式版本检测：保留诊断能力，但渲染统一走项目自研 Pixi v8 后端。
  *
- * - official：官方 @soullink-emotion/live2d-pixi 的 Live2DRenderer（Pixi v7 + Cubism 4 Core）
- * - legacy：项目保留的 Pixi v8 + @naari3/pixi-live2d-display（Cubism 5 Core）
- *
- * Cubism 4 Core 只能加载 MOC3 v4（含 v3）及更早的模型；MOC3 v5（Cubism 5）
- * 模型必须回退到 legacy 后端，否则会抛 “MOC3 version is newer than the core”。
+ * 之前这里按 MOC3 版本把低版本模型分流到 @soullink-emotion/live2d-pixi，
+ * 会绕开项目原有自研 v8 渲染器，导致 Hiyori 这类模型进入错误路径。
  */
-export type Live2DRenderBackend = "official" | "legacy";
+export type Live2DRenderBackend = "legacy";
 
 /** 读取 .moc3 文件头部的格式版本（magic "MOC3" + uint32 LE version）。 */
 export async function detectMoc3Version(modelUrl: string): Promise<number | null> {
@@ -39,9 +36,7 @@ export async function detectMoc3Version(modelUrl: string): Promise<number | null
   }
 }
 
-/** 选择渲染后端：v5 及以上回退 legacy，其余走官方 SDK 渲染器。 */
-export async function pickLive2DRenderBackend(modelUrl: string): Promise<Live2DRenderBackend> {
-  const version = await detectMoc3Version(modelUrl);
-  if (version !== null && version >= 5) return "legacy";
-  return "official";
+/** 统一选择项目自研 Pixi v8 渲染后端。 */
+export async function pickLive2DRenderBackend(_modelUrl: string): Promise<Live2DRenderBackend> {
+  return "legacy";
 }

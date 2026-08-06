@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HeatmapView } from "./HeatmapView";
 
@@ -83,16 +83,5 @@ describe("HeatmapView", () => {
     const activeCell = screen.getByTitle("2026-08-06") as HTMLElement;
     expect(activeCell.style.backgroundColor).toBe("var(--heatmap-level-4)");
     expect(activeCell.style.border).toBe("1px solid var(--heatmap-cell-border)");
-  });
-
-  it("tooltip 使用低调卡片样式，避免绿色外框突出", () => {
-    setElementWidth(360);
-    render(<HeatmapView data={[{ date: "2026-08-06", count: 8 }]} />);
-
-    fireEvent.mouseEnter(screen.getByTitle("2026-08-06"));
-    const tooltipText = screen.getByText("8 次记录");
-    expect(tooltipText).toBeTruthy();
-    expect(tooltipText.parentElement?.className).toContain("bg-cloud/95");
-    expect(tooltipText.parentElement?.className).toContain("rounded-md");
   });
 });

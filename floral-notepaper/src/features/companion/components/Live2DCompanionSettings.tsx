@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import {
+  COMPANION_MAX_SCALE,
+  COMPANION_MIN_SCALE,
   BUILT_IN_LIVE2D_MODEL_OPTIONS,
   DEFAULT_COMPANION_CONFIG,
   loadCompanionConfig,
@@ -169,7 +171,7 @@ export function Live2DCompanionSettings() {
         </section>
 
         <section className="grid gap-5 rounded-2xl border border-paper-deep/40 bg-paper/80 p-5 md:grid-cols-2">
-          <Range label="大小缩放" value={config.scale} min={0.5} max={2} step={0.05} onChange={(scale) => update({ scale })} />
+          <Range label="大小缩放" value={config.scale} min={COMPANION_MIN_SCALE} max={COMPANION_MAX_SCALE} step={0.05} onChange={(scale) => update({ scale })} />
           <Range label="透明度" value={config.opacity} min={0.2} max={1} step={0.05} onChange={(opacity) => update({ opacity })} />
           <Range label="输入动作强度" value={config.sensitivity.typingIntensity} min={0.2} max={1} step={0.05} onChange={(typingIntensity) => updateSensitivity({ typingIntensity })} />
           <Range label="鼠标跟随" value={config.sensitivity.mouseFollowStrength} min={0} max={1} step={0.05} onChange={(mouseFollowStrength) => updateSensitivity({ mouseFollowStrength })} />

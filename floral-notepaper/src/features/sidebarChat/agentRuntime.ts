@@ -67,10 +67,6 @@ export async function runAssistantPlan(
     return runNoteOptimizeWorkflow(plan, response, options);
   }
 
-  if (plan.workflow === "note.answer") {
-    return runNoteAnswerWorkflow(plan, response, options);
-  }
-
   options.onStatus?.("工具执行完成");
   return { assistantMessage: formatToolResponse(response) };
 }
@@ -222,28 +218,6 @@ async function runNoteOptimizeWorkflow(
   };
 }
 
-async function runNoteAnswerWorkflow(
-  plan: AssistantToolPlan,
-  response: AssistantToolResponse,
-  options: AgentRuntimeOptions,
-): Promise<AgentRuntimeResult> {
-  const note = getToolNote(response);
-  if (!note) throw new Error("已读取工具返回，但没有拿到目标文档内容");
-
-  const title = getString(note.title, "无标题");
-  const content = getString(note.content);
-  if (!content.trim()) throw new Error(`文档「${title}」内容为空，无法基于它回答`);
-
-  options.onStatus?.(`已读取文档「${title}」，开始根据内容回答`);
-  const answer = await options.complete(buildNoteAnswerPrompt(note, plan.instruction), {
-    onDelta: options.onGeneratedDelta,
-  });
-  if (!answer.trim()) throw new Error("模型没有生成回复内容");
-
-  options.onStatus?.("已基于真实笔记内容完成回复");
-  return { assistantMessage: answer };
-}
-
 function formatToolResponse(response: AssistantToolResponse) {
   const data = isRecord(response.data) ? response.data : {};
 
@@ -287,20 +261,6 @@ function buildOptimizePrompt(note: RecordLike, instruction = "") {
     instruction ? `用户原始指令：${instruction}` : "用户原始指令：优化内容表达。",
     `标题：${title}`,
     "原文：",
-    content,
-  ].join("\n\n");
-}
-
-function buildNoteAnswerPrompt(note: RecordLike, instruction = "") {
-  const title = getString(note.title, "无标题");
-  const content = getString(note.content);
-  return [
-    "你已经通过本地工具读取到了用户引用的真实笔记内容。",
-    "请直接基于这篇笔记回答用户，不要再说需要读取、稍等或无法访问文件。",
-    "回答要简洁，必要时用 Markdown 分点。",
-    instruction ? `用户问题：${instruction}` : "用户问题：请根据笔记内容回答。",
-    `标题：${title}`,
-    "笔记内容：",
     content,
   ].join("\n\n");
 }
