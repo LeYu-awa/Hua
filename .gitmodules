@@ -1,4 +1,3 @@
-﻿[submodule "floral-notepaper/soullink-emotion-sdk"]
+[submodule "floral-notepaper/soullink-emotion-sdk"]
 	path = floral-notepaper/soullink-emotion-sdk
 	url = https://github.com/nanlingyin/soullink-emotion-sdk.git
-
