@@ -16,10 +16,11 @@ export function SlidingButtonGroup<T extends string>({
   buttonClassName = "h-7",
 }: SlidingButtonGroupProps<T>) {
   const buttonsRef = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const rootRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const [animated, setAnimated] = useState(false);
 
-  useLayoutEffect(() => {
+  const syncPosition = () => {
     const btn = buttonsRef.current.get(value);
     if (!btn) return;
     setPos({
@@ -28,6 +29,24 @@ export function SlidingButtonGroup<T extends string>({
       width: btn.offsetWidth,
       height: btn.offsetHeight,
     });
+  };
+
+  useLayoutEffect(() => {
+    syncPosition();
+  }, [value]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", syncPosition);
+      return () => window.removeEventListener("resize", syncPosition);
+    }
+
+    const observer = new ResizeObserver(syncPosition);
+    observer.observe(root);
+    return () => observer.disconnect();
   }, [value]);
 
   useEffect(() => {
@@ -40,7 +59,8 @@ export function SlidingButtonGroup<T extends string>({
 
   return (
     <div
-      className={`relative flex items-center gap-1 bg-paper-warm/60 rounded-lg p-[2px] border border-paper-deep/30 ${className}`}
+      ref={rootRef}
+      className={`relative flex flex-wrap items-center gap-1 bg-paper-warm/60 rounded-lg p-[2px] border border-paper-deep/30 ${className}`}
     >
       <div
         className="absolute rounded-md bg-cloud shadow-[0_1px_2px_rgba(0,0,0,0.04)] pointer-events-none sliding-highlight"

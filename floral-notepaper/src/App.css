@@ -59,6 +59,12 @@
   --canvas-selected-contrast: #050505;
   --canvas-orb-warm: rgba(255, 255, 255, 0.035);
   --canvas-orb-bamboo: rgba(0, 0, 0, 0.36);
+  --heatmap-level-0: #F0F4F1;
+  --heatmap-level-1: #DDFBE8;
+  --heatmap-level-2: #BFF4D0;
+  --heatmap-level-3: #82E8A5;
+  --heatmap-level-4: #39D978;
+  --heatmap-cell-border: rgba(94, 139, 112, 0.18);
 }
 
 :root[data-theme="dark"] {
@@ -99,6 +105,12 @@
   --canvas-selected-contrast: #050505;
   --canvas-orb-warm: rgba(255, 255, 255, 0.028);
   --canvas-orb-bamboo: rgba(0, 0, 0, 0.4);
+  --heatmap-level-0: #262B27;
+  --heatmap-level-1: #245F3A;
+  --heatmap-level-2: #2F8A4F;
+  --heatmap-level-3: #3DBF6B;
+  --heatmap-level-4: #55E08A;
+  --heatmap-cell-border: rgba(112, 231, 157, 0.18);
 }
 
 /* Theme transition — applied briefly during theme switch for a uniform crossfade */

@@ -16,6 +16,10 @@ import { getErrorMessage } from "../../notes/api";
 import { countNoteChars, formatShortDate, formatTime } from "../../notes/noteUtils";
 import type { ExternalFile, NoteMetadata } from "../../notes/types";
 import type { AppConfig, ViewMode } from "../../settings/types";
+import {
+  NoteChangeHistoryPage,
+  type NoteChangeHistoryEntry,
+} from "./NoteChangeHistoryCard";
 import { ConnectionSuggestions } from "../../../components/ConnectionSuggestions";
 import { DeepSeekChat } from "../../../components/DeepSeekChat";
 import { SlidingButtonGroup } from "../../../components/SlidingButtonGroup";
@@ -65,6 +69,8 @@ interface NoteEditorWorkspaceProps {
     selectionEnd: number,
   ) => void;
   flushInk: () => void | Promise<void>;
+  currentNoteChange?: NoteChangeHistoryEntry | null;
+  noteChangeHistory?: NoteChangeHistoryEntry[];
 }
 
 export function NoteEditorWorkspace({
@@ -103,9 +109,12 @@ export function NoteEditorWorkspace({
   recordCursor,
   recordPaste,
   flushInk,
+  currentNoteChange = null,
+  noteChangeHistory = [],
 }: NoteEditorWorkspaceProps) {
   const { t } = useTranslation();
   const [deepSeekOpen, setDeepSeekOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteExiting, setDeleteExiting] = useState(false);
   const [selectedTextRange, setSelectedTextRange] = useState<{ start: number; end: number } | null>(
@@ -365,6 +374,7 @@ export function NoteEditorWorkspace({
       setSelectedTextRange(null);
       setTextColorPaletteOpen(false);
       setHighlightPaletteOpen(false);
+      setHistoryOpen(false);
     }
   }, [selectedId]);
 
@@ -405,17 +415,19 @@ export function NoteEditorWorkspace({
     };
   }, [isResizingSplit]);
 
+  const hasHistoryChanges = Boolean(currentNoteChange) || noteChangeHistory.length > 0;
+
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="flex items-center justify-between px-4 h-10 border-b border-paper-deep/20 shrink-0 bg-paper/20">
-        <div className="flex items-center gap-1">
+      <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-paper-deep/20 bg-paper/20 px-3 py-1">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           <button
             onClick={onToggleSidebar}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
             title={
               sidebarCollapsed
-                ? t("main.window.expandSidebar", { defaultValue: "展开侧栏" })
-                : t("main.window.collapseSidebar", { defaultValue: "收起侧栏" })
+                ? t("main.window.expandSidebar", { defaultValue: "展开右侧笔记栏" })
+                : t("main.window.collapseSidebar", { defaultValue: "收起右侧笔记栏" })
             }
           >
             <svg
@@ -429,7 +441,7 @@ export function NoteEditorWorkspace({
               strokeLinejoin="round"
             >
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="9" y1="3" x2="9" y2="21" />
+              <line x1="15" y1="3" x2="15" y2="21" />
             </svg>
           </button>
 
@@ -521,6 +533,15 @@ export function NoteEditorWorkspace({
             {t("common.save", { defaultValue: "保存" })}
           </button>
 
+          <button
+            onClick={() => setHistoryOpen(true)}
+            disabled={!selectedId || !hasHistoryChanges}
+            className="px-2.5 h-7 flex items-center justify-center rounded-lg text-[11px] text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            title={hasHistoryChanges ? "查看当前笔记历史更改" : "当前笔记暂无历史更改"}
+          >
+            历史变更
+          </button>
+
           {deleteConfirm ? (
             <div
               className={`flex items-center gap-1 ml-1 ${deleteExiting ? "animate-delete-confirm-exit" : "animate-delete-confirm"}`}
@@ -578,9 +599,9 @@ export function NoteEditorWorkspace({
           )}
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-0.5">
           {errorMessage && (
-            <span className="max-w-[160px] truncate text-[11px] text-red-400 mr-1">
+            <span className="max-w-[120px] truncate text-[11px] text-red-400 mr-1">
               {errorMessage}
             </span>
           )}
@@ -646,15 +667,23 @@ export function NoteEditorWorkspace({
             options={viewModeOptions}
             value={viewMode}
             onChange={onViewModeChange}
-            buttonClassName="px-3 py-1"
+            buttonClassName="px-2.5 py-1 whitespace-nowrap"
           />
         </div>
       </div>
 
-      <div
-        key={noteTransitionKey}
-        className="animate-note-enter px-6 pt-4 pb-2 shrink-0 border-b border-paper-deep/15"
-      >
+      {historyOpen ? (
+        <NoteChangeHistoryPage
+          currentChange={currentNoteChange}
+          history={noteChangeHistory}
+          onBack={() => setHistoryOpen(false)}
+        />
+      ) : (
+        <>
+          <div
+            key={noteTransitionKey}
+            className="animate-note-enter px-6 pt-4 pb-2 shrink-0 border-b border-paper-deep/15"
+          >
         <input
           type="text"
           value={title}
@@ -700,9 +729,9 @@ export function NoteEditorWorkspace({
             {saveStateLabel[saveState]}
           </span>
         </div>
-      </div>
+        </div>
 
-      <div ref={splitContainerRef} className="flex-1 flex min-h-0">
+        <div ref={splitContainerRef} className="flex-1 flex min-h-0">
         {!selectedId && !isLoading ? (
           <div className="flex-1 flex items-center justify-center text-[13px] text-ink-ghost">
             {t("main.editor.emptyHint", { defaultValue: "选择或新建一篇笔记" })}
@@ -1008,7 +1037,9 @@ export function NoteEditorWorkspace({
             )}
           </>
         )}
-      </div>
+          </div>
+        </>
+      )}
 
       <DeepSeekChat
         open={deepSeekOpen}

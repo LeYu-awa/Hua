@@ -128,7 +128,7 @@ export function StatsPanel({ providers }: { providers: ProviderConfig[] }) {
               加载中…
             </div>
           ) : (
-            <HeatmapView data={heatmapData} />
+            <HeatmapView data={heatmapData} rangeMode="year" />
           )}
         </SectionCard>
 

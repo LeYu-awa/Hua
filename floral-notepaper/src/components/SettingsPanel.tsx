@@ -19,6 +19,11 @@ import {
 import { useShortcutRecorder } from "../features/settings/useShortcutRecorder";
 import { DEFAULT_TILE_COLOR, normalizeTileColor } from "../features/settings/tileColor";
 import { applyTheme, watchSystemTheme } from "../features/settings/theme";
+import {
+  getAssistantAgentConfig,
+  saveAssistantAgentConfig,
+  type AssistantAgentConfig,
+} from "../features/sidebarChat/assistantTools";
 import { LOCALE_OPTIONS } from "../locales/locale-whitelist";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
 
@@ -87,6 +92,38 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
       })),
     [t],
   );
+
+  // AI 助手工具权限配置（本地存储，保存即生效）
+  const [agentPerm, setAgentPerm] = useState<AssistantAgentConfig | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getAssistantAgentConfig()
+      .then((config) => {
+        if (!cancelled) setAgentPerm(config);
+      })
+      .catch(() => {
+        if (!cancelled) setAgentPerm(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const updateAgentPerm = <Key extends keyof AssistantAgentConfig["permissionPolicy"]>(
+    key: Key,
+    value: AssistantAgentConfig["permissionPolicy"][Key],
+  ) => {
+    setAgentPerm((prev) => {
+      if (!prev) return prev;
+      const next: AssistantAgentConfig = {
+        ...prev,
+        permissionPolicy: { ...prev.permissionPolicy, [key]: value },
+      };
+      void saveAssistantAgentConfig(next)
+        .then((saved) => setAgentPerm(saved))
+        .catch(() => {});
+      return next;
+    });
+  };
 
   return (
     <aside className="w-[360px] h-full shrink-0 border-l border-paper-deep/30 bg-paper/92 backdrop-blur-sm flex flex-col">
@@ -476,6 +513,44 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
             {t("settings.agent.notice", {
               defaultValue:
                 "开启后，花箴会记录你的输入、光标和停顿节奏，用于生成回放和温柔提示。数据只保存在本地，不会被上传到云端。",
+            })}
+          </p>
+        </section>
+
+        {/* AI 助手工具权限：控制 AI 助手（侧边栏对话）执行工具前是否需要确认 */}
+        <section className="space-y-3 pt-2 border-t border-paper-deep/25">
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-body text-ink-faint">
+              {t("settings.agentPerm.label", { defaultValue: "AI 助手工具权限" })}
+            </label>
+            <span className="text-[10px] text-ink-ghost/70">
+              {t("settings.agentPerm.localOnly", { defaultValue: "仅本地存储" })}
+            </span>
+          </div>
+          <ToggleRow
+            label={t("settings.agentPerm.writeConfirm", { defaultValue: "写笔记前需确认" })}
+            checked={agentPerm?.permissionPolicy.writeBeforeConfirm ?? true}
+            onChange={(checked) => updateAgentPerm("writeBeforeConfirm", checked)}
+          />
+          <ToggleRow
+            label={t("settings.agentPerm.webConfirm", { defaultValue: "联网搜索前需确认" })}
+            checked={agentPerm?.permissionPolicy.webSearchBeforeConfirm ?? true}
+            onChange={(checked) => updateAgentPerm("webSearchBeforeConfirm", checked)}
+          />
+          <ToggleRow
+            label={t("settings.agentPerm.externalConfirm", { defaultValue: "打开链接/复制文本前需确认" })}
+            checked={agentPerm?.permissionPolicy.externalBeforeConfirm ?? true}
+            onChange={(checked) => updateAgentPerm("externalBeforeConfirm", checked)}
+          />
+          <ToggleRow
+            label={t("settings.agentPerm.readConfirm", { defaultValue: "读取笔记需确认" })}
+            checked={!(agentPerm?.permissionPolicy.readWithoutConfirmation ?? true)}
+            onChange={(checked) => updateAgentPerm("readWithoutConfirmation", !checked)}
+          />
+          <p className="text-[10px] leading-relaxed text-ink-ghost/70">
+            {t("settings.agentPerm.notice", {
+              defaultValue:
+                "默认所有写笔记、联网、外部操作都会整轮征求确认。关闭对应开关后，AI 助手将直接执行，不再逐次询问。",
             })}
           </p>
         </section>

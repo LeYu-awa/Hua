@@ -18,6 +18,8 @@ interface Live2DCompanionLayerProps {
 
 const LIVE2D_WIDTH = 260;
 const LIVE2D_HEIGHT = 380;
+const LIVE2D_VIEWPORT_PADDING = 8;
+const DRAG_HANDLE_VISIBLE_MS = 3000;
 
 const reportLive2DDebug = (..._args: unknown[]) => {};
 
@@ -42,6 +44,25 @@ type EmbeddedDragState = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getViewportFitScale(scale: number) {
+  if (typeof window === "undefined") return scale;
+  const widthScale = (window.innerWidth - LIVE2D_VIEWPORT_PADDING * 2) / LIVE2D_WIDTH;
+  const heightScale = (window.innerHeight - LIVE2D_VIEWPORT_PADDING * 2) / LIVE2D_HEIGHT;
+  return Math.max(0.45, Math.min(scale, widthScale, heightScale));
+}
+
+function clampPositionToViewport(position: { x: number; y: number }, scale: number) {
+  if (typeof window === "undefined") return position;
+  const width = LIVE2D_WIDTH * scale;
+  const height = LIVE2D_HEIGHT * scale;
+  const maxX = Math.max(LIVE2D_VIEWPORT_PADDING, window.innerWidth - width - LIVE2D_VIEWPORT_PADDING);
+  const maxY = Math.max(LIVE2D_VIEWPORT_PADDING, window.innerHeight - height - LIVE2D_VIEWPORT_PADDING);
+  return {
+    x: clamp(position.x, LIVE2D_VIEWPORT_PADDING, maxX),
+    y: clamp(position.y, LIVE2D_VIEWPORT_PADDING, maxY),
+  };
 }
 
 function resolveLive2DAssetPath(modelPath: string, assetPath: string) {
@@ -136,8 +157,11 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [draggingEmbedded, setDraggingEmbedded] = useState(false);
+  const [dragHandleVisible, setDragHandleVisible] = useState(false);
+  const [, setViewportTick] = useState(0);
   const dragStateRef = useRef<EmbeddedDragState | null>(null);
   const dragTimerRef = useRef<number | null>(null);
+  const dragHandleTimerRef = useRef<number | null>(null);
   const latestPositionRef = useRef(config.position);
   // 嵌入式层仅在非浮动模式激活，浮动窗口仅在 floating 模式激活，避免同一配置双份渲染
   const isSurfaceActive = surface === "floating" ? config.mode === "floating" : config.mode !== "floating";
@@ -154,6 +178,9 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     return () => {
       if (dragTimerRef.current !== null) {
         window.clearTimeout(dragTimerRef.current);
+      }
+      if (dragHandleTimerRef.current !== null) {
+        window.clearTimeout(dragHandleTimerRef.current);
       }
     };
   }, []);
@@ -192,6 +219,25 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       bubbleTimerRef.current = null;
     }, 5000);
   }, []);
+
+  const showDragHandleTemporarily = useCallback(() => {
+    if (surface !== "embedded") return;
+    setDragHandleVisible(true);
+    if (dragHandleTimerRef.current !== null) {
+      window.clearTimeout(dragHandleTimerRef.current);
+    }
+    dragHandleTimerRef.current = window.setTimeout(() => {
+      setDragHandleVisible(false);
+      dragHandleTimerRef.current = null;
+    }, DRAG_HANDLE_VISIBLE_MS);
+  }, [surface]);
+
+  useEffect(() => {
+    if (surface !== "embedded") return;
+    const handleResize = () => setViewportTick((tick) => tick + 1);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [surface]);
 
   /**
    * 按渲染后端构建控制器：
@@ -488,17 +534,17 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     const dragState = dragStateRef.current;
     if (!dragState?.active) return;
 
-    const width = LIVE2D_WIDTH * dragState.scale;
-    const height = LIVE2D_HEIGHT * dragState.scale;
-    const maxX = Math.max(8, window.innerWidth - width - 8);
-    const maxY = Math.max(8, window.innerHeight - height - 8);
-    const position = {
-      x: clamp(dragState.originX + event.clientX - dragState.startX, 8, maxX),
-      y: clamp(dragState.originY + event.clientY - dragState.startY, 8, maxY),
-    };
+    const scale = getViewportFitScale(dragState.scale);
+    const maxPosition = clampPositionToViewport(
+      {
+        x: dragState.originX + event.clientX - dragState.startX,
+        y: dragState.originY + event.clientY - dragState.startY,
+      },
+      scale,
+    );
 
-    latestPositionRef.current = position;
-    setConfig((current) => ({ ...current, position }));
+    latestPositionRef.current = maxPosition;
+    setConfig((current) => ({ ...current, position: maxPosition }));
   }, []);
 
   useEffect(() => {
@@ -524,9 +570,9 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         pointerId,
         startX: event.clientX,
         startY: event.clientY,
-        originX: configRef.current.position.x,
-        originY: configRef.current.position.y,
-        scale: configRef.current.scale,
+        originX: latestPositionRef.current.x,
+        originY: latestPositionRef.current.y,
+        scale: getViewportFitScale(configRef.current.scale),
         active: false,
       };
 
@@ -581,26 +627,32 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
 
   if (!config.enabled || !config.visible || config.renderer !== "live2d" || !isSurfaceActive) return null;
 
+  const renderedScale = surface === "embedded" ? getViewportFitScale(config.scale) : config.scale;
+  const renderedPosition = surface === "embedded" ? clampPositionToViewport(config.position, renderedScale) : config.position;
+  const showDragHandle = surface === "embedded" && (dragHandleVisible || draggingEmbedded);
+
   return (
     <aside
       className={`live2d-companion-layer live2d-surface-${surface}`}
       style={{
         position: surface === "embedded" ? "fixed" : "relative",
-        left: surface === "embedded" ? config.position.x : undefined,
-        top: surface === "embedded" ? config.position.y : undefined,
+        left: surface === "embedded" ? renderedPosition.x : undefined,
+        top: surface === "embedded" ? renderedPosition.y : undefined,
         width: LIVE2D_WIDTH,
         height: LIVE2D_HEIGHT,
         zIndex: 999,
         opacity: config.opacity,
-        transform: `scale(${config.scale})`,
+        transform: `scale(${renderedScale})`,
         transformOrigin: "top left",
-        pointerEvents: draggingEmbedded ? "auto" : "none",
+        pointerEvents: "auto",
         overflow: "visible",
         background: "transparent",
         backgroundColor: "transparent",
         isolation: "isolate",
       }}
       aria-label="Live2D 写作陪伴"
+      onPointerEnter={showDragHandleTemporarily}
+      onPointerMove={showDragHandleTemporarily}
     >
       <div
         className="live2d-companion-card"
@@ -634,12 +686,15 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
             borderRadius: 999,
             background: draggingEmbedded ? "rgba(71, 202, 54, 0.76)" : "rgba(20,20,20,0.36)",
             color: "#fff",
-            cursor: "grab",
+            cursor: draggingEmbedded ? "grabbing" : "grab",
             fontSize: 16,
             lineHeight: "30px",
-            pointerEvents: "auto",
+            opacity: showDragHandle ? 1 : 0,
+            transform: showDragHandle ? "scale(1)" : "scale(0.82)",
+            pointerEvents: showDragHandle ? "auto" : "none",
             userSelect: "none",
             backdropFilter: "blur(6px)",
+            transition: "opacity 160ms ease, transform 160ms ease, background 160ms ease",
           }}
         >
           ↕

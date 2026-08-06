@@ -39,3 +39,16 @@ SpringNode/
 ## NuGet
 packages/
 *.nupkg
+
+# Local temp / large artifacts
+.tmp-core-inspect/
+.tmp-cores/
+.tmp-oml/
+.tmp-unplugin/
+.tmp-untitled/
+three.zip
+three/
+
+# Nested standalone repos (not part of this project)
+doudoubao/
+soullink-emotion-sdk/

@@ -8,6 +8,10 @@ use services::agent::{
     self, AgentAnalysisResult, AgentCanvasNode, AgentCollaborationSegment, AgentEvent,
     AgentEventInput, AgentReplayMarker, AgentReviewReport, AgentSuggestion,
 };
+use services::assistant_tools::{
+    self, AssistantAgentConfig, AssistantToolLog, AssistantToolRequest, AssistantToolResponse,
+    NoteChangeRecord,
+};
 use services::canvas::{canvas_delete, canvas_get, canvas_list, canvas_save, CanvasStore};
 use services::cowrite::{self, CoWriteSession, CoWriteSessionSummary, MergeToNoteResult};
 use services::embedding_cache::{
@@ -499,6 +503,38 @@ fn set_document_edited(window: tauri::Window, edited: bool) {
     }
 }
 
+#[tauri::command]
+async fn assistant_tool_execute(
+    request: AssistantToolRequest,
+) -> Result<AssistantToolResponse, AppError> {
+    assistant_tools::execute_tool(request).await
+}
+
+#[tauri::command]
+fn assistant_tool_logs(limit: Option<usize>) -> Result<Vec<AssistantToolLog>, AppError> {
+    assistant_tools::list_logs(limit.unwrap_or(50))
+}
+
+#[tauri::command]
+fn assistant_tool_changes(limit: Option<usize>) -> Result<Vec<NoteChangeRecord>, AppError> {
+    assistant_tools::list_note_changes(limit.unwrap_or(50))
+}
+
+#[tauri::command]
+fn note_change_restore(change_id: String) -> Result<(Note, NoteChangeRecord), AppError> {
+    assistant_tools::restore_note_change(&change_id)
+}
+
+#[tauri::command]
+fn assistant_agent_config_get() -> Result<AssistantAgentConfig, AppError> {
+    assistant_tools::load_agent_config()
+}
+
+#[tauri::command]
+fn assistant_agent_config_save(config: AssistantAgentConfig) -> Result<AssistantAgentConfig, AppError> {
+    assistant_tools::save_agent_config(config)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -585,6 +621,12 @@ pub fn run() {
             cowrite_replace_last_ai,
             cowrite_undo_last,
             set_document_edited,
+            assistant_tool_execute,
+            assistant_tool_logs,
+            assistant_tool_changes,
+            note_change_restore,
+            assistant_agent_config_get,
+            assistant_agent_config_save,
             ink_append_events,
             ink_list_sessions,
             ink_get_session,

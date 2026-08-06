@@ -4,11 +4,67 @@ import remarkGfm from "remark-gfm";
 import type { ProviderConfig } from "../settings/types";
 import { logUsage } from "../settings/stats";
 import { shouldAutoSpeak, speakText, stopSpeech } from "../tts";
+import {
+  buildPendingToolMessage,
+  formatAgentToolOutput,
+  formatToolParams,
+  getErrorText,
+  runAssistantPlan,
+  type CompletionOptions,
+  type PendingToolPlan,
+} from "./agentRuntime";
+import {
+  executeAssistantTool,
+  getAssistantAgentConfig,
+  listAssistantToolChanges,
+  restoreAssistantToolChange,
+  type AssistantAgentConfig,
+  type NoteChangeRecord,
+} from "./assistantTools";
+import { buildLineDiff } from "./writebackDiff";
+import {
+  buildAgentTools,
+  DEFAULT_AGENT_PERMISSION_POLICY,
+  getStreamToolCallDelta,
+  isKnownAgentTool,
+  mergeToolCallDelta,
+  parseToolArguments,
+  requiresConfirmForTool,
+  toolDisplayName,
+  type AgentToolCall,
+  type AgentToolDefinition,
+} from "./agentTools";
+import { runAgentLoop } from "./agentLoop";
+import { MentionComposer, type ModelPickerOption } from "./MentionComposer";
+import {
+  buildToolPlanFromMentions,
+  formatNoteReferenceToken,
+  resolveNoteReference,
+  TOOL_MENTIONS,
+  type NoteMention,
+} from "./mentions";
+import { ChatWritebackReview } from "./ChatWritebackReview";
+import { getNote } from "../notes/api";
+import {
+  detectAssistantToolPlan,
+  parseExplicitToolCommand,
+  requiresConfirmation,
+  toolLabel,
+  type AssistantToolPlan,
+} from "./toolPlanner";
 
 export interface SidebarChatMessage {
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+}
+
+interface SidebarChatTask {
+  id: string;
+  title: string;
+  messages: SidebarChatMessage[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface SidebarChatProps {
@@ -17,7 +73,13 @@ interface SidebarChatProps {
   providers: ProviderConfig[];
 }
 
-const MESSAGES_STORAGE_KEY = "sidebar_ai_chat_messages";
+type ModelRequestMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+const TASKS_STORAGE_KEY = "sidebar_ai_chat_tasks";
+const LEGACY_MESSAGES_STORAGE_KEY = "sidebar_ai_chat_messages";
 /** 持久化上限（条），超出丢弃最旧消息 */
 const STORAGE_LIMIT = 100;
 /** 请求携带的上下文条数（上下文记忆窗口） */
@@ -27,38 +89,182 @@ const SYSTEM_PROMPT =
   "你是「花笺」内置的 AI 助手，风格温和、表达简洁。你可以围绕笔记写作、复盘、灵感收集、时间管理等方面提供帮助。回答使用中文，使用 Markdown 排版，保持简洁。" +
   `上下文记忆：对话历史会自动保存在本机，并随请求附带最近 ${CONTEXT_WINDOW} 条消息作为上下文，因此你可以引用之前聊过的内容。`;
 
-function buildSystemMessage(): SidebarChatMessage {
-  return { role: "assistant", content: SYSTEM_PROMPT, createdAt: 0 };
+/** 标准 Agent 模式下追加的系统指令：模型自主决定调用哪个工具、传什么参数 */
+const AGENT_SYSTEM_SUFFIX =
+  "你是一个智能体：当用户请求与本地笔记（搜索/读取/新建/编辑/移动分类）、联网搜索、打开链接或复制文本相关时，" +
+  "应自主选择可用工具并填好参数执行，而不是只给建议。规则：只读工具（note.search / note.list / note.read）可直接调用；" +
+  "写笔记、联网、外部副作用类工具会先整轮征求用户确认，确认后才会真正执行。收到 tool 结果后，基于真实结果继续回答；" +
+  "若工具找不到目标，向用户说明并询问更精确的信息，不要编造笔记内容。";
+
+/**
+ * 解析拖拽载荷：
+ * - 笔记卡片（主页/便签列表）：application/x-floral-note 是 { type: "note", id, title } JSON
+ * - 文档/协作文件列表（LocalFiles/SharedFiles）：text/plain 是 { type, docId, title } JSON
+ * - 兜底：text/plain 直接当作 note id
+ */
+function parseDropPayload(raw: string): { id?: string; title?: string } | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed && typeof parsed === "object") {
+      const title = typeof parsed.title === "string" ? parsed.title : undefined;
+      const id =
+        typeof parsed.docId === "string"
+          ? parsed.docId
+          : typeof parsed.id === "string"
+            ? parsed.id
+            : undefined;
+      if (title || id) return { id, title };
+    }
+  } catch {
+    // 非 JSON：直接当作 note id
+  }
+  return { id: raw };
+}
+
+function getDropPayload(dataTransfer: DataTransfer): { id?: string; title?: string } | null {
+  const floralPayload = dataTransfer.getData("application/x-floral-note");
+  if (floralPayload) return parseDropPayload(floralPayload);
+  const plainPayload = dataTransfer.getData("text/plain");
+  if (plainPayload) return parseDropPayload(plainPayload);
+  return null;
+}
+
+/** 是否包含显式的 @工具 提及（如 @搜索笔记），用于区分"快捷命令"与"#引用上下文" */
+function hasExplicitToolMention(text: string): boolean {
+  return Array.from(text.matchAll(/@([^\s]+)/g)).some((match) =>
+    TOOL_MENTIONS.some((tool) => match[1] === tool.token),
+  );
+}
+
+/** 提取输入里的 #引用 笔记（按全局唯一 id 精准定位），作为 Agent 上下文注入 */
+function extractReferencedNotes(text: string, notes: NoteMention[]): { id: string; title: string }[] {
+  const refs: { id: string; title: string }[] = [];
+  for (const match of text.matchAll(/#([^\s]+)/g)) {
+    const resolved = resolveNoteReference(match[1], notes);
+    if (resolved?.id) refs.push({ id: resolved.id, title: resolved.title });
+  }
+  return refs;
+}
+
+/** 格式化变更时间戳（ISO 字符串）为「MM-DD HH:mm」 */
+function formatChangeTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
-  const [messages, setMessages] = useState<SidebarChatMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(MESSAGES_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as SidebarChatMessage[];
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(-STORAGE_LIMIT);
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
+  const initialTasks = useMemo(() => loadChatTasks(), []);
+  const [tasks, setTasks] = useState<SidebarChatTask[]>(initialTasks);
+  const [activeTaskId, setActiveTaskId] = useState(initialTasks[0].id);
+  const activeTask = useMemo(
+    () => tasks.find((task) => task.id === activeTaskId) ?? tasks[0] ?? createChatTask(),
+    [activeTaskId, tasks],
+  );
+  const messages = activeTask.messages;
+  const setMessages = useCallback(
+    (updater: SidebarChatMessage[] | ((messages: SidebarChatMessage[]) => SidebarChatMessage[])) => {
+      setTasks((current) =>
+        current.map((task) => {
+          if (task.id !== activeTaskId) return task;
+          const nextMessages = typeof updater === "function" ? updater(task.messages) : updater;
+          return {
+            ...task,
+            messages: nextMessages.slice(-STORAGE_LIMIT),
+            title: getTaskTitle(task, nextMessages),
+            updatedAt: Date.now(),
+          };
+        }),
+      );
+    },
+    [activeTaskId],
+  );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [selectedModelId, setSelectedModelId] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [pendingTool, setPendingTool] = useState<PendingToolPlan | null>(null);
+  /** 标准 Agent 待确认轮次：ref 保存 resolver（避免闭包过期），state 仅用于横幅展示 */
+  const pendingAgentRoundRef = useRef<{
+    calls: AgentToolCall[];
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+  const [pendingAgentCalls, setPendingAgentCalls] = useState<AgentToolCall[] | null>(null);
+  const [agentConfig, setAgentConfig] = useState<AssistantAgentConfig | null>(null);
+  const [noteOptions, setNoteOptions] = useState<NoteMention[]>([]);
+  const [menuTaskId, setMenuTaskId] = useState<string | null>(null);
+  const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [taskPanelOpen, setTaskPanelOpen] = useState(false);
+  const [chatPanelOpen, setChatPanelOpen] = useState(true);
+  /** 对话面板宽度（默认 320，可拖动，持久化本地） */
+  const [chatPanelWidth, setChatPanelWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem("sidebar_chat_panel_width"));
+    return Number.isFinite(saved) && saved >= 260 && saved <= 560 ? saved : 320;
+  });
+  const [chatWidthDragging, setChatWidthDragging] = useState(false);
+  /** 历史变更面板：AI 写回 / 历史恢复的笔记变更快照 */
+  const [changesOpen, setChangesOpen] = useState(false);
+  const [changes, setChanges] = useState<NoteChangeRecord[]>([]);
+  const [changesLoading, setChangesLoading] = useState(false);
+  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
+  const [restoringChangeId, setRestoringChangeId] = useState<string | null>(null);
+  const [chatDragOver, setChatDragOver] = useState(false);
+  const [writebackApplying, setWritebackApplying] = useState(false);
+  const [writebackResolved, setWritebackResolved] = useState<"applied" | "cancelled" | null>(null);
 
-  // 持久化：本地上下文记忆
+  useEffect(() => {
+    if (open) {
+      setChatPanelOpen(true);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && !taskPanelOpen && !chatPanelOpen) {
+      onClose();
+    }
+  }, [open, taskPanelOpen, chatPanelOpen, onClose]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     try {
-      localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages.slice(-STORAGE_LIMIT)));
+      localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks.slice(0, 20)));
     } catch {
       // ignore
     }
-  }, [messages]);
+  }, [tasks]);
+
+  useEffect(() => {
+    void getAssistantAgentConfig()
+      .then(setAgentConfig)
+      .catch(() => setAgentConfig(null));
+  }, []);
+
+  /** 加载本地笔记索引，供输入区 # 联想使用 */
+  const loadNoteOptions = useCallback(async () => {
+    try {
+      const res = await executeAssistantTool<{ notes: NoteMention[] }>({
+        tool: "note.search",
+        params: { query: "", limit: 30 },
+      });
+      const notes = (res.data?.notes ?? []).filter(
+        (note) => note && typeof note.id === "string" && typeof note.title === "string",
+      );
+      setNoteOptions(notes);
+    } catch {
+      // 工具不可用时静默忽略，联想列表保持为空
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) void loadNoteOptions();
+  }, [open, loadNoteOptions]);
 
   const enabledProviders = useMemo(
     () => providers.filter((p) => p.enabled && p.models.length > 0),
@@ -77,7 +283,28 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     [activeModels, selectedModelId],
   );
 
-  // 初始化默认供应商/模型（优先 DeepSeek）
+  /** 拍平为输入区模型选择器使用的选项列表 */
+  const modelOptions = useMemo<ModelPickerOption[]>(
+    () =>
+      enabledProviders.flatMap((p) =>
+        p.models.map((m) => ({
+          providerId: p.id,
+          providerName: p.name,
+          modelId: m.modelId,
+          modelLabel: m.displayName || m.modelId,
+        })),
+      ),
+    [enabledProviders],
+  );
+
+  const handlePickModel = useCallback((providerId: string, modelId: string) => {
+    setSelectedProviderId(providerId);
+    setSelectedModelId(modelId);
+  }, []);
+
+  const contextWindow = agentConfig?.contextPolicy.recentMessages ?? CONTEXT_WINDOW;
+  const agentModeLabel = agentConfig?.mode === "autonomous" ? "自主模式" : "工作流模式";
+
   useEffect(() => {
     if (enabledProviders.length > 0 && !selectedProviderId) {
       const ds = enabledProviders.find((p) => p.name.toLowerCase().includes("deepseek"));
@@ -88,47 +315,194 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
   }, [enabledProviders, selectedProviderId]);
 
   useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 150);
-    }
-  }, [open]);
-
-  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, loading]);
+  }, [messages, loading, pendingTool]);
+
+  const speakAssistantReply = useCallback((reply: string) => {
+    if (reply.trim() && shouldAutoSpeak()) {
+      void speakText(reply, { emotion: "happy" });
+    }
+  }, []);
+
+  const appendAssistantReply = useCallback(
+    (reply: string) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: reply, createdAt: Date.now() }]);
+      speakAssistantReply(reply);
+    },
+    [setMessages, speakAssistantReply],
+  );
+
+  const appendAssistantDraft = useCallback((initial = "") => {
+    const createdAt = Date.now() + Math.random();
+    setMessages((prev) => [...prev, { role: "assistant", content: initial, createdAt }]);
+    return createdAt;
+  }, [setMessages]);
+
+  const appendAssistantDelta = useCallback((createdAt: number, delta: string) => {
+    if (!delta) return;
+    setMessages((prev) =>
+      prev.map((msg) => (msg.createdAt === createdAt ? { ...msg, content: msg.content + delta } : msg)),
+    );
+  }, [setMessages]);
+
+  const replaceAssistantDraft = useCallback((createdAt: number, content: string) => {
+    setMessages((prev) =>
+      prev.map((msg) => (msg.createdAt === createdAt ? { ...msg, content } : msg)),
+    );
+  }, [setMessages]);
+
+  /** 取消标准 Agent 待确认轮次（拒绝），并释放挂起的 loop */
+  const cancelPendingAgentRound = useCallback(() => {
+    pendingAgentRoundRef.current?.resolve(false);
+    pendingAgentRoundRef.current = null;
+    setPendingAgentCalls(null);
+  }, []);
+
+  /** 横幅确认/拒绝标准 Agent 的整轮工具调用 */
+  const resolveAgentRound = useCallback((ok: boolean) => {
+    const pending = pendingAgentRoundRef.current;
+    if (!pending) return;
+    pendingAgentRoundRef.current = null;
+    setPendingAgentCalls(null);
+    pending.resolve(ok);
+  }, []);
+
+  /** 执行标准 Agent 的一次工具调用：解析模型参数 → 调后端 → 转文本回喂模型 */
+  const executeAgentTool = useCallback(async (call: AgentToolCall): Promise<string> => {
+    if (!isKnownAgentTool(call.name)) {
+      throw new Error(`未知工具：${call.name}，请从可用工具中选择`);
+    }
+    const params = parseToolArguments(call.arguments);
+    // 防御性归一化：模型漏传 mode 或偶发 overwrite/覆盖 等旧写法时，统一按"整篇覆盖"执行
+    if (params.mode === "overwrite" || params.mode === "覆盖") {
+      params.mode = "replace";
+    }
+    if (params.mode !== "replace" && params.mode !== "append") {
+      params.mode = "replace";
+    }
+    const response = await executeAssistantTool({ tool: call.name, params, confirmed: true });
+    return formatAgentToolOutput(call.name, response);
+  }, []);
+
+  /** 加载笔记变更历史 */
+  const loadChanges = useCallback(async () => {
+    setChangesLoading(true);
+    try {
+      const list = await listAssistantToolChanges(50);
+      setChanges(list);
+    } catch {
+      setChanges([]);
+    } finally {
+      setChangesLoading(false);
+    }
+  }, []);
+
+  /** 开关历史变更面板 */
+  const toggleChanges = useCallback(() => {
+    setChangesOpen((prev) => {
+      const next = !prev;
+      if (next) void loadChanges();
+      return next;
+    });
+  }, [loadChanges]);
+
+  /** 恢复某次变更：把笔记写回该变更发生前的内容 */
+  const restoreChange = useCallback(
+    async (change: NoteChangeRecord) => {
+      if (restoringChangeId) return;
+      if (
+        !window.confirm(
+          `确定恢复「${change.title}」的此版本吗？当前内容将被替换为该变更发生前的内容。`,
+        )
+      ) {
+        return;
+      }
+      setRestoringChangeId(change.id);
+      try {
+        const result = await restoreAssistantToolChange(change.id);
+        appendAssistantReply(
+          `已恢复笔记「${result.note.title}」到变更前的版本（正文现约 ${result.note.wordCount} 字）。\n\n` +
+            `恢复来源：${formatChangeTime(change.timestamp)} 的 ${change.source === "ai" ? "AI 助手" : "历史恢复"}${change.mode === "replace" ? "（整篇覆盖）" : "（追加）"}。`,
+        );
+        await loadChanges();
+      } catch (err) {
+        appendAssistantReply(`恢复失败：${getErrorText(err)}`);
+      } finally {
+        setRestoringChangeId(null);
+      }
+    },
+    [appendAssistantReply, loadChanges, restoringChangeId],
+  );
 
   const clearHistory = useCallback(() => {
     setMessages([]);
+    setPendingTool(null);
+    cancelPendingAgentRound();
     stopSpeech();
+  }, [setMessages, cancelPendingAgentRound]);
+
+  const createNewTask = useCallback(() => {
+    const nextTask = createChatTask();
+    setTasks((current) => [nextTask, ...current].slice(0, 20));
+    setActiveTaskId(nextTask.id);
+    setPendingTool(null);
+    cancelPendingAgentRound();
+    stopSpeech();
+  }, [cancelPendingAgentRound]);
+
+  const startRenameTask = useCallback((task: SidebarChatTask) => {
+    setMenuTaskId(null);
+    setRenamingTaskId(task.id);
+    setRenameDraft(task.title);
   }, []);
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || loading || !activeProvider || !activeModel) return;
+  const commitRenameTask = useCallback(() => {
+    if (!renamingTaskId) return;
+    const title = renameDraft.trim() || "未命名任务";
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === renamingTaskId ? { ...task, title, updatedAt: Date.now() } : task,
+      ),
+    );
+    setRenamingTaskId(null);
+    setRenameDraft("");
+  }, [renameDraft, renamingTaskId]);
 
-    const userMsg: SidebarChatMessage = { role: "user", content: text, createdAt: Date.now() };
-    const nextMessages = [...messages, userMsg].slice(-STORAGE_LIMIT);
-    setMessages(nextMessages);
-    setInput("");
-    setLoading(true);
+  const deleteTask = useCallback(
+    (taskId: string) => {
+      setMenuTaskId(null);
+      if (!window.confirm("确定删除该对话吗？删除后不可恢复。")) return;
+      setTasks((current) => {
+        const remaining = current.filter((task) => task.id !== taskId);
+        if (activeTask.id === taskId) {
+          setActiveTaskId(remaining[0]?.id ?? "");
+        }
+        return remaining;
+      });
+    },
+    [activeTask.id],
+  );
 
-    const apiUrl = activeProvider.baseUrl.replace(/\/+$/, "") + activeProvider.apiPath;
-    try {
+  const requestModelMessages = useCallback(
+    async (modelMessages: ModelRequestMessage[], options?: CompletionOptions) => {
+      if (!activeProvider || !activeModel) {
+        throw new Error("请先配置并启用 AI 供应商");
+      }
+
+      const apiUrl = activeProvider.baseUrl.replace(/\/+$/, "") + activeProvider.apiPath;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (activeProvider.apiKey) headers["Authorization"] = `Bearer ${activeProvider.apiKey}`;
-
-      // 上下文记忆：系统提示 + 最近 CONTEXT_WINDOW 条对话
-      const contextMessages = [buildSystemMessage(), ...nextMessages.slice(-CONTEXT_WINDOW)];
+      if (activeProvider.apiKey) headers.Authorization = `Bearer ${activeProvider.apiKey}`;
+      const stream = Boolean(options?.onDelta);
 
       const response = await fetch(apiUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({
           model: activeModel.modelId,
-          messages: contextMessages.map((m) => ({ role: m.role, content: m.content })),
-          stream: false,
+          messages: modelMessages,
+          stream,
         }),
       });
 
@@ -137,143 +511,757 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
         throw new Error(`API 错误 (${response.status}): ${errorText}`);
       }
 
+      if (stream && response.body) {
+        const streamed = await readStreamingCompletion(response, options?.onDelta);
+        logModelUsage(activeProvider.name, streamed.usage);
+        return streamed.reply.trim() || "（未收到回复）";
+      }
+
       const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content ?? "（未收到回复）";
-      const assistantMsg: SidebarChatMessage = {
-        role: "assistant",
-        content: reply,
-        createdAt: Date.now(),
+      logModelUsage(activeProvider.name, data.usage);
+      return getCompletionText(data) || "（未收到回复）";
+    },
+    [activeProvider, activeModel],
+  );
+
+  /** 标准 Agent 请求：带 tools 的流式调用，返回最终文本 + 模型请求的工具调用 */
+  const requestModelAgent = useCallback(
+    async (
+      modelMessages: ModelRequestMessage[],
+      options?: { tools?: AgentToolDefinition[]; onDelta?: (delta: string) => void },
+    ) => {
+      if (!activeProvider || !activeModel) {
+        throw new Error("请先配置并启用 AI 供应商");
+      }
+
+      const apiUrl = activeProvider.baseUrl.replace(/\/+$/, "") + activeProvider.apiPath;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeProvider.apiKey) headers.Authorization = `Bearer ${activeProvider.apiKey}`;
+
+      const buildBody = (tools?: AgentToolDefinition[]) =>
+        JSON.stringify({
+          model: activeModel.modelId,
+          messages: modelMessages,
+          stream: true,
+          ...(tools && tools.length > 0 ? { tools, tool_choice: "auto" } : {}),
+        });
+
+      let response = await fetch(apiUrl, { method: "POST", headers, body: buildBody(options?.tools) });
+      if (!response.ok && options?.tools && options.tools.length > 0) {
+        // 模型/网关不支持 function calling → 回退纯对话
+        const fallback = await fetch(apiUrl, { method: "POST", headers, body: buildBody(undefined) });
+        if (!fallback.ok) {
+          const errorText = await response.text();
+          throw new Error(`API 错误 (${response.status}): ${errorText}`);
+        }
+        response = fallback;
+      } else if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API 错误 (${response.status}): ${errorText}`);
+      }
+
+      if (!response.body) throw new Error("响应无数据流");
+      const streamed = await readStreamingCompletion(response, options?.onDelta);
+      logModelUsage(activeProvider.name, streamed.usage);
+      return {
+        reply: streamed.reply.trim(),
+        toolCalls: streamed.toolCalls ?? [],
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+    },
+    [activeProvider, activeModel],
+  );
 
-      // 用量统计
-      const usage = data.usage ?? {};
-      const inputTokens = (usage.prompt_tokens as number) ?? 0;
-      const outputTokens = (usage.completion_tokens as number) ?? 0;
-      const cachedTokens =
-        (usage.prompt_cache_hit_tokens as number) ?? (usage.cached_tokens as number) ?? 0;
-      if (inputTokens + outputTokens + cachedTokens > 0) {
-        void logUsage(activeProvider.name, inputTokens, outputTokens, cachedTokens);
+  const requestModelCompletion = useCallback(
+    (prompt: string, options?: CompletionOptions) =>
+      requestModelMessages([{ role: "user", content: prompt }], options),
+    [requestModelMessages],
+  );
+
+  const executeToolPlan = useCallback(
+    async (plan: AssistantToolPlan, confirmed: boolean) => {
+      setLoading(true);
+      const draftId = appendAssistantDraft(`**Agent 执行流程**\n\n- ${confirmed ? "已确认" : "自动执行"}：${plan.title}`);
+      let generationStarted = false;
+      try {
+        const result = await runAssistantPlan(plan, confirmed, {
+          complete: requestModelCompletion,
+          createId: () => `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          onStatus: (status) => appendAssistantDelta(draftId, `\n- ${status}`),
+          onGeneratedDelta: (delta) => {
+            if (!generationStarted) {
+              generationStarted = true;
+              appendAssistantDelta(draftId, "\n\n**生成过程**\n\n");
+            }
+            appendAssistantDelta(draftId, delta);
+          },
+        });
+
+        if (result.pendingTool) {
+          // 需要确认/写回审查的待定工具统一留在对话内展示：
+          // 普通待确认走顶部横幅；带 review 的在消息区渲染代码式 diff 卡片
+          setPendingTool(result.pendingTool);
+          setWritebackResolved(null);
+        }
+
+        appendAssistantDelta(draftId, `\n\n${result.assistantMessage}`);
+        speakAssistantReply(result.assistantMessage);
+      } catch (err) {
+        replaceAssistantDraft(draftId, `错误：${getErrorText(err)}`);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      appendAssistantDelta,
+      appendAssistantDraft,
+      replaceAssistantDraft,
+      requestModelCompletion,
+      speakAssistantReply,
+    ],
+  );
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    const userMsg: SidebarChatMessage = { role: "user", content: text, createdAt: Date.now() };
+    const nextMessages = [...messages, userMsg].slice(-STORAGE_LIMIT);
+    setMessages(nextMessages);
+    setInput("");
+
+    const mentionPlan = buildToolPlanFromMentions(text, noteOptions);
+    const commandPlan = parseExplicitToolCommand(text);
+
+    // 1) 显式工具命令（@工具、/命令）→ 快速路径，用户显式指定了工具；
+    //    纯 #引用 不在此列，交给 Agent 作为上下文处理
+    const explicitPlan =
+      commandPlan ??
+      (mentionPlan && (hasExplicitToolMention(text) || mentionPlan.workflow) ? mentionPlan : null);
+    if (explicitPlan) {
+      if (requiresConfirmation(explicitPlan.tool)) {
+        const pending = { ...explicitPlan, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+        setPendingTool(pending);
+        appendAssistantReply(buildPendingToolMessage(pending));
+        return;
+      }
+      await executeToolPlan(explicitPlan, false);
+      return;
+    }
+
+    if (!activeProvider || !activeModel) {
+      // 2) 未配置模型：退化为规则启发式工具计划，@/#/本地读搜等仍可用
+      const fallbackPlan = mentionPlan ?? detectAssistantToolPlan(text);
+      if (fallbackPlan) {
+        if (requiresConfirmation(fallbackPlan.tool)) {
+          const pending = { ...fallbackPlan, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+          setPendingTool(pending);
+          appendAssistantReply(buildPendingToolMessage(pending));
+          return;
+        }
+        await executeToolPlan(fallbackPlan, false);
+        return;
+      }
+      appendAssistantReply("请先在 设置 → 供应商 中添加并启用 AI 供应商；本地读笔记、搜索笔记等工具指令仍可直接使用。");
+      return;
+    }
+
+    // 3) 标准 Agent（function calling）：模型自己决定调用哪个工具、传什么参数；
+    //    #引用笔记作为上下文注入，模型自主决定是否读取后完成任务
+    setLoading(true);
+    const draftId = appendAssistantDraft("");
+    let receivedDelta = false;
+    try {
+      const referencedNotes = extractReferencedNotes(text, noteOptions);
+      const referenceContext = referencedNotes.length
+        ? "\n\n用户在本次请求中引用了以下笔记（如需其内容可调用 note.read 并按 id 读取，读取后才能总结/改写）：\n" +
+          referencedNotes.map((note) => `- 「${note.title}」（id: ${note.id}）`).join("\n")
+        : "";
+
+      const contextMessages: ModelRequestMessage[] = [
+        { role: "system", content: SYSTEM_PROMPT + AGENT_SYSTEM_SUFFIX + referenceContext },
+        ...nextMessages.slice(-contextWindow).map((m) => ({ role: m.role, content: m.content })),
+      ];
+
+      const result = await runAgentLoop(contextMessages, {
+        requestWithTools: (messages) =>
+          requestModelAgent(messages as ModelRequestMessage[], {
+            tools: buildAgentTools(),
+            onDelta: (delta) => {
+              receivedDelta = true;
+              appendAssistantDelta(draftId, delta);
+            },
+          }),
+        onAgentStatus: (status) => appendAssistantDelta(draftId, `\n\n> ${status}\n\n`),
+        confirmRound: async (calls) => {
+          // 每次确认前拉最新权限配置，保证设置面板的改动立即生效
+          let policy = DEFAULT_AGENT_PERMISSION_POLICY;
+          try {
+            const config = await getAssistantAgentConfig();
+            policy = config.permissionPolicy;
+          } catch {
+            // 拉取失败时按最安全默认处理
+          }
+          const needsConfirm = calls.some((call) =>
+            requiresConfirmForTool(call.name, policy),
+          );
+          if (!needsConfirm) return true;
+          return new Promise<boolean>((resolve) => {
+            pendingAgentRoundRef.current = { calls, resolve };
+            setPendingAgentCalls(calls);
+          });
+        },
+        executeTool: executeAgentTool,
+      });
+
+      if (result.finishedByToolLimit) {
+        appendAssistantDelta(
+          draftId,
+          "\n\n（已达到单次工具调用轮次上限，请补充信息后继续对话）",
+        );
       }
 
-      // TTS 触发条件：启用自动朗读时朗读助手回复
-      if (shouldAutoSpeak()) {
-        void speakText(reply, { emotion: "happy" });
+      if (!receivedDelta && result.text) {
+        replaceAssistantDraft(draftId, result.text);
       }
+      if (result.text) speakAssistantReply(result.text);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `错误：${err instanceof Error ? err.message : "未知错误"}`, createdAt: Date.now() },
-      ]);
+      replaceAssistantDraft(draftId, `错误：${getErrorText(err)}`);
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, activeProvider, activeModel]);
+  }, [
+    input,
+    loading,
+    messages,
+    contextWindow,
+    noteOptions,
+    activeProvider,
+    activeModel,
+    setMessages,
+    appendAssistantDelta,
+    appendAssistantDraft,
+    appendAssistantReply,
+    executeAgentTool,
+    executeToolPlan,
+    replaceAssistantDraft,
+    requestModelAgent,
+    speakAssistantReply,
+  ]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
+  const confirmPendingTool = useCallback(async () => {
+    if (!pendingTool || loading) return;
+    const plan = pendingTool;
+    setPendingTool(null);
+    await executeToolPlan(plan, true);
+  }, [pendingTool, loading, executeToolPlan]);
+
+  const cancelPendingTool = useCallback(() => {
+    if (!pendingTool || loading) return;
+    appendAssistantReply(`已取消工具调用：${toolLabel(pendingTool.tool)}。`);
+    setPendingTool(null);
+  }, [pendingTool, loading, appendAssistantReply]);
+
+  /** 接受写回审查：把待定工具的优化稿写回笔记，并留在对话记录里标记结果 */
+  const applyChatWriteback = useCallback(async () => {
+    if (!pendingTool?.review || writebackApplying) return;
+    const plan = pendingTool;
+    const review = pendingTool.review;
+    setWritebackApplying(true);
+    try {
+      const response = await executeAssistantTool<{ note?: { id: string; title?: string } }>({
+        tool: plan.tool,
+        params: plan.params,
+        confirmed: true,
+      });
+      const noteTitle =
+        (typeof response.data?.note?.title === "string" && response.data.note.title) || review.title;
+      appendAssistantReply(`已接受变更，已将优化稿写回笔记「${noteTitle}」。`);
+      setWritebackResolved("applied");
+    } catch (err) {
+      appendAssistantReply(`写回失败：${getErrorText(err)}`);
+    } finally {
+      setWritebackApplying(false);
     }
-  };
+  }, [pendingTool, writebackApplying, appendAssistantReply]);
+
+  /** 放弃写回审查：取消写回，并在对话记录里标记结果 */
+  const cancelChatWriteback = useCallback(() => {
+    if (!pendingTool?.review || writebackApplying) return;
+    appendAssistantReply(`已放弃本次写回变更（${pendingTool.review.title}），原笔记保持不变。`);
+    setWritebackResolved("cancelled");
+  }, [pendingTool, writebackApplying, appendAssistantReply]);
+
+  /** 把拖入对话面板的笔记/文档以 # 提及的形式追加到输入框 */
+  const handleDropNote = useCallback(
+    async (payload: { id?: string; title?: string }) => {
+      let title = payload.title;
+      if (!title && payload.id) {
+        title = noteOptions.find((note) => note.id === payload.id)?.title;
+        if (!title) {
+          try {
+            const note = await getNote(payload.id);
+            title = note.title || undefined;
+          } catch {
+            title = undefined;
+          }
+        }
+      }
+      if (!title) return;
+      const token = formatNoteReferenceToken(title, payload.id);
+      setInput((prev) => {
+        const needsSpace = prev.length > 0 && !/\s$/.test(prev);
+        return prev + (needsSpace ? " " : "") + "#" + token + " ";
+      });
+    },
+    [noteOptions],
+  );
+
+  useEffect(() => {
+    window.localStorage.setItem("sidebar_chat_panel_width", String(chatPanelWidth));
+  }, [chatPanelWidth]);
+
+  /** 拖动对话面板左侧手柄调节宽度 */
+  const startChatWidthDrag = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = chatPanelWidth;
+      setChatWidthDragging(true);
+      const onMove = (ev: MouseEvent) => {
+        setChatPanelWidth(Math.min(560, Math.max(260, startWidth + (ev.clientX - startX))));
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setChatWidthDragging(false);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [chatPanelWidth],
+  );
+
+  const asideWidth = (taskPanelOpen ? 240 : 0) + (chatPanelOpen ? chatPanelWidth : 0);
 
   return (
     <aside
-      className={`shrink-0 h-full flex flex-col bg-paper border-r border-paper-deep/15 transition-[width,opacity,margin] duration-300 ease-out overflow-hidden ${
-        open ? "w-[320px] max-w-[85vw] opacity-100" : "w-0 opacity-0 border-r-0"
+      style={{ width: open && asideWidth > 0 ? `${asideWidth}px` : "0px" }}
+      className={`relative shrink-0 h-full flex flex-col bg-paper border-r border-paper-deep/15 transition-[width,opacity,margin] duration-300 ease-out overflow-hidden ${
+        chatWidthDragging ? "transition-none" : ""
+      } ${
+        open && asideWidth > 0 ? "opacity-100" : "opacity-0 border-r-0"
       }`}
+      onDragEnter={() => {
+        setChatDragOver(true);
+      }}
+      onDragOver={(e) => {
+        // Tauri WebView2 内拖拽自定义 MIME 时 types 可能不稳定；始终阻止默认行为以允许 drop。
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setChatDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setChatDragOver(false);
+        const payload = getDropPayload(e.dataTransfer);
+        if (payload) void handleDropNote(payload);
+      }}
     >
-      <div className="h-full min-w-[320px] flex flex-col">
-        {/* 标题栏 */}
-        <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-paper-deep/20">
-          <div className="flex items-center gap-2 min-w-0">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-bamboo shrink-0"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              <path d="M8 10h.01M12 10h.01M16 10h.01" />
-            </svg>
-            <span className="text-[13px] font-display font-semibold text-ink select-none">AI 助手</span>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0 ml-2">
-            <button
-              type="button"
-              onClick={clearHistory}
-              className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
-              title="清空对话（上下文记忆）"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
-              title="收起"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
+      {chatDragOver && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-bamboo/10">
+          <div className="rounded-full border border-bamboo/50 bg-paper px-3 py-1.5 text-[11px] font-medium text-bamboo shadow-lg">
+            松开以在对话中引用该笔记
           </div>
         </div>
-
-        {/* 供应商 / 模型选择 */}
-        <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 border-b border-paper-deep/15">
-          {activeProvider ? (
-            <>
-              <select
-                value={selectedProviderId}
-                onChange={(e) => {
-                  const pid = e.target.value;
-                  setSelectedProviderId(pid);
-                  const p = enabledProviders.find((x) => x.id === pid);
-                  if (p?.models[0]) setSelectedModelId(p.models[0].modelId);
-                }}
-                className="h-6 px-1.5 rounded-md bg-paper-warm/60 border border-paper-deep/30 text-[10px] font-mono text-ink-soft cursor-pointer outline-none max-w-[100px] truncate"
-              >
-                {enabledProviders.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              {activeModels.length > 1 && (
-                <select
-                  value={selectedModelId}
-                  onChange={(e) => setSelectedModelId(e.target.value)}
-                  className="h-6 px-1.5 rounded-md bg-paper-warm/60 border border-paper-deep/30 text-[10px] font-mono text-ink-faint cursor-pointer outline-none max-w-[110px] truncate"
+      )}
+      <div className="h-full flex overflow-hidden">
+        {/* 任务列表面板（对话栏的左侧栏） */}
+        {taskPanelOpen && (
+        <div className="w-[240px] shrink-0 flex flex-col border-r border-paper-deep/15 bg-paper-warm/30">
+          <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-paper-deep/20">
+            <span className="text-[11px] font-semibold text-ink-ghost">任务列表</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-ink-ghost">{tasks.length} 个</span>
+              {!chatPanelOpen && (
+                <button
+                  type="button"
+                  onClick={() => setChatPanelOpen(true)}
+                  className="w-5 h-5 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                  title="展开对话栏"
                 >
-                  {activeModels.map((m) => (
-                    <option key={m.modelId} value={m.modelId}>
-                      {m.displayName}
-                    </option>
-                  ))}
-                </select>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    <path d="M8 10h.01M12 10h.01M16 10h.01" />
+                  </svg>
+                </button>
               )}
-            </>
-          ) : (
-            <span className="text-[10px] text-ink-ghost">请先在 设置 → 供应商 中添加并启用供应商</span>
-          )}
-        </div>
+              <button
+                type="button"
+                onClick={() => setTaskPanelOpen(false)}
+                className="w-5 h-5 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                title="收起任务栏"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-1.5 min-h-0">
+            {tasks.map((task) => {
+              const userCount = task.messages.filter((m) => m.role === "user").length;
+              const isActive = task.id === activeTask.id;
+              const isRenaming = renamingTaskId === task.id;
+              return (
+                <div key={task.id} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTaskId(task.id);
+                      setPendingTool(null);
+                      cancelPendingAgentRound();
+                      setChatPanelOpen(true);
+                    }}
+                    className={`w-full rounded-xl border px-2.5 py-2 pr-7 text-left transition-all cursor-pointer ${
+                      isActive
+                        ? "border-bamboo/30 bg-bamboo-mist/50"
+                        : "border-paper-deep/20 bg-paper-warm/50 hover:border-bamboo/25 hover:bg-bamboo-mist/25"
+                    }`}
+                  >
+                    {isRenaming ? (
+                      <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRenameTask();
+                          if (e.key === "Escape") {
+                            setRenamingTaskId(null);
+                            setRenameDraft("");
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full rounded-md bg-cloud px-1.5 py-0.5 text-[11.5px] font-medium text-ink outline-none"
+                        placeholder="任务名称"
+                      />
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[11.5px] font-medium text-ink">{task.title}</span>
+                          <span className="shrink-0 rounded-full bg-paper/70 px-1.5 py-0.5 text-[9px] text-ink-faint">
+                            {userCount} 条
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="truncate text-[9.5px] text-ink-ghost">
+                            {task.messages.length > 0
+                              ? (task.messages[task.messages.length - 1]?.content ?? "").replace(/\s+/g, " ").slice(0, 22)
+                              : "还没有消息"}
+                          </span>
+                          <span className="shrink-0 text-[9px] text-ink-ghost/70">{formatTaskTime(task.updatedAt)}</span>
+                        </div>
+                      </>
+                    )}
+                  </button>
 
-        {/* 消息列表 */}
+                  {!isRenaming && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuTaskId((id) => (id === task.id ? null : task.id));
+                      }}
+                      className="absolute right-1.5 top-2 w-5 h-5 flex items-center justify-center rounded-md bg-paper/90 text-ink-faint shadow-sm hover:bg-paper-warm hover:text-ink transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                      title="任务操作"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="5" cy="12" r="1.8" />
+                        <circle cx="12" cy="12" r="1.8" />
+                        <circle cx="19" cy="12" r="1.8" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {menuTaskId === task.id && (
+                    <div className="absolute right-2 top-8 z-20 w-28 rounded-lg border border-paper-deep/20 bg-paper shadow-xl py-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startRenameTask(task);
+                        }}
+                        className="w-full px-2.5 py-1.5 text-left text-[11px] text-ink-soft hover:bg-paper-warm transition-colors"
+                      >
+                        重命名
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTask(task.id);
+                        }}
+                        className="w-full px-2.5 py-1.5 text-left text-[11px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                      >
+                        删除任务
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {tasks.length === 0 && (
+              <div className="rounded-xl border border-dashed border-paper-deep/25 px-3 py-5 text-center text-[10px] text-ink-ghost">
+                暂无任务，点击「新建任务」开始
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 px-2.5 py-2.5 border-t border-paper-deep/15">
+            <button
+              type="button"
+              onClick={createNewTask}
+              className="w-full h-7 rounded-lg bg-bamboo text-[11px] font-medium text-cloud hover:bg-bamboo-light transition-all cursor-pointer"
+              title="新建任务"
+            >
+              + 新建任务
+            </button>
+          </div>
+        </div>
+        )}
+
+        {/* 对话面板 */}
+        {chatPanelOpen && (
+        <>
+        <div
+          className="w-[5px] shrink-0 cursor-col-resize bg-transparent hover:bg-bamboo/30 active:bg-bamboo/40 transition-colors"
+          onMouseDown={startChatWidthDrag}
+          title="拖动调节宽度"
+        />
+        <div style={{ width: chatPanelWidth }} className="shrink-0 flex flex-col min-w-[260px] max-w-[560px]">
+          <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-paper-deep/20">
+            <div className="flex items-center gap-2 min-w-0">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-bamboo shrink-0"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M8 10h.01M12 10h.01M16 10h.01" />
+              </svg>
+              <span className="text-[13px] font-display font-semibold text-ink select-none">
+                AI 助手
+              </span>
+              <span className="max-w-[120px] truncate rounded-full bg-paper-warm/70 px-2 py-0.5 text-[9px] text-ink-ghost">
+                {activeTask.title}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0 ml-2">
+              <button
+                type="button"
+                onClick={toggleChanges}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                title="历史变更（AI 写回与恢复记录）"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                  <polyline points="3 3 3 8 8 8" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              </button>
+              {!taskPanelOpen && (
+                <button
+                  type="button"
+                  onClick={() => setTaskPanelOpen(true)}
+                  className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                  title="展开任务栏"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                    <line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={clearHistory}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                title="清空对话（上下文记忆）"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatPanelOpen(false)}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                title="收起对话栏"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {pendingTool && !pendingTool.review && (
+          <div className="shrink-0 border-b border-paper-deep/20 bg-bamboo-mist/35 px-3 py-2 text-[11px] text-ink-soft">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-ink">待确认：{pendingTool.title}</span>
+              <span className="rounded-full bg-paper/80 px-2 py-0.5 text-[9px] text-bamboo">
+                {toolLabel(pendingTool.tool)}
+              </span>
+            </div>
+            <p className="mt-1 leading-relaxed text-ink-faint">{pendingTool.description}</p>
+            <pre className="mt-2 max-h-20 overflow-auto rounded-lg bg-paper/80 p-2 font-mono text-[10px] leading-relaxed text-ink-faint whitespace-pre-wrap">
+              {formatToolParams(pendingTool.params)}
+            </pre>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void confirmPendingTool()}
+                disabled={loading}
+                className="rounded-lg bg-bamboo px-3 py-1.5 text-[11px] font-medium text-cloud disabled:opacity-50"
+              >
+                确认执行
+              </button>
+              <button
+                type="button"
+                onClick={cancelPendingTool}
+                disabled={loading}
+                className="rounded-lg border border-paper-deep/30 bg-paper px-3 py-1.5 text-[11px] text-ink-faint disabled:opacity-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pendingAgentCalls && pendingAgentCalls.length > 0 && (
+          <div className="shrink-0 border-b border-paper-deep/20 bg-bamboo-mist/35 px-3 py-2 text-[11px] text-ink-soft">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-ink">待确认工具调用</span>
+              <span className="rounded-full bg-paper/80 px-2 py-0.5 text-[9px] text-bamboo">
+                {pendingAgentCalls.length} 个
+              </span>
+            </div>
+            <ul className="mt-1.5 space-y-1">
+              {pendingAgentCalls.map((call, index) => (
+                <li key={call.id || `${call.name}-${index}`} className="flex items-start gap-1.5">
+                  <span className="mt-px shrink-0 rounded bg-paper/80 px-1.5 py-0.5 text-[9px] font-medium text-bamboo">
+                    {toolDisplayName(call.name)}
+                  </span>
+                  <span className="break-all font-mono text-[10px] leading-relaxed text-ink-faint">
+                    {formatAgentCallSummary(call)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => resolveAgentRound(true)}
+                disabled={loading}
+                className="rounded-lg bg-bamboo px-3 py-1.5 text-[11px] font-medium text-cloud disabled:opacity-50"
+              >
+                执行本轮
+              </button>
+              <button
+                type="button"
+                onClick={() => resolveAgentRound(false)}
+                disabled={loading}
+                className="rounded-lg border border-paper-deep/30 bg-paper px-3 py-1.5 text-[11px] text-ink-faint disabled:opacity-50"
+              >
+                拒绝
+              </button>
+            </div>
+          </div>
+        )}
+
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center select-none">
               <div className="w-10 h-10 rounded-2xl bg-bamboo-mist/60 flex items-center justify-center mb-2.5">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-bamboo">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-bamboo"
+                >
                   <path d="M12 3c-4.97 0-9 3.58-9 8 0 2.52 1.32 4.76 3.36 6.22l-1.36 4.78 5.64-3.22c.44.14.9.22 1.36.22 4.97 0 9-3.58 9-8s-4.03-8-9-8z" />
                   <circle cx="9" cy="11" r="0.5" fill="currentColor" />
                   <circle cx="12" cy="10" r="0.5" fill="currentColor" />
@@ -281,29 +1269,74 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
                 </svg>
               </div>
               <p className="text-[12px] font-medium text-ink-soft">你好，我是「花笺」AI 助手</p>
-              <p className="mt-1 text-[10px] text-ink-ghost leading-relaxed max-w-[220px]">
-                可以帮你梳理笔记、复盘写作、沉淀灵感。对话会自动保存在本机，并作为上下文记忆。
+              <p className="mt-1 text-[10px] text-ink-ghost leading-relaxed max-w-[230px]">
+                输入 @ 调用工具、# 引用笔记，或直接把笔记卡片拖进对话框引用。优化写回会在对话里生成代码式变更预览，确认前不会修改笔记。
               </p>
             </div>
           ) : (
             messages.map((msg, i) =>
               msg.role === "user" ? (
-                <div key={i} className="flex justify-end">
+                <div key={`${msg.createdAt}-${i}`} className="flex justify-end">
                   <div className="max-w-[85%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed bg-bamboo text-cloud whitespace-pre-wrap break-words">
                     {msg.content}
                   </div>
                 </div>
               ) : (
-                <div key={i} className="flex justify-start">
-                  <div className="max-w-[88%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed bg-paper-warm/80 text-ink-soft border border-paper-deep/20 [&_h1]:text-[14px] [&_h1]:font-bold [&_h1]:text-ink [&_h1]:mb-1 [&_h2]:text-[13px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mb-1 [&_h3]:text-[12.5px] [&_h3]:font-semibold [&_h3]:text-ink [&_p]:mb-1.5 [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:mb-0.5 [&_strong]:text-ink [&_strong]:font-semibold [&_code]:text-bamboo [&_code]:bg-bamboo-mist/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-paper-deep/30 [&_pre]:text-ink-soft [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:mb-1.5 [&_a]:text-bamboo [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-bamboo/40 [&_blockquote]:pl-3 [&_blockquote]:text-ink-faint [&_hr]:border-paper-deep/30 [&_hr]:my-2">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                <div key={`${msg.createdAt}-${i}`} className="flex justify-start gap-1.5">
+                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-bamboo/15 bg-bamboo-mist/70 text-bamboo">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+                    </svg>
+                  </div>
+                  <div className="max-w-[82%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed bg-paper-warm/80 text-ink-soft border border-paper-deep/20 [&_h1]:text-[14px] [&_h1]:font-bold [&_h1]:text-ink [&_h1]:mb-1 [&_h2]:text-[13px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mb-1 [&_h3]:text-[12.5px] [&_h3]:font-semibold [&_h3]:text-ink [&_p]:mb-1.5 [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:mb-0.5 [&_strong]:text-ink [&_strong]:font-semibold [&_code]:text-bamboo [&_code]:bg-bamboo-mist/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-paper-deep/30 [&_pre]:text-ink-soft [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:mb-1.5 [&_a]:text-bamboo [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-bamboo/40 [&_blockquote]:pl-3 [&_blockquote]:text-ink-faint [&_hr]:border-paper-deep/30 [&_hr]:my-2">
+                    {msg.content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-ink-ghost">
+                        <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce" />
+                      </span>
+                    )}
                   </div>
                 </div>
               ),
             )
           )}
-          {loading && (
-            <div className="flex justify-start">
+          {pendingTool?.review && (
+            <ChatWritebackReview
+              pendingTool={pendingTool}
+              applying={writebackApplying}
+              resolved={writebackResolved}
+              onApply={() => void applyChatWriteback()}
+              onCancel={cancelChatWriteback}
+            />
+          )}
+          {loading && messages[messages.length - 1]?.role !== "assistant" && (
+            <div className="flex justify-start gap-1.5">
+              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-bamboo/15 bg-bamboo-mist/70 text-bamboo">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+                </svg>
+              </div>
               <div className="bg-paper-warm/80 border border-paper-deep/20 rounded-xl px-3 py-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.3s]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.15s]" />
@@ -313,34 +1346,301 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
           )}
         </div>
 
-        {/* 输入区 */}
         <div className="shrink-0 px-3 py-2.5 border-t border-paper-deep/20">
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={activeProvider ? "输入消息，Enter 发送 / Shift+Enter 换行" : "请先配置供应商"}
-              rows={1}
-              disabled={!activeProvider}
-              className="flex-1 resize-none rounded-lg px-3 py-2 text-[12.5px] font-body text-ink placeholder:text-ink-ghost/50 bg-paper-warm/60 border border-paper-deep/30 focus:border-bamboo/30 focus:bg-cloud transition-all disabled:opacity-50 outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={!input.trim() || loading || !activeProvider}
-              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-bamboo text-cloud hover:bg-bamboo-light disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-              title="发送"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-              </svg>
-            </button>
+          <MentionComposer
+            input={input}
+            onChange={setInput}
+            onSend={() => void handleSend()}
+            loading={loading}
+            placeholder={
+              activeProvider && activeModel
+                ? "输入消息，@ 工具、# 引用笔记，Enter 发送"
+                : "未配置模型：可输入 @搜索笔记 等本地工具指令"
+            }
+            noteOptions={noteOptions}
+            onRefreshNotes={() => void loadNoteOptions()}
+            modelOptions={modelOptions}
+            selectedProviderId={selectedProviderId}
+            selectedModelId={selectedModelId}
+            onPickModel={handlePickModel}
+            activeLabel={
+              activeProvider && activeModel
+                ? `${activeProvider.name} · ${activeModel.displayName || activeModel.modelId}`
+                : "未配置模型"
+            }
+            hasModel={Boolean(activeProvider && activeModel)}
+            agentModeLabel={agentModeLabel}
+          />
+        </div>
+        </div>
+        </>
+        )}
+      </div>
+
+      {changesOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-sm"
+          onClick={() => setChangesOpen(false)}
+        >
+          <div
+            className="flex h-[72vh] w-[560px] max-w-[92vw] flex-col rounded-2xl border border-paper-deep/20 bg-paper shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-paper-deep/15 px-4 py-3">
+              <span className="text-[13px] font-semibold text-ink">历史变更</span>
+              <button
+                type="button"
+                onClick={() => setChangesOpen(false)}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+                title="关闭"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+              {changesLoading ? (
+                <p className="py-8 text-center text-[11px] text-ink-ghost">加载变更记录中…</p>
+              ) : changes.length === 0 ? (
+                <p className="py-8 text-center text-[11px] leading-relaxed text-ink-ghost">
+                  暂无变更记录。
+                  <br />
+                  AI 助手写回笔记后会自动保存前后快照，可在这里查看对比并恢复。
+                </p>
+              ) : (
+                changes.map((change) => {
+                  const charDelta = change.afterContent.length - change.beforeContent.length;
+                  const expanded = expandedChangeId === change.id;
+                  return (
+                    <div key={change.id} className="rounded-xl border border-paper-deep/20 bg-paper-warm/40 px-3 py-2">
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={() => setExpandedChangeId(expanded ? null : change.id)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[12px] font-medium text-ink">{change.title}</span>
+                          <span className="shrink-0 text-[10px] text-ink-ghost">{formatChangeTime(change.timestamp)}</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-ink-faint">
+                          <span className="rounded bg-bamboo-mist/40 px-1.5 py-0.5 text-bamboo">
+                            {change.source === "ai" ? "AI 助手" : "历史恢复"}
+                          </span>
+                          <span>{change.mode === "replace" ? "整篇覆盖" : "追加内容"}</span>
+                          <span className={charDelta >= 0 ? "text-emerald-600" : "text-red-500"}>
+                            字数 {charDelta >= 0 ? `+${charDelta}` : charDelta}
+                          </span>
+                          <span className="ml-auto text-ink-ghost">{expanded ? "收起 ▲" : "查看对比 ▼"}</span>
+                        </div>
+                      </button>
+                      {expanded && (
+                        <div className="mt-2 rounded-lg bg-ink/5 px-2 py-2 font-mono text-[11px] leading-relaxed max-h-56 overflow-y-auto">
+                          {buildLineDiff(change.beforeContent, change.afterContent).map((line, index) => (
+                            <div
+                              key={index}
+                              className={
+                                line.type === "add"
+                                  ? "bg-emerald-400/10 text-emerald-700"
+                                  : line.type === "remove"
+                                    ? "bg-red-400/10 text-red-500 line-through decoration-red-400/40"
+                                    : "text-ink-faint"
+                              }
+                            >
+                              {line.text || " "}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => restoreChange(change)}
+                          disabled={restoringChangeId !== null}
+                          className="rounded-lg bg-bamboo px-3 py-1.5 text-[11px] font-medium text-cloud disabled:opacity-50"
+                        >
+                          {restoringChangeId === change.id ? "恢复中…" : "恢复此版本"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </aside>
   );
+}
+
+async function readStreamingCompletion(response: Response, onDelta?: (delta: string) => void) {
+  const reader = response.body?.getReader();
+  if (!reader) return { reply: "", usage: undefined, toolCalls: [] as AgentToolCall[] };
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let rawText = "";
+  let reply = "";
+  let usage: unknown;
+  const toolCalls: AgentToolCall[] = [];
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    rawText += chunk;
+    buffer += chunk;
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() ?? "";
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+
+      try {
+        const data = JSON.parse(payload);
+        const delta = getCompletionDelta(data);
+        if (delta) {
+          reply += delta;
+          onDelta?.(delta);
+        }
+        const toolDeltas = getStreamToolCallDelta(data);
+        if (toolDeltas) {
+          const merged = mergeToolCallDelta(toolCalls, toolDeltas);
+          toolCalls.length = 0;
+          toolCalls.push(...merged);
+        }
+        if (data.usage) usage = data.usage;
+      } catch {
+        // ignore malformed stream frames
+      }
+    }
+  }
+
+  if (!reply.trim() && toolCalls.length === 0) {
+    try {
+      const data = JSON.parse(rawText.trim());
+      reply = getCompletionText(data);
+      usage = data.usage;
+    } catch {
+      // ignore non-json fallback
+    }
+  }
+
+  return { reply, usage, toolCalls };
+}
+
+function getCompletionDelta(data: unknown) {
+  if (!isRecord(data)) return "";
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  const first = choices[0];
+  if (!isRecord(first)) return "";
+  const delta = isRecord(first.delta) ? first.delta.content : undefined;
+  if (typeof delta === "string") return delta;
+  const message = isRecord(first.message) ? first.message.content : undefined;
+  return typeof message === "string" ? message : "";
+}
+
+function getCompletionText(data: unknown) {
+  if (!isRecord(data)) return "";
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  const first = choices[0];
+  if (!isRecord(first)) return "";
+  const message = isRecord(first.message) ? first.message.content : undefined;
+  return typeof message === "string" ? message.trim() : "";
+}
+
+function logModelUsage(providerName: string, usage: unknown) {
+  if (!isRecord(usage)) return;
+  const inputTokens = typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
+  const outputTokens = typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0;
+  const cachedTokens =
+    typeof usage.prompt_cache_hit_tokens === "number"
+      ? usage.prompt_cache_hit_tokens
+      : typeof usage.cached_tokens === "number"
+        ? usage.cached_tokens
+        : 0;
+  if (inputTokens + outputTokens + cachedTokens > 0) {
+    void logUsage(providerName, inputTokens, outputTokens, cachedTokens);
+  }
+}
+
+function loadChatTasks(): SidebarChatTask[] {
+  try {
+    const saved = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as SidebarChatTask[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed
+          .filter((task) => task && typeof task.id === "string" && Array.isArray(task.messages))
+          .slice(0, 20)
+          .map((task) => ({
+            ...task,
+            title: task.title || getTaskTitle(task, task.messages),
+            messages: task.messages.slice(-STORAGE_LIMIT),
+            createdAt: typeof task.createdAt === "number" ? task.createdAt : Date.now(),
+            updatedAt: typeof task.updatedAt === "number" ? task.updatedAt : Date.now(),
+          }));
+      }
+    }
+
+    const legacy = localStorage.getItem(LEGACY_MESSAGES_STORAGE_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as SidebarChatMessage[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const task = createChatTask(parsed.slice(-STORAGE_LIMIT));
+        return [{ ...task, title: getTaskTitle(task, task.messages) }];
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [createChatTask()];
+}
+
+function createChatTask(messages: SidebarChatMessage[] = []): SidebarChatTask {
+  const now = Date.now();
+  const task: SidebarChatTask = {
+    id: `${now}-${Math.random().toString(36).slice(2)}`,
+    title: "新任务",
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+  return { ...task, title: getTaskTitle(task, messages) };
+}
+
+function getTaskTitle(task: SidebarChatTask, messages: SidebarChatMessage[]) {
+  const firstUserMessage = messages.find((message) => message.role === "user" && message.content.trim());
+  if (firstUserMessage) return firstUserMessage.content.trim().replace(/\s+/g, " ").slice(0, 18);
+  return task.title && task.title !== "新任务" ? task.title : "新任务";
+}
+
+function formatTaskTime(value: number) {
+  const date = new Date(value);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  return sameDay
+    ? date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+}
+
+/** 待确认横幅上展示单次工具调用的参数摘要 */
+function formatAgentCallSummary(call: AgentToolCall): string {
+  const params = parseToolArguments(call.arguments);
+  const parts = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== "")
+    .map(([key, value]) => {
+      const text = typeof value === "string" ? value : JSON.stringify(value);
+      return `${key}=${text.length > 40 ? `${text.slice(0, 40)}…` : text}`;
+    });
+  return parts.length > 0 ? parts.join(" ") : "无参数";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

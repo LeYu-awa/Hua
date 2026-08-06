@@ -71,7 +71,6 @@ export function AppShell() {
   );
 
   const handleCurrentNoteChange = useCallback((note: { id: string; content: string }) => {
-    console.log("[App] handleCurrentNoteChange", note);
     setCurrentNoteId(note.id);
   }, []);
 
@@ -205,7 +204,11 @@ export function AppShell() {
             onToggleChat={() => setChatOpen((v) => !v)}
           />
           {/* 左侧 AI 对话窗口（类 workbuddy 首页对话模式，可展开/收起） */}
-          <SidebarChat open={chatOpen} onClose={() => setChatOpen(false)} providers={providers} />
+          <SidebarChat
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
+            providers={providers}
+          />
           <div className="flex-1 flex flex-col min-w-0">
             {renderMainView({
               sidebarView,

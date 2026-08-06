@@ -6,6 +6,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { exportMarkdownNote, importMarkdownNote } from "../features/importExport/api";
 import { NoteEditorWorkspace, type SaveState } from "../features/editor/components/NoteEditorWorkspace";
 import {
+  getLineChangeStats,
+  type NoteChangeHistoryEntry,
+} from "../features/editor/components/NoteChangeHistoryCard";
+import {
   chooseNotesDirectory,
   getConfig,
   normalizeViewMode,
@@ -71,6 +75,9 @@ interface CategoryMenuState {
   category: string;
 }
 
+const NOTE_CHANGE_HISTORY_STORAGE_KEY = "note_change_history_v1";
+const NOTE_CHANGE_HISTORY_LIMIT = 30;
+
 interface MainWindowProps {
   initialSettingsOpen?: boolean;
   initialConfig?: AppConfig;
@@ -132,6 +139,17 @@ export function MainWindow({
   const skipNextNotesChangedRef = useRef(false);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+  const lastSavedContentRef = useRef("");
+  const [noteChangeHistory, setNoteChangeHistory] = useState<NoteChangeHistoryEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem(NOTE_CHANGE_HISTORY_STORAGE_KEY);
+      if (!saved) return [];
+      const parsed = JSON.parse(saved) as NoteChangeHistoryEntry[];
+      return Array.isArray(parsed) ? parsed.slice(0, NOTE_CHANGE_HISTORY_LIMIT) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // 场景四：焦虑推断 + 主动干预。收集最近 5 分钟编辑事件，超基线阈值时给出关怀（带冷却）。
   const [anxietyMessage, setAnxietyMessage] = useState<string | null>(null);
@@ -184,7 +202,56 @@ export function MainWindow({
     [externalFiles, selectedId],
   );
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        NOTE_CHANGE_HISTORY_STORAGE_KEY,
+        JSON.stringify(noteChangeHistory.slice(0, NOTE_CHANGE_HISTORY_LIMIT)),
+      );
+    } catch {
+      // ignore
+    }
+  }, [noteChangeHistory]);
+
   const isExternal = selectedExternalFile !== null;
+
+  const recordNoteChange = useCallback(
+    (entry: Omit<NoteChangeHistoryEntry, "id" | "createdAt" | "additions" | "removals">) => {
+      if (entry.beforeContent === entry.afterContent) return;
+      const stats = getLineChangeStats(entry.beforeContent, entry.afterContent);
+      if (stats.additions === 0 && stats.removals === 0) return;
+      const nextEntry: NoteChangeHistoryEntry = {
+        ...entry,
+        ...stats,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        createdAt: Date.now(),
+      };
+      setNoteChangeHistory((current) => [nextEntry, ...current].slice(0, NOTE_CHANGE_HISTORY_LIMIT));
+    },
+    [],
+  );
+
+  const currentNoteChange = useMemo<NoteChangeHistoryEntry | null>(() => {
+    if (!selectedId || isExternal || content === lastSavedContentRef.current) return null;
+    const stats = getLineChangeStats(lastSavedContentRef.current, content);
+    if (stats.additions === 0 && stats.removals === 0) return null;
+    return {
+      id: "current",
+      noteId: selectedId,
+      title,
+      pathLabel: selectedNote?.fileName ?? "本地笔记",
+      beforeContent: lastSavedContentRef.current,
+      afterContent: content,
+      additions: stats.additions,
+      removals: stats.removals,
+      createdAt: Date.now(),
+    };
+  }, [content, isExternal, selectedId, selectedNote?.fileName, title]);
+
+  const selectedNoteChangeHistory = useMemo(
+    () => (selectedId ? noteChangeHistory.filter((entry) => entry.noteId === selectedId) : []),
+    [noteChangeHistory, selectedId],
+  );
 
   const noteMenuTarget = useMemo(
     () => notes.find((note) => note.id === noteMenu?.noteId) ?? null,
@@ -211,6 +278,7 @@ export function MainWindow({
       setSelectedId(note.id);
       setTitle(note.title);
       contentRefValue.current = note.content;
+      lastSavedContentRef.current = note.content;
       setContent(note.content);
       initInkValue(note.content);
       setSaveState("saved");
@@ -580,7 +648,16 @@ export function MainWindow({
     //#endregion
     try {
       const category = selectedNote?.category ?? "";
+      const previousContent = lastSavedContentRef.current;
       const note = await updateNote(selectedId, { title, content: latestContent, category });
+      recordNoteChange({
+        noteId: selectedId,
+        title,
+        pathLabel: note.fileName,
+        beforeContent: previousContent,
+        afterContent: latestContent,
+      });
+      lastSavedContentRef.current = latestContent;
       skipNextNotesChangedRef.current = true;
       replaceNoteMetadata(note);
       saveStateRef.current = "saved";
@@ -596,6 +673,7 @@ export function MainWindow({
   }, [
     isExternal,
     onCurrentNoteChange,
+    recordNoteChange,
     replaceNoteMetadata,
     selectedExternalFile,
     selectedId,
@@ -1006,7 +1084,9 @@ export function MainWindow({
     document.body.style.cursor = "col-resize";
 
     const onMouseMove = (e: globalThis.MouseEvent) => {
-      const newWidth = Math.min(Math.max(e.clientX, 240), 560);
+      const rightInset = settingsConfig && settingsOpen && !settingsOverlay ? 360 : 0;
+      const sidebarRightEdge = window.innerWidth - rightInset;
+      const newWidth = Math.min(Math.max(sidebarRightEdge - e.clientX, 240), 560);
       setSidebarWidth(newWidth);
     };
     const onMouseUp = () => setIsResizingSidebar(false);
@@ -1019,7 +1099,7 @@ export function MainWindow({
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
     };
-  }, [isResizingSidebar]);
+  }, [isResizingSidebar, settingsConfig, settingsOpen, settingsOverlay]);
 
   const handlePinEntry = async () => {
     if (!selectedId) return;
@@ -1047,7 +1127,7 @@ export function MainWindow({
         <BackgroundLayer config={settingsConfig} />
         <div className="relative z-10 flex flex-1 min-h-0">
           <div
-            className="border-r border-paper-deep/30 shrink-0 overflow-hidden transition-[width] duration-[600ms]"
+            className="order-3 border-l border-paper-deep/30 shrink-0 overflow-hidden transition-[width] duration-[600ms]"
             style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}
           >
             <div className="flex flex-col h-full" style={{ width: `${sidebarWidth}px` }}>
@@ -1310,6 +1390,10 @@ export function MainWindow({
                                 draggable
                                 onDragStart={(e) => {
                                   e.dataTransfer.setData("text/plain", note.id);
+                                  e.dataTransfer.setData(
+                                    "application/x-floral-note",
+                                    JSON.stringify({ type: "note", id: note.id, title: note.title || "笔记" }),
+                                  );
                                   e.dataTransfer.effectAllowed = "move";
                                 }}
                                 onClick={() => void handleSelectNote(note.id)}
@@ -1487,6 +1571,10 @@ export function MainWindow({
                                     draggable
                                     onDragStart={(e) => {
                                       e.dataTransfer.setData("text/plain", note.id);
+                                      e.dataTransfer.setData(
+                                        "application/x-floral-note",
+                                        JSON.stringify({ type: "note", id: note.id, title: note.title || "笔记" }),
+                                      );
                                       e.dataTransfer.effectAllowed = "move";
                                     }}
                                     onClick={() => void handleSelectNote(note.id)}
@@ -1562,7 +1650,7 @@ export function MainWindow({
 
           {!sidebarCollapsed && (
             <div
-              className={`w-1 shrink-0 cursor-col-resize group relative ${isResizingSidebar ? "bg-bamboo/30" : "hover:bg-bamboo/20"} transition-colors`}
+              className={`order-2 w-1 shrink-0 cursor-col-resize group relative ${isResizingSidebar ? "bg-bamboo/30" : "hover:bg-bamboo/20"} transition-colors`}
               onMouseDown={(e) => {
                 e.preventDefault();
                 setIsResizingSidebar(true);
@@ -1610,13 +1698,15 @@ export function MainWindow({
             recordCursor={recordCursor}
             recordPaste={recordPaste}
             flushInk={flushInk}
+            currentNoteChange={currentNoteChange}
+            noteChangeHistory={selectedNoteChangeHistory}
           />
           {settingsConfig && settingsOpen && settingsOverlay && (
             <div className="absolute inset-0 z-20" onClick={handleCloseSettings} />
           )}
           {settingsConfig && (
             <div
-              className={`transition-all duration-[600ms] overflow-hidden h-full ${
+              className={`order-4 transition-all duration-[600ms] overflow-hidden h-full ${
                 settingsOverlay
                   ? `absolute right-0 top-0 bottom-0 z-30 ${settingsOpen ? "w-[360px] shadow-xl" : "w-0"}`
                   : `relative shrink-0 ${settingsOpen ? "w-[360px]" : "w-0"}`
