@@ -1,0 +1,18 @@
+{
+  "name": "@soullink-emotion/profile-generator",
+  "version": "0.1.0-beta.1",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "node": "./dist/index.js", "import": "./dist/index.js" }
+  },
+  "sideEffects": false,
+  "browser": false,
+  "peerDependencies": {
+    "@soullink-emotion/engine": "0.1.0-beta.1",
+    "@soullink-emotion/planner-openai": "0.1.0-beta.1"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@soullink-emotion/planner-openai",
+  "version": "0.1.0-beta.1",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "sideEffects": false,
+  "peerDependencies": {
+    "@soullink-emotion/engine": "0.1.0-beta.1"
+  }
+}

@@ -28,6 +28,9 @@ export default defineConfig(async () => ({
       // 'format'"。alias 到基于原生 URL API 的 ESM shim（需配合 optimizeDeps.exclude
       // 使 @pixi/utils 物理加载，alias 才能拦截裸导入）。
       { find: /^url$/, replacement: fileURLToPath(new URL("./shims/url-shim.mjs", import.meta.url)) },
+      // soullink live2d-pixi dist 内用动态 import("pixi-live2d-display/cubism4")，
+      // 但项目实例化为 @naari3/pixi-live2d-display 且其 cubism4 已重命名为 cubism。
+      { find: /^pixi-live2d-display\/cubism4$/, replacement: fileURLToPath(new URL("./node_modules/@naari3/pixi-live2d-display/dist/cubism.es.js", import.meta.url)) },
     ],
   },
   optimizeDeps: {
