@@ -43,8 +43,6 @@ import { CooldownTracker } from "../features/agent/ruleEngine";
 import type { ExternalFile, Note, NoteMetadata } from "../features/notes/types";
 import {
   filterNotes,
-  formatShortDate,
-  formatTime,
   getDisplayTitle,
   groupNotesByCategory,
   metadataFromNote,
@@ -103,7 +101,6 @@ export function MainWindow({
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(initialErrorMessage);
   const [noteMenu, setNoteMenu] = useState<NoteMenuState | null>(null);
@@ -382,7 +379,7 @@ export function MainWindow({
         setViewMode(normalizeViewMode(loadedConfig.defaultViewMode));
         setNotes(loadedNotes);
         setCategories(loadedCategories);
-        setCollapsedCategories(new Set(loadedCategories));
+        setCollapsedCategories(new Set([...loadedCategories, ""]));
         if (loadedNotes[0]) {
           const note = await getNote(loadedNotes[0].id);
           if (!cancelled) applyNote(note, { preserveDirty: true });
@@ -938,7 +935,6 @@ export function MainWindow({
     const y = Math.min(event.clientY, window.innerHeight - menuHeight - 4);
 
     setNoteMenuClosing(false);
-    setHoveredId(noteId);
     setNoteMenu({
       x: Math.max(4, x),
       y: Math.max(4, y),
@@ -1270,200 +1266,102 @@ export function MainWindow({
               )}
 
               <div className="flex-1 overflow-y-auto px-2 pb-3">
-                <div className="space-y-2">
+                <div className="note-tree-root">
                   {externalFiles.length > 0 && (
-                    <>
-                      <div className="px-3 py-1.5 text-[10px] text-ink-ghost/50 font-mono tracking-wider uppercase">
+                    <div className="note-tree-section">
+                      <div className="note-tree-section-label">
                         {t("main.externalFiles.title", { defaultValue: "外部文件" })}
                       </div>
                       {externalFiles.map((file) => {
                         const isSelected = file.id === selectedId;
-                        const isHovered = file.id === hoveredId;
 
                         return (
-                          <button
+                          <div
                             key={file.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => void handleSelectExternalFile(file.id)}
-                            onMouseEnter={() => setHoveredId(file.id)}
-                            onMouseLeave={() => setHoveredId(null)}
-                            className={`w-full text-left rounded-2xl px-3.5 py-4 transition-all duration-[600ms] cursor-pointer group relative shadow-[0_10px_30px_rgba(0,0,0,0.03)] ${
-                              isSelected
-                                ? "bg-bamboo-mist/70"
-                                : isHovered
-                                  ? "bg-paper-warm/70"
-                                  : "bg-transparent"
-                            }`}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") void handleSelectExternalFile(file.id);
+                            }}
+                            className={`note-tree-file-row ${isSelected ? "is-selected" : ""}`}
                           >
-                            <div
-                              className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-bamboo/60 transition-all duration-[600ms] ${
-                                isSelected ? "h-5 opacity-100" : "h-0 opacity-0"
-                              }`}
-                            />
-
-                            <div className="flex items-baseline justify-between mb-0.5">
-                              <span
-                                className={`text-[13px] font-display font-medium truncate pr-2 transition-colors flex items-center gap-1.5 ${
-                                  isSelected ? "text-bamboo" : "text-ink-soft"
-                                }`}
-                              >
-                                <svg
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  className="shrink-0 opacity-60"
-                                >
-                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                  <polyline points="14 2 14 8 20 8" />
-                                </svg>
-                                {file.title}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveExternalFile(file.id);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 text-ink-ghost hover:text-red-400 transition-all p-0.5"
-                                title={t("main.externalFiles.remove", {
-                                  defaultValue: "从列表移除",
-                                })}
-                              >
-                                <svg
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                >
-                                  <line x1="18" y1="6" x2="6" y2="18" />
-                                  <line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                              </button>
-                            </div>
-
-                            <p className="text-[11px] text-ink-ghost leading-relaxed line-clamp-2 group-hover:text-ink-faint transition-colors pl-[18px]">
-                              {file.filePath}
-                            </p>
-                          </button>
+                            <span className="note-tree-indent" aria-hidden="true" />
+                            <svg
+                              className="note-tree-icon note-tree-file-icon"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <path d="M14 2v6h6" />
+                            </svg>
+                            <span className="note-tree-name">{file.title}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveExternalFile(file.id);
+                              }}
+                              className="note-tree-inline-action"
+                              title={t("main.externalFiles.remove", { defaultValue: "从列表移除" })}
+                            >
+                              ×
+                            </button>
+                          </div>
                         );
                       })}
-                    </>
+                    </div>
                   )}
 
                   {categoryGroups.map((group: CategoryGroup) => {
-                    if (!group.category) {
-                      return (
-                        <div
-                          key="__uncategorized__"
-                          className={`rounded-lg transition-all duration-200 ${
-                            dragOverCategory === "" ? "bg-bamboo/10 ring-1 ring-bamboo/20" : ""
-                          }`}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            setDragOverCategory("");
-                          }}
-                          onDragLeave={(e) => {
-                            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                              setDragOverCategory(null);
-                            }
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            setDragOverCategory(null);
-                            const noteId = e.dataTransfer.getData("text/plain");
-                            if (noteId) void handleMoveNote(noteId, "");
-                          }}
-                        >
-                          {group.notes.map((note) => {
-                            const isSelected = note.id === selectedId;
-                            const isHovered = note.id === hoveredId;
-                            return (
-                              <div
-                                key={note.id}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.setData("text/plain", note.id);
-                                  e.dataTransfer.setData(
-                                    "application/x-floral-note",
-                                    JSON.stringify({ type: "note", id: note.id, title: note.title || "笔记" }),
-                                  );
-                                  e.dataTransfer.effectAllowed = "move";
-                                }}
-                                onClick={() => void handleSelectNote(note.id)}
-                                onContextMenu={(event) => handleOpenNoteMenu(event, note.id)}
-                                onMouseEnter={() => setHoveredId(note.id)}
-                                onMouseLeave={() => setHoveredId(null)}
-                                className={`w-full text-left rounded-xl px-3 py-2.5 transition-all duration-[600ms] cursor-pointer group relative ${
-                                  isSelected
-                                    ? "bg-bamboo-mist/70"
-                                    : isHovered
-                                      ? "bg-paper-warm/70"
-                                      : "bg-transparent"
-                                }`}
-                              >
-                                <div
-                                  className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-bamboo/60 transition-all duration-[600ms] ${
-                                    isSelected ? "h-5 opacity-100" : "h-0 opacity-0"
-                                  }`}
-                                />
-                                <div className="flex items-baseline justify-between mb-0.5">
-                                  <span
-                                    className={`text-[13px] font-display font-medium truncate pr-2 transition-colors ${
-                                      isSelected ? "text-bamboo" : "text-ink-soft"
-                                    }`}
-                                  >
-                                    {getDisplayTitle(note, t)}
-                                  </span>
-                                  <span className="text-[10px] text-ink-ghost font-mono tabular-nums shrink-0">
-                                    {formatShortDate(note.updatedAt)}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-ink-ghost leading-relaxed line-clamp-2 group-hover:text-ink-faint transition-colors">
-                                  {note.preview ||
-                                    t("common.blankNote", { defaultValue: "空白笔记" })}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[10px] text-ink-ghost/60 font-mono tabular-nums">
-                                    {formatTime(note.updatedAt)}
-                                  </span>
-                                  <span className="text-[10px] text-ink-ghost/40">·</span>
-                                  <span className="text-[10px] text-ink-ghost/60 font-mono tabular-nums">
-                                    {t("common.wordCount", {
-                                      count: note.wordCount,
-                                      defaultValue: "{{count}} 字",
-                                    })}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    }
-
+                    const displayCategory = group.category || t("main.category.uncategorized", { defaultValue: "未分类" });
                     const isCollapsed = collapsedCategories.has(group.category);
+                    const isDropTarget = dragOverCategory === group.category;
 
                     return (
-                      <div key={group.category} className="px-2 mb-px">
+                      <div
+                        key={group.category || "__uncategorized__"}
+                        className={`note-tree-folder ${isDropTarget ? "is-drop-target" : ""}`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          setDragOverCategory(group.category);
+                        }}
+                        onDragLeave={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                            setDragOverCategory(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOverCategory(null);
+                          const noteId = e.dataTransfer.getData("text/plain");
+                          if (noteId) void handleMoveNote(noteId, group.category);
+                        }}
+                      >
                         <div
-                          className={`flex items-center gap-2 px-3 py-2 rounded-xl group/cat cursor-pointer select-none transition-all duration-200 ${
-                            dragOverCategory === group.category
-                              ? "bg-bamboo/10 ring-1 ring-bamboo/20"
-                              : isCollapsed
-                                ? "bg-paper-warm/70"
-                                : "bg-paper-warm/80 rounded-b-none"
-                          }`}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={!isCollapsed}
+                          className="note-tree-folder-row"
                           onClick={() => toggleCategoryCollapse(group.category)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              toggleCategoryCollapse(group.category);
+                            }
+                          }}
                           onContextMenu={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            if (!group.category) return;
                             setCategoryMenu({
                               x: e.clientX,
                               y: e.clientY,
@@ -1472,46 +1370,36 @@ export function MainWindow({
                             setCategoryMenuClosing(false);
                             setCategoryMenuConfirmDelete(false);
                           }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            setDragOverCategory(group.category);
-                          }}
-                          onDragLeave={() => setDragOverCategory(null)}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            setDragOverCategory(null);
-                            const noteId = e.dataTransfer.getData("text/plain");
-                            if (noteId) void handleMoveNote(noteId, group.category);
-                          }}
                         >
                           <svg
-                            width="10"
-                            height="10"
+                            className={`note-tree-chevron ${isCollapsed ? "" : "is-open"}`}
+                            width="13"
+                            height="13"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="2.5"
+                            strokeWidth="2.2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className={`text-ink-ghost shrink-0 transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}
+                            aria-hidden="true"
                           >
-                            <polyline points="9 18 15 12 9 6" />
+                            <path d="m9 18 6-6-6-6" />
                           </svg>
                           <svg
-                            width="12"
-                            height="12"
+                            className="note-tree-icon note-tree-folder-icon"
+                            width="15"
+                            height="15"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="2"
+                            strokeWidth="1.8"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className="text-ink-ghost shrink-0"
+                            aria-hidden="true"
                           >
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                            <path d="M3 6.8A1.8 1.8 0 0 1 4.8 5h4.35l1.7 2H19.2A1.8 1.8 0 0 1 21 8.8v8.4a1.8 1.8 0 0 1-1.8 1.8H4.8A1.8 1.8 0 0 1 3 17.2Z" />
                           </svg>
-                          {renamingCategory === group.category ? (
+                          {renamingCategory === group.category && group.category ? (
                             <input
                               type="text"
                               autoFocus
@@ -1524,50 +1412,29 @@ export function MainWindow({
                               }}
                               onBlur={() => void handleRenameCategory(group.category)}
                               onClick={(e) => e.stopPropagation()}
-                              className="flex-1 min-w-0 px-1 text-[10px] font-mono text-ink bg-paper-warm/80 border border-bamboo/30 rounded"
+                              className="note-tree-rename-input"
                             />
                           ) : (
-                            <span className="text-[11px] text-ink-soft font-semibold truncate tracking-[0.01em]">
-                              {group.category}
-                            </span>
+                            <span className="note-tree-name note-tree-folder-name">{displayCategory}</span>
                           )}
-                          <span className="text-[9px] text-ink-ghost/60 font-mono ml-auto shrink-0 px-1.5 py-0.5 rounded-full bg-paper/45">
-                            {group.notes.length}
-                          </span>
+                          <span className="note-tree-count">{group.notes.length}</span>
                         </div>
 
-                        <div className={`category-body ${isCollapsed ? "" : "expanded"}`}>
-                          <div
-                            className="category-body-inner bg-paper/30 border border-t-0 border-paper-deep/20 rounded-b-xl pb-2 pt-1.5"
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              e.dataTransfer.dropEffect = "move";
-                              setDragOverCategory(group.category);
-                            }}
-                            onDragLeave={(e) => {
-                              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                                setDragOverCategory(null);
-                              }
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              setDragOverCategory(null);
-                              const noteId = e.dataTransfer.getData("text/plain");
-                              if (noteId) void handleMoveNote(noteId, group.category);
-                            }}
-                          >
+                        {!isCollapsed && (
+                          <div className="note-tree-children">
                             {group.notes.length === 0 ? (
-                              <div className="px-3 py-3 text-center text-[11px] text-ink-ghost/50">
+                              <div className="note-tree-empty">
                                 {t("main.category.emptyFolder", { defaultValue: "空文件夹" })}
                               </div>
                             ) : (
                               group.notes.map((note) => {
                                 const isSelected = note.id === selectedId;
-                                const isHovered = note.id === hoveredId;
 
                                 return (
                                   <div
                                     key={note.id}
+                                    role="button"
+                                    tabIndex={0}
                                     draggable
                                     onDragStart={(e) => {
                                       e.dataTransfer.setData("text/plain", note.id);
@@ -1578,60 +1445,37 @@ export function MainWindow({
                                       e.dataTransfer.effectAllowed = "move";
                                     }}
                                     onClick={() => void handleSelectNote(note.id)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") void handleSelectNote(note.id);
+                                    }}
                                     onContextMenu={(event) => handleOpenNoteMenu(event, note.id)}
-                                    onMouseEnter={() => setHoveredId(note.id)}
-                                    onMouseLeave={() => setHoveredId(null)}
-                                    className={`w-full text-left rounded-xl mx-1.5 px-3 py-3 transition-all duration-[600ms] cursor-pointer group relative ${
-                                      isSelected
-                                        ? "bg-bamboo-mist/70"
-                                        : isHovered
-                                          ? "bg-paper-warm/70"
-                                          : "bg-transparent"
-                                    }`}
-                                    style={{ width: "calc(100% - 8px)" }}
+                                    className={`note-tree-file-row ${isSelected ? "is-selected" : ""}`}
                                   >
-                                    <div
-                                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-bamboo/60 transition-all duration-[600ms] ${
-                                        isSelected ? "h-5 opacity-100" : "h-0 opacity-0"
-                                      }`}
-                                    />
-
-                                    <div className="flex items-baseline justify-between mb-0.5">
-                                      <span
-                                        className={`text-[13px] font-display font-medium truncate pr-2 transition-colors ${
-                                          isSelected ? "text-bamboo" : "text-ink-soft"
-                                        }`}
-                                      >
-                                        {getDisplayTitle(note, t)}
-                                      </span>
-                                      <span className="text-[10px] text-ink-ghost font-mono tabular-nums shrink-0">
-                                        {formatShortDate(note.updatedAt)}
-                                      </span>
-                                    </div>
-
-                                    <p className="text-[11px] text-ink-ghost leading-relaxed line-clamp-2 group-hover:text-ink-faint transition-colors">
-                                      {note.preview ||
-                                        t("common.blankNote", { defaultValue: "空白笔记" })}
-                                    </p>
-
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[10px] text-ink-ghost/60 font-mono tabular-nums">
-                                        {formatTime(note.updatedAt)}
-                                      </span>
-                                      <span className="text-[10px] text-ink-ghost/40">·</span>
-                                      <span className="text-[10px] text-ink-ghost/60 font-mono tabular-nums">
-                                        {t("common.wordCount", {
-                                          count: note.wordCount,
-                                          defaultValue: "{{count}} 字",
-                                        })}
-                                      </span>
-                                    </div>
+                                    <span className="note-tree-indent" aria-hidden="true" />
+                                    <svg
+                                      className="note-tree-icon note-tree-file-icon"
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1.8"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <path d="M14 2v6h6" />
+                                      <path d="M8 13h8" />
+                                      <path d="M8 17h5" />
+                                    </svg>
+                                    <span className="note-tree-name">{getDisplayTitle(note, t)}</span>
                                   </div>
                                 );
                               })
                             )}
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}

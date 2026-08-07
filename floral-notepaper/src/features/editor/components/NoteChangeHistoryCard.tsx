@@ -16,10 +16,9 @@ export interface NoteChangeHistoryEntry {
 interface NoteChangeHistoryPageProps {
   currentChange: NoteChangeHistoryEntry | null;
   history: NoteChangeHistoryEntry[];
-  onBack: () => void;
 }
 
-export function NoteChangeHistoryPage({ currentChange, history, onBack }: NoteChangeHistoryPageProps) {
+export function NoteChangeHistoryPage({ currentChange, history }: NoteChangeHistoryPageProps) {
   const [selectedId, setSelectedId] = useState("current");
   const entries = useMemo(
     () => (currentChange ? [{ ...currentChange, id: "current" }, ...history] : history),
@@ -31,17 +30,6 @@ export function NoteChangeHistoryPage({ currentChange, history, onBack }: NoteCh
     <div className="flex min-h-0 flex-1 flex-col bg-[#171817] text-[#e6dfd5]">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/8 px-4">
         <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex h-7 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 text-[11px] text-[#d8d1c7] transition-colors hover:bg-white/10"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5" />
-              <path d="m12 19-7-7 7-7" />
-            </svg>
-            返回编辑
-          </button>
           <div className="min-w-0">
             <div className="truncate text-[13px] font-semibold">历史更改</div>
             <div className="truncate text-[10px] text-[#8b857d]">

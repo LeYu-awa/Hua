@@ -1,0 +1,206 @@
+/* ── Single Markdown Editing Skin ── */
+.markdown-editor-highlight-shell {
+  --mde-muted: color-mix(in srgb, var(--color-ink-ghost) 72%, var(--color-paper) 28%);
+  --mde-marker: color-mix(in srgb, var(--color-bamboo) 72%, var(--color-ink) 28%);
+  --mde-link: #5f91b8;
+  --mde-list: #b78a58;
+  --mde-code-bg: rgba(127, 127, 127, 0.055);
+  --mde-code-keyword: #6f8f72;
+  --mde-code-string: #6f9a74;
+  --mde-code-number: #a97b46;
+  --mde-code-type: #5f92a4;
+  --mde-code-comment: color-mix(in srgb, var(--color-ink-ghost) 78%, var(--color-paper) 22%);
+  --mde-code-punctuation: color-mix(in srgb, var(--color-ink-ghost) 68%, var(--color-paper) 32%);
+  --mde-inline-code: #c27d61;
+  --mde-html: #c98a86;
+  --mde-rule: color-mix(in srgb, var(--color-paper-deep) 86%, var(--color-ink-ghost) 14%);
+}
+
+:root[data-theme="dark"] .markdown-editor-highlight-shell {
+  --mde-muted: #5f6762;
+  --mde-marker: #8fbf9b;
+  --mde-link: #7eaac8;
+  --mde-list: #c2a06d;
+  --mde-code-bg: rgba(255, 255, 255, 0.035);
+  --mde-code-keyword: #8fa883;
+  --mde-code-string: #8fb98c;
+  --mde-code-number: #c2a06d;
+  --mde-code-type: #7fa8b5;
+  --mde-code-comment: #626b65;
+  --mde-code-punctuation: #747b76;
+  --mde-inline-code: #cf9374;
+  --mde-html: #ca9390;
+  --mde-rule: rgba(255, 255, 255, 0.16);
+}
+
+.markdown-editor-highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 1.25rem;
+  z-index: 20;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: calc(100% - 2.5rem);
+  min-height: calc(100% - 1rem);
+  overflow: visible;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  color: transparent;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-ligatures: none;
+  letter-spacing: normal;
+  line-height: 1.9;
+  will-change: transform, width;
+  contain: layout paint style;
+}
+
+.markdown-editor-input {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  resize: none;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  scrollbar-gutter: auto;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-ligatures: none;
+  letter-spacing: normal;
+  line-height: 1.9;
+  contain: layout paint;
+}
+
+.markdown-editor-input::selection {
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-bamboo) 24%, transparent);
+}
+
+.markdown-editor-input::-moz-selection {
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-bamboo) 24%, transparent);
+}
+
+.mde-line {
+  min-height: 1.9em;
+}
+
+.mde-heading-line {
+  color: transparent;
+  font-weight: inherit;
+}
+
+.mde-heading-1,
+.mde-heading-2 {
+  font-size: inherit;
+}
+
+.mde-syntax-marker,
+.mde-heading-marker,
+.mde-fence-marker,
+.mde-list-marker,
+.mde-quote-marker,
+.mde-table-pipe {
+  color: var(--mde-marker);
+  font-weight: inherit;
+}
+
+.mde-list-marker {
+  color: var(--mde-list);
+}
+
+.mde-quote-line {
+  color: transparent;
+  font-style: normal;
+}
+
+.mde-hr-line {
+  color: var(--mde-rule);
+}
+
+.mde-fence-language {
+  color: transparent;
+}
+
+.mde-fence-marker {
+  color: color-mix(in srgb, var(--mde-marker) 86%, var(--mde-inline-code) 14%);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--mde-marker) 24%, transparent);
+}
+
+.mde-fence-line,
+.mde-code-line {
+  background: transparent;
+  box-shadow: none;
+}
+
+.mde-inline-marker {
+  color: var(--mde-inline-code);
+  font-weight: inherit;
+}
+
+.mde-inline-code-text,
+.mde-link-text,
+.mde-strong-text,
+.mde-emphasis-text,
+.mde-math-text,
+.mde-delete-text,
+.mde-code-identifier {
+  color: transparent;
+}
+
+.mde-delete-text {
+  text-decoration: line-through;
+}
+
+.mde-link-url {
+  color: var(--mde-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, var(--mde-link), transparent 52%);
+}
+
+.mde-html {
+  color: var(--mde-html);
+}
+
+.mde-code-keyword {
+  color: var(--mde-code-keyword);
+  font-weight: inherit;
+}
+
+.mde-code-string {
+  color: var(--mde-code-string);
+}
+
+.mde-code-number {
+  color: var(--mde-code-number);
+}
+
+.mde-code-comment,
+.mde-code-comment-text {
+  color: transparent;
+  font-style: normal;
+}
+
+.mde-code-comment-marker {
+  color: var(--mde-code-comment);
+  font-style: normal;
+}
+
+.mde-code-type {
+  color: var(--mde-code-type);
+  font-weight: inherit;
+}
+
+.mde-code-punctuation {
+  color: var(--mde-code-punctuation);
+}

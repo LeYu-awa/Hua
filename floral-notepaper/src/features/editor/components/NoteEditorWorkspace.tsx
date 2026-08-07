@@ -8,10 +8,12 @@ import {
   runEditorCommand,
   type FormatAction,
 } from "../commands/markdownCommands";
+import { callChatCompletion } from "../../cowrite/coWriteAI";
 import { cleanUnusedImages } from "../../images/api";
 import { useImageBaseDir } from "../../images/useImageBaseDir";
 import { useImagePaste } from "../../images/useImagePaste";
 import { MarkdownPreview } from "../../markdown/MarkdownPreview";
+import { MarkdownEditorHighlight } from "./MarkdownEditorHighlight";
 import { getErrorMessage } from "../../notes/api";
 import { countNoteChars, formatShortDate, formatTime } from "../../notes/noteUtils";
 import type { ExternalFile, NoteMetadata } from "../../notes/types";
@@ -123,8 +125,15 @@ export function NoteEditorWorkspace({
   const [textColorPaletteOpen, setTextColorPaletteOpen] = useState(false);
   const [highlightPaletteOpen, setHighlightPaletteOpen] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.5);
+  const [editorFontSize, setEditorFontSize] = useState(() => settingsConfig?.fontSize ?? 14);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const [splitScrollLocked, setSplitScrollLocked] = useState(true);
+  const [isFormattingMarkdown, setIsFormattingMarkdown] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  const editorHighlightRef = useRef<HTMLPreElement>(null);
+  const editorHighlightScrollFrameRef = useRef<number | null>(null);
+  const isSyncingScrollRef = useRef(false);
   const colorPaletteRef = useRef<HTMLDivElement>(null);
   const selectionRangeRef = useRef<{ start: number; end: number } | null>(null);
   const imageBaseDir = useImageBaseDir();
@@ -368,6 +377,124 @@ export function NoteEditorWorkspace({
     setHighlightPaletteOpen((prev) => !prev);
   }, [syncSelectedTextRange]);
 
+  const syncEditorHighlightLayout = useCallback(() => {
+    const textarea = contentRef.current;
+    const highlight = editorHighlightRef.current;
+    if (!textarea || !highlight) return;
+
+    highlight.style.width = `${textarea.clientWidth}px`;
+    highlight.style.minHeight = `${textarea.scrollHeight}px`;
+    highlight.style.fontSize = `${editorFontSize}px`;
+    highlight.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
+  }, [contentRef, editorFontSize]);
+
+  const scheduleEditorHighlightSync = useCallback(() => {
+    if (editorHighlightScrollFrameRef.current !== null) {
+      cancelAnimationFrame(editorHighlightScrollFrameRef.current);
+    }
+    editorHighlightScrollFrameRef.current = requestAnimationFrame(() => {
+      editorHighlightScrollFrameRef.current = null;
+      syncEditorHighlightLayout();
+    });
+  }, [syncEditorHighlightLayout]);
+
+  const syncSplitScroll = useCallback(
+    (source: "editor" | "preview") => {
+      if (!splitScrollLocked || viewMode !== "split" || isSyncingScrollRef.current) return;
+      const editor = contentRef.current;
+      const preview = previewScrollRef.current;
+      if (!editor || !preview) return;
+
+      const sourceElement = source === "editor" ? editor : preview;
+      const targetElement = source === "editor" ? preview : editor;
+      const sourceScrollable = sourceElement.scrollHeight - sourceElement.clientHeight;
+      const targetScrollable = targetElement.scrollHeight - targetElement.clientHeight;
+      if (sourceScrollable <= 0 || targetScrollable <= 0) return;
+
+      isSyncingScrollRef.current = true;
+      targetElement.scrollTop = (sourceElement.scrollTop / sourceScrollable) * targetScrollable;
+      requestAnimationFrame(() => {
+        isSyncingScrollRef.current = false;
+      });
+    },
+    [contentRef, splitScrollLocked, viewMode],
+  );
+
+  const handleLazyMarkdownFormat = useCallback(async () => {
+    if (!selectedId || isExternal || isFormattingMarkdown) return;
+    if (!settingsConfig?.providers?.length) {
+      setErrorMessage("请先在设置中配置可用的 AI 模型");
+      return;
+    }
+
+    const source = contentRefValue.current.trim();
+    if (!source) {
+      setErrorMessage("当前笔记为空，无法排版");
+      return;
+    }
+
+    setIsFormattingMarkdown(true);
+    setErrorMessage("正在一键排版当前笔记...");
+    try {
+      const markdown = await callChatCompletion(
+        settingsConfig.providers,
+        [
+          {
+            role: "system",
+            content:
+              "你是专业 Markdown 排版助手。用户给你的内容已经是当前笔记正文，可能没有规范使用 Markdown。你的任务是只做结构化排版：完整保留原文所有信息、顺序、层级关系、专有名词、数字、代码和链接；不要总结、删减、扩写或改写事实；不要编造内容；按语义补充合适的标题、列表、引用、代码围栏、表格、分割线和加粗。只输出排版后的 Markdown 正文，不要解释。",
+          },
+          {
+            role: "user",
+            content: `请把下面这篇当前笔记一键排版为规范 Markdown，必须完整保留所有内容信息：\n\n${source}`,
+          },
+        ],
+        0.15,
+        5000,
+      );
+      const nextContent =
+        markdown.replace(/^```(?:markdown|md)?\s*/i, "").replace(/```$/i, "").trim() ||
+        source;
+
+      contentRefValue.current = nextContent;
+      saveStateRef.current = "dirty";
+      setContent(nextContent);
+      setSaveState("dirty");
+      markDirty();
+      setLastActivityAt(Date.now());
+      setErrorMessage("当前笔记已完成 Markdown 排版");
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsFormattingMarkdown(false);
+    }
+  }, [
+    contentRefValue,
+    isExternal,
+    isFormattingMarkdown,
+    markDirty,
+    saveStateRef,
+    selectedId,
+    setContent,
+    setErrorMessage,
+    setLastActivityAt,
+    setSaveState,
+    settingsConfig?.providers,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (editorHighlightScrollFrameRef.current !== null) {
+        cancelAnimationFrame(editorHighlightScrollFrameRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setEditorFontSize(settingsConfig?.fontSize ?? 14);
+  }, [settingsConfig?.fontSize]);
+
   useEffect(() => {
     if (!selectedId) {
       selectionRangeRef.current = null;
@@ -375,6 +502,7 @@ export function NoteEditorWorkspace({
       setTextColorPaletteOpen(false);
       setHighlightPaletteOpen(false);
       setHistoryOpen(false);
+      setIsFormattingMarkdown(false);
     }
   }, [selectedId]);
 
@@ -420,33 +548,7 @@ export function NoteEditorWorkspace({
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-paper-deep/20 bg-paper/20 px-3 py-1">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-          <button
-            onClick={onToggleSidebar}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
-            title={
-              sidebarCollapsed
-                ? t("main.window.expandSidebar", { defaultValue: "展开右侧笔记栏" })
-                : t("main.window.collapseSidebar", { defaultValue: "收起右侧笔记栏" })
-            }
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="15" y1="3" x2="15" y2="21" />
-            </svg>
-          </button>
-
-          <div className="h-4 w-px bg-paper-deep/30 mx-1" />
-
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 justify-end">
           <button
             onClick={onPinEntry}
             disabled={!selectedId}
@@ -534,10 +636,22 @@ export function NoteEditorWorkspace({
           </button>
 
           <button
-            onClick={() => setHistoryOpen(true)}
-            disabled={!selectedId || !hasHistoryChanges}
+            type="button"
+            onClick={() => void handleLazyMarkdownFormat()}
+            disabled={!selectedId || isExternal || isFormattingMarkdown}
             className="px-2.5 h-7 flex items-center justify-center rounded-lg text-[11px] text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-            title={hasHistoryChanges ? "查看当前笔记历史更改" : "当前笔记暂无历史更改"}
+            title="懒人一键排版当前笔记为规范 Markdown"
+          >
+            {isFormattingMarkdown ? "排版中" : "一键排版"}
+          </button>
+
+          <button
+            onClick={() => setHistoryOpen((prev) => !prev)}
+            disabled={!selectedId}
+            className={`px-2.5 h-7 flex items-center justify-center rounded-lg text-[11px] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+              historyOpen ? "text-bamboo" : "text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50"
+            }`}
+            title={historyOpen ? "关闭历史变更" : hasHistoryChanges ? "查看当前笔记历史更改" : "暂无历史更改，点击查看所在位置"}
           >
             历史变更
           </button>
@@ -662,13 +776,51 @@ export function NoteEditorWorkspace({
               <path d="M8 10h.01M12 10h.01M16 10h.01" />
             </svg>
           </button>
-          <div className="h-4 w-px bg-paper-deep/30 mx-0.5" />
+          <div className="h-4 w-px bg-paper-deep/15 mx-0.5" />
           <SlidingButtonGroup
             options={viewModeOptions}
             value={viewMode}
             onChange={onViewModeChange}
             buttonClassName="px-2.5 py-1 whitespace-nowrap"
           />
+          {viewMode === "split" && (
+            <button
+              type="button"
+              onClick={() => setSplitScrollLocked((prev) => !prev)}
+              className={`px-2.5 h-7 rounded-lg text-[11px] transition-all cursor-pointer ${
+                splitScrollLocked
+                  ? "text-bamboo bg-bamboo-mist/30"
+                  : "text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50"
+              }`}
+              title={splitScrollLocked ? "锁定滚动：双栏同步对齐" : "解锁滚动：双栏独立滑动"}
+            >
+              {splitScrollLocked ? "同步锁定" : "独立滚动"}
+            </button>
+          )}
+          <div className="h-4 w-px bg-paper-deep/15 mx-0.5" />
+          <button
+            onClick={onToggleSidebar}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
+            title={
+              sidebarCollapsed
+                ? t("main.window.expandSidebar", { defaultValue: "展开右侧笔记栏" })
+                : t("main.window.collapseSidebar", { defaultValue: "收起右侧笔记栏" })
+            }
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="15" y1="3" x2="15" y2="21" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -676,7 +828,6 @@ export function NoteEditorWorkspace({
         <NoteChangeHistoryPage
           currentChange={currentNoteChange}
           history={noteChangeHistory}
-          onBack={() => setHistoryOpen(false)}
         />
       ) : (
         <>
@@ -905,7 +1056,12 @@ export function NoteEditorWorkspace({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden px-5 pb-4 relative">
+                <div className="flex-1 overflow-hidden px-5 pb-4 relative markdown-editor-highlight-shell">
+                  <MarkdownEditorHighlight
+                    ref={editorHighlightRef}
+                    content={content}
+                    fontSize={editorFontSize}
+                  />
                   <textarea
                     ref={contentRef}
                     data-tab-indent="true"
@@ -971,9 +1127,22 @@ export function NoteEditorWorkspace({
                     }}
                     onDrop={imageDropHandler}
                     onDragOver={imageDragOverHandler}
-                    className="relative w-full h-full leading-[1.9] text-ink-soft caret-bamboo font-body placeholder:text-ink-ghost/40 bg-transparent selection:bg-bamboo/30"
+                    onScroll={() => {
+                      scheduleEditorHighlightSync();
+                      syncSplitScroll("editor");
+                    }}
+                    onWheel={(event) => {
+                      if (!event.ctrlKey) return;
+                      event.preventDefault();
+                      setEditorFontSize((current) => {
+                        const delta = event.deltaY < 0 ? 1 : -1;
+                        return Math.min(28, Math.max(10, current + delta));
+                      });
+                      scheduleEditorHighlightSync();
+                    }}
+                    className="relative z-10 w-full h-full leading-[1.9] text-ink caret-bamboo font-mono placeholder:text-ink-ghost/40 bg-transparent selection:bg-bamboo/30 markdown-editor-input"
                     style={{
-                      fontSize: `${settingsConfig?.fontSize ?? 14}px`,
+                      fontSize: `${editorFontSize}px`,
                       tabSize: `var(--tab-indent-size, 2)`,
                     }}
                     placeholder={t("main.editor.contentPlaceholder", {
@@ -1022,13 +1191,15 @@ export function NoteEditorWorkspace({
                   </div>
                 )}
                 <div
+                  ref={previewScrollRef}
+                  onScroll={() => syncSplitScroll("preview")}
                   className={`flex-1 overflow-y-auto px-6 pb-6 ${
                     viewMode === "preview" ? "pt-3" : "pt-1"
                   }`}
                 >
                   <MarkdownPreview
                     content={content}
-                    fontSize={settingsConfig?.fontSize ?? 14}
+                    fontSize={editorFontSize}
                     renderHtml={true}
                     imageBaseDir={imageBaseDir ?? undefined}
                   />

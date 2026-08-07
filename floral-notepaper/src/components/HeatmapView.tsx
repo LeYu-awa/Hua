@@ -255,7 +255,7 @@ export function HeatmapView({
             transform: "translateX(-50%)",
           }}
         >
-          <div className="bg-cloud border border-paper-deep rounded-lg px-2.5 py-1.5 shadow-[0_8px_18px_rgba(0,0,0,0.12)]">
+          <div className="bg-cloud border border-paper-deep/50 rounded-lg px-2.5 py-1.5">
             {tooltip.count > 0 ? (
               <>
                 <span className="text-[11px] font-semibold text-ink">{tooltip.count} 次记录</span>

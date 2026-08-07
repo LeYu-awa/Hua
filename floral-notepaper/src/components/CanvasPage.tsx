@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { CanvasDocument, CanvasNode, CanvasNodeType } from "../features/canvas/types";
 import { getCanvasDocument, saveCanvasDocument } from "../features/canvas/api";
@@ -24,6 +24,95 @@ const NODE_DEFAULTS: Record<CanvasNodeType, { width: number; height: number }> =
   text: { width: 200, height: 80 },
   card: { width: 240, height: 120 },
 };
+
+function CanvasActionIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+function PlusTextIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M8 3.5v9" />
+      <path d="M3.5 8h9" />
+      <path d="M11.5 3.2h1.3v1.3" opacity="0.45" />
+    </CanvasActionIcon>
+  );
+}
+
+function CardIcon() {
+  return (
+    <CanvasActionIcon>
+      <rect x="2.4" y="3.2" width="11.2" height="9.6" rx="2" />
+      <path d="M4.7 6.2h6.6" />
+      <path d="M4.7 9h4.8" opacity="0.62" />
+    </CanvasActionIcon>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M3 2.8h8.2L13 4.6v8.6H3z" />
+      <path d="M5.1 2.9v3.4h5.4" opacity="0.65" />
+      <path d="M5.5 10.5h5" />
+    </CanvasActionIcon>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M8 1.9 9.2 5.6 13 6.8 9.2 8 8 11.8 6.8 8 3 6.8l3.8-1.2Z" />
+      <path d="M12.4 10.8v2.4" opacity="0.55" />
+      <path d="M11.2 12h2.4" opacity="0.55" />
+    </CanvasActionIcon>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M6.8 5.2 5.7 4.1a2.4 2.4 0 0 0-3.4 3.4l1.3 1.3a2.4 2.4 0 0 0 3.4 0" />
+      <path d="M9.2 10.8 10.3 12a2.4 2.4 0 0 0 3.4-3.4l-1.3-1.3a2.4 2.4 0 0 0-3.4 0" />
+      <path d="M6.5 9.5 9.5 6.5" />
+    </CanvasActionIcon>
+  );
+}
+
+function GapIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M3 5.2h4.2v5.6H3z" />
+      <path d="M8.8 5.2H13" />
+      <path d="M8.8 8H13" opacity="0.65" />
+      <path d="M8.8 10.8h2.8" opacity="0.45" />
+    </CanvasActionIcon>
+  );
+}
+
+function DiscussionIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M4.4 11.2a4.5 4.5 0 1 1 2.1 1.1L3.4 13.5Z" />
+      <path d="M7.1 7.8h.1" />
+      <path d="M9.2 7.8h.1" />
+      <path d="M11.3 7.8h.1" />
+    </CanvasActionIcon>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="m4.5 4.5 7 7" />
+      <path d="m11.5 4.5-7 7" />
+    </CanvasActionIcon>
+  );
+}
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -250,49 +339,54 @@ export function CanvasPage({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-paper relative overflow-hidden">
+    <div className="canvas-home-surface flex-1 flex flex-col min-h-0 relative overflow-hidden">
       {/* 工具栏 */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl bg-paper/90 backdrop-blur-sm border border-paper-deep/20 shadow-sm">
+      <div className="canvas-toolbar-pro absolute top-4 left-4 z-10 flex items-center gap-2">
         <button
           type="button"
           onClick={() => addNode("text")}
-          className="px-3 py-1.5 text-[12px] text-ink-soft bg-paper-warm/60 hover:bg-paper-warm rounded-lg transition-colors cursor-pointer"
+          className="canvas-control-button canvas-button-secondary"
         >
-          {t("canvas.addText", { defaultValue: "+ 文本" })}
+          <PlusTextIcon />
+          {t("canvas.addText", { defaultValue: "文本" })}
         </button>
         <button
           type="button"
           onClick={() => addNode("card")}
-          className="px-3 py-1.5 text-[12px] text-ink-soft bg-paper-warm/60 hover:bg-paper-warm rounded-lg transition-colors cursor-pointer"
+          className="canvas-control-button canvas-button-secondary"
         >
-          {t("canvas.addCard", { defaultValue: "+ 卡片" })}
+          <CardIcon />
+          {t("canvas.addCard", { defaultValue: "卡片" })}
         </button>
         <button
           type="button"
           onClick={handleSave}
-          className="px-3 py-1.5 text-[12px] text-cloud bg-bamboo hover:bg-bamboo-light rounded-lg transition-colors cursor-pointer"
+          className="canvas-control-button canvas-button-primary"
         >
+          <SaveIcon />
           {t("common.save", { defaultValue: "保存" })}
         </button>
         <button
           type="button"
           onClick={() => void handleArchiveSuggestions()}
           disabled={archiveLoading || doc.nodes.length < 2}
-          className="px-3 py-1.5 text-[12px] text-ink-soft bg-paper-warm/60 hover:bg-paper-warm disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+          className="canvas-control-button canvas-button-secondary"
         >
+          <SparkIcon />
           {archiveLoading
             ? t("canvas.archiving", { defaultValue: "分析中…" })
             : t("canvas.archive", { defaultValue: "智能归档" })}
         </button>
         {agentEnabled && providers.length > 0 && (
           <>
-            <div className="w-px h-5 bg-paper-deep/20" />
+            <div className="canvas-toolbar-divider" />
             <button
               type="button"
               onClick={() => void agent.runConnections(doc.nodes, doc.edges)}
               disabled={agent.loading.connection || doc.nodes.length < 2}
-              className="px-3 py-1.5 text-[12px] text-bamboo bg-bamboo-mist/50 hover:bg-bamboo-mist disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+              className="canvas-control-button canvas-button-ai"
             >
+              <LinkIcon />
               {agent.loading.connection
                 ? t("canvas.agentThinking", { defaultValue: "分析中…" })
                 : t("canvas.findConnections", { defaultValue: "发现连接" })}
@@ -301,13 +395,14 @@ export function CanvasPage({
               type="button"
               onClick={() => void agent.runGap(doc.nodes)}
               disabled={agent.loading.gap || doc.nodes.length < 5}
-              className="px-3 py-1.5 text-[12px] text-bamboo bg-bamboo-mist/50 hover:bg-bamboo-mist disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+              className="canvas-control-button canvas-button-ai"
               title={
                 doc.nodes.length < 5
                   ? t("canvas.gapNeedsNodes", { defaultValue: "至少 5 个节点才能分析视角" })
                   : undefined
               }
             >
+              <GapIcon />
               {agent.loading.gap
                 ? t("canvas.agentThinking", { defaultValue: "分析中…" })
                 : t("canvas.findGaps", { defaultValue: "补充视角" })}
@@ -321,8 +416,9 @@ export function CanvasPage({
                 )
               }
               disabled={agent.loading.discussion || doc.nodes.length < 3}
-              className="px-3 py-1.5 text-[12px] text-bamboo bg-bamboo-mist/50 hover:bg-bamboo-mist disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
+              className="canvas-control-button canvas-button-ai"
             >
+              <DiscussionIcon />
               {agent.loading.discussion
                 ? t("canvas.agentThinking", { defaultValue: "分析中…" })
                 : t("canvas.analyzeDiscussion", { defaultValue: "分析共识" })}
@@ -336,7 +432,7 @@ export function CanvasPage({
           <button
             type="button"
             onClick={() => deleteNode(selectedNodeId)}
-            className="px-3 py-1.5 text-[12px] text-red-400 bg-paper/90 backdrop-blur-sm border border-paper-deep/20 rounded-lg hover:bg-danger-bg transition-colors cursor-pointer"
+            className="canvas-control-button canvas-button-danger"
           >
             {t("common.delete", { defaultValue: "删除" })}
           </button>
@@ -344,24 +440,24 @@ export function CanvasPage({
       )}
 
       {!archiveDismissed && archiveSuggestions.length > 0 && (
-        <div className="absolute top-16 left-4 z-10 w-[220px] rounded-xl bg-paper/95 backdrop-blur-sm border border-paper-deep/20 shadow-lg p-3">
+        <div className="canvas-floating-panel absolute top-16 left-4 z-10 w-[220px] p-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-medium text-ink-faint">
+            <span className="canvas-panel-title">
               {t("canvas.archiveSuggestions", { defaultValue: "归档建议" })}
             </span>
             <button
               type="button"
               onClick={() => setArchiveDismissed(true)}
-              className="text-ink-ghost/60 hover:text-ink-ghost text-[10px] cursor-pointer"
+              className="canvas-icon-button canvas-button-ghost"
             >
-              {t("common.ignore", { defaultValue: "忽略" })}
+              <CloseIcon />
             </button>
           </div>
           <div className="space-y-2">
             {archiveSuggestions.map((suggestion, i) => (
-              <div key={i} className="rounded-lg border border-paper-deep/20 bg-paper-warm/40 p-2">
-                <div className="text-[11px] font-medium text-ink-soft">{suggestion.tag}</div>
-                <div className="text-[10px] text-ink-ghost/80 leading-relaxed line-clamp-2 mt-0.5">
+              <div key={i} className="canvas-suggestion-card p-2">
+                <div className="canvas-panel-text font-medium">{suggestion.tag}</div>
+                <div className="canvas-panel-muted line-clamp-2 mt-0.5">
                   {suggestion.reason}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1.5">
@@ -370,7 +466,7 @@ export function CanvasPage({
                       key={nodeId}
                       type="button"
                       onClick={() => applyArchiveTag(nodeId, suggestion.tag)}
-                      className="text-[9px] px-1.5 py-0.5 rounded-full bg-bamboo-mist/60 text-bamboo hover:bg-bamboo-mist transition-colors cursor-pointer"
+                      className="canvas-chip-button canvas-button-ai"
                     >
                       {t("canvas.applyTag", { defaultValue: "应用" })}
                     </button>
@@ -403,14 +499,14 @@ export function CanvasPage({
               <button
                 type="button"
                 onClick={() => acceptConnection(c)}
-                className="flex-1 text-[10px] px-2 py-1 rounded-lg bg-bamboo text-cloud hover:bg-bamboo-light transition-colors cursor-pointer"
+                className="canvas-control-button canvas-button-primary flex-1"
               >
                 {t("canvas.connect", { defaultValue: "轻轻连起来" })}
               </button>
               <button
                 type="button"
                 onClick={() => agent.dismissConnection(c.sourceId, c.targetId)}
-                className="text-[10px] px-2 py-1 rounded-lg text-ink-ghost hover:bg-paper-deep/20 transition-colors cursor-pointer"
+                className="canvas-control-button canvas-button-ghost"
               >
                 {t("common.ignore", { defaultValue: "忽略" })}
               </button>
@@ -429,14 +525,14 @@ export function CanvasPage({
           }}
         >
           <div className="flex items-start justify-between gap-2 mb-1.5">
-            <span className="text-[11px] text-ink-soft leading-relaxed">{agent.gap.message}</span>
+            <span className="canvas-panel-text">{agent.gap.message}</span>
             <button
               type="button"
               onClick={agent.dismissGap}
-              className="shrink-0 text-ink-ghost/60 hover:text-ink-ghost text-[10px] cursor-pointer"
+              className="canvas-icon-button canvas-button-ghost shrink-0"
               aria-label={t("common.ignore", { defaultValue: "忽略" })}
             >
-              ✕
+              <CloseIcon />
             </button>
           </div>
           <div className="space-y-1">
@@ -445,20 +541,20 @@ export function CanvasPage({
                 key={p}
                 type="button"
                 onClick={() => agent.gap && createPerspectiveNode(p, agent.gap.areaHint, i)}
-                className="w-full text-left text-[10px] px-2 py-1 rounded-lg bg-bamboo-mist/50 text-bamboo hover:bg-bamboo-mist transition-colors cursor-pointer"
+                className="canvas-control-button canvas-button-ai w-full justify-start"
               >
-                + {p}
+                {p}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* 场景三：共识/分歧面板（分组光环 + 桥梁方案）*/}
+      {/* 场景三：共识/分歧面板（分组标识 + 桥梁方案）*/}
       {agent.discussion && (
-        <div className="absolute top-16 right-4 z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-paper-deep/20 shadow-lg p-3 animate-fade-in">
+        <div className="canvas-floating-panel absolute top-16 right-4 z-20 w-[240px] p-3 animate-fade-in">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-medium text-ink-faint">
+            <span className="canvas-panel-title">
               {t("canvas.discussionPanel", { defaultValue: "讨论结构" })}
               {agent.discussion.status === "consensus"
                 ? " · " + t("canvas.consensus", { defaultValue: "趋于共识" })
@@ -482,15 +578,15 @@ export function CanvasPage({
                   className="w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: g.color }}
                 />
-                <span className="text-[10px] text-ink-soft">{g.label}</span>
-                <span className="text-[9px] text-ink-ghost/70 ml-auto">
+                <span className="canvas-panel-text">{g.label}</span>
+                <span className="canvas-panel-muted ml-auto">
                   {g.userIds.length} {t("canvas.people", { defaultValue: "人" })}
                 </span>
               </div>
             ))}
           </div>
           {agent.discussion.bridgeNodeIds.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-paper-deep/20 text-[10px] text-ink-ghost/80 leading-relaxed">
+            <div className="canvas-panel-muted mt-2 pt-2 border-t border-paper-deep/20">
               {t("canvas.bridgeHint", {
                 defaultValue: "有折中方案，或许能作为共识桥梁再聊聊。",
               })}
@@ -547,7 +643,7 @@ export function CanvasPage({
               stroke="currentColor"
               strokeWidth="1.5"
               strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
-              className="text-ink-faint/50"
+              className="canvas-edge-line"
             />
           );
         })}
@@ -564,12 +660,12 @@ export function CanvasPage({
               y1={from.y + from.height / 2}
               x2={to.x + to.width / 2}
               y2={to.y + to.height / 2}
-              stroke="var(--color-bamboo, #6a9a5b)"
+              stroke="currentColor"
               strokeWidth="1.5"
               strokeDasharray="4 5"
               strokeLinecap="round"
               opacity={0.55}
-              className="canvas-suggestion-line pointer-events-none"
+              className="canvas-suggestion-edge canvas-suggestion-line pointer-events-none"
             />
           );
         })}
@@ -587,7 +683,7 @@ export function CanvasPage({
               width={node.width}
               height={node.height}
               rx={node.type === "card" ? 12 : 4}
-              className={`transition-colors drop-shadow-sm ${
+              className={`canvas-node-rect ${
                 selectedNodeId === node.id
                   ? "fill-canvas-card-hover stroke-bamboo"
                   : node.source === "agent"
@@ -619,7 +715,7 @@ export function CanvasPage({
                     className="w-full h-full text-[13px] text-ink-soft leading-relaxed whitespace-pre-wrap overflow-hidden"
                   >
                     {node.text || (
-                      <span className="text-ink-ghost/40">
+                      <span className="canvas-empty-text">
                         {t("canvas.doubleClickToEdit", { defaultValue: "双击编辑" })}
                       </span>
                     )}

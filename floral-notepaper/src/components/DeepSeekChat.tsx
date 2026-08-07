@@ -54,12 +54,14 @@ export function DeepSeekChat({
   const [loading, setLoading] = useState(false);
   const [initDone, setInitDone] = useState(false);
   const [panelHeight, setPanelHeight] = useState(320);
+  const [taskPanelRatio, setTaskPanelRatio] = useState(0.24);
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [selectedModelId, setSelectedModelId] = useState<string>("");
   // 场景九：聊天沉淀为画布节点
   const [dismissedDistill, setDismissedDistill] = useState<Set<string>>(() => new Set());
   const [sunkDistill, setSunkDistill] = useState<Set<string>>(() => new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // 启用的供应商
@@ -138,6 +140,30 @@ export function DeepSeekChat({
     const onMove = (ev: MouseEvent) => {
       const delta = startY - ev.clientY;
       setPanelHeight(Math.min(Math.max(startHeight + delta, 150), window.innerHeight * 0.7));
+    };
+    const onUp = () => {
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "row-resize";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  const handleTaskResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startRatio = taskPanelRatio;
+    const areaHeight = contentAreaRef.current?.getBoundingClientRect().height ?? panelHeight;
+
+    const onMove = (ev: MouseEvent) => {
+      const delta = startY - ev.clientY;
+      const nextRatio = startRatio + delta / Math.max(areaHeight, 1);
+      setTaskPanelRatio(Math.min(Math.max(nextRatio, 0.16), 0.48));
     };
     const onUp = () => {
       document.body.style.userSelect = "";
@@ -286,7 +312,7 @@ export function DeepSeekChat({
 
   return (
     <div
-      className={`shrink-0 border-t border-paper-deep/30 bg-paper/90 transition-all duration-300 ease-out flex flex-col overflow-hidden ${
+      className={`relative w-full shrink-0 border-t border-paper-deep/20 bg-paper/90 transition-all duration-300 ease-out flex flex-col overflow-hidden ${
         open ? "opacity-100" : "h-0 opacity-0 border-t-0"
       }`}
       style={{ height: open ? panelHeight : 0 }}
@@ -299,7 +325,7 @@ export function DeepSeekChat({
         <div className="w-10 h-[3px] rounded-full bg-paper-deep/40 hover:bg-bamboo/50 transition-colors" />
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 w-full px-4">
+      <div ref={contentAreaRef} className="flex-1 flex flex-col min-h-0 w-full px-4">
         {/* 标题栏 */}
         <div className="flex items-center justify-between py-2 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -385,7 +411,11 @@ export function DeepSeekChat({
             请在设置 → 供应商中添加并启用一个供应商以使用 AI 助手
           </div>
         ) : (
-          <div ref={scrollRef} className="flex-1 overflow-y-auto pb-2 space-y-3 min-h-0">
+          <div
+            ref={scrollRef}
+            className="overflow-y-auto pb-2 space-y-3 min-h-[96px]"
+            style={{ flex: visibleSuggestions.length > 0 ? `${1 - taskPanelRatio} 1 0` : "1 1 0" }}
+          >
             {messages.slice(2).map((msg, i) => (
               <div
                 key={i}
@@ -414,9 +444,22 @@ export function DeepSeekChat({
           </div>
         )}
 
+        {visibleSuggestions.length > 0 && (
+          <div
+            className="shrink-0 h-2 cursor-row-resize hover:bg-bamboo/15 transition-colors flex items-center justify-center"
+            onMouseDown={handleTaskResizeStart}
+            title="拖拽同步调整对话区与任务区高度"
+          >
+            <div className="w-10 h-[3px] rounded-full bg-paper-deep/40 hover:bg-bamboo/50 transition-colors" />
+          </div>
+        )}
+
         {/* 场景九：聊天沉淀建议 */}
         {visibleSuggestions.length > 0 && (
-          <div className="shrink-0 border-t border-bamboo/20 pt-2 pb-1 space-y-1.5">
+          <div
+            className="shrink-0 overflow-y-auto border-t border-bamboo/20 pt-2 pb-1 space-y-1.5 min-h-[72px]"
+            style={{ flexBasis: `${taskPanelRatio * 100}%` }}
+          >
             {visibleSuggestions.map((s) => (
               <div
                 key={s.messageId}

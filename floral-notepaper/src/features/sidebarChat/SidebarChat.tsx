@@ -84,6 +84,15 @@ const LEGACY_MESSAGES_STORAGE_KEY = "sidebar_ai_chat_messages";
 const STORAGE_LIMIT = 100;
 /** 请求携带的上下文条数（上下文记忆窗口） */
 const CONTEXT_WINDOW = 16;
+const CHAT_PANEL_MIN_WIDTH = 340;
+const CHAT_PANEL_MAX_WIDTH = 640;
+const TASK_PANEL_MIN_WIDTH = 180;
+const TASK_PANEL_MAX_WIDTH = 320;
+const RESIZE_HANDLE_WIDTH = 6;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
 const SYSTEM_PROMPT =
   "你是「花笺」内置的 AI 助手，风格温和、表达简洁。你可以围绕笔记写作、复盘、灵感收集、时间管理等方面提供帮助。回答使用中文，使用 Markdown 排版，保持简洁。" +
@@ -203,11 +212,24 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
   const [renameDraft, setRenameDraft] = useState("");
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(true);
-  /** 对话面板宽度（默认 320，可拖动，持久化本地） */
+  /** 对话面板宽度（默认 360，可拖动，持久化本地） */
   const [chatPanelWidth, setChatPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("sidebar_chat_panel_width"));
-    return Number.isFinite(saved) && saved >= 260 && saved <= 560 ? saved : 320;
+    return Number.isFinite(saved) && saved >= CHAT_PANEL_MIN_WIDTH && saved <= CHAT_PANEL_MAX_WIDTH
+      ? saved
+      : 360;
   });
+  /** 任务栏宽度（仅通过对话面板左侧分隔线调整） */
+  const [taskPanelWidth, setTaskPanelWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem("sidebar_chat_task_panel_width"));
+    return Number.isFinite(saved) && saved >= TASK_PANEL_MIN_WIDTH && saved <= TASK_PANEL_MAX_WIDTH
+      ? saved
+      : 240;
+  });
+  const resizeFrameRef = useRef<number | null>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+  const taskPanelRef = useRef<HTMLDivElement>(null);
   const [chatWidthDragging, setChatWidthDragging] = useState(false);
   /** 历史变更面板：AI 写回 / 历史恢复的笔记变更快照 */
   const [changesOpen, setChangesOpen] = useState(false);
@@ -818,37 +840,127 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     window.localStorage.setItem("sidebar_chat_panel_width", String(chatPanelWidth));
   }, [chatPanelWidth]);
 
-  /** 拖动对话面板左侧手柄调节宽度 */
+  useEffect(() => {
+    window.localStorage.setItem("sidebar_chat_task_panel_width", String(taskPanelWidth));
+  }, [taskPanelWidth]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+      }
+    };
+  }, []);
+
+  const resizePanels = useCallback((nextWidth: number, target: "chat" | "task") => {
+    const nextAsideWidth =
+      (target === "task" ? nextWidth : taskPanelOpen ? taskPanelWidth : 0) +
+      (target === "chat" ? nextWidth : chatPanelOpen ? chatPanelWidth : 0) +
+      (taskPanelOpen ? RESIZE_HANDLE_WIDTH : 0) +
+      (chatPanelOpen ? RESIZE_HANDLE_WIDTH : 0);
+
+    if (target === "chat" && chatPanelRef.current) {
+      chatPanelRef.current.style.width = `${nextWidth}px`;
+    }
+    if (target === "task" && taskPanelRef.current) {
+      taskPanelRef.current.style.width = `${nextWidth}px`;
+    }
+    if (asideRef.current) {
+      asideRef.current.style.width = `${nextAsideWidth}px`;
+    }
+  }, [chatPanelOpen, chatPanelWidth, taskPanelOpen, taskPanelWidth]);
+
+  const scheduleResize = useCallback((nextWidth: number, target: "chat" | "task") => {
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+    }
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      resizePanels(nextWidth, target);
+    });
+  }, [resizePanels]);
+
+  /** 拖动对话面板右侧手柄调节对话区宽度 */
   const startChatWidthDrag = useCallback(
     (event: React.MouseEvent) => {
       event.preventDefault();
       const startX = event.clientX;
       const startWidth = chatPanelWidth;
       setChatWidthDragging(true);
+
+      let lastWidth = startWidth;
       const onMove = (ev: MouseEvent) => {
-        setChatPanelWidth(Math.min(560, Math.max(260, startWidth + (ev.clientX - startX))));
+        lastWidth = clamp(startWidth + (ev.clientX - startX), CHAT_PANEL_MIN_WIDTH, CHAT_PANEL_MAX_WIDTH);
+        scheduleResize(lastWidth, "chat");
       };
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        if (resizeFrameRef.current !== null) {
+          window.cancelAnimationFrame(resizeFrameRef.current);
+          resizeFrameRef.current = null;
+        }
+        resizePanels(lastWidth, "chat");
+        setChatPanelWidth(lastWidth);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        document.body.classList.remove("sidebar-chat-resizing");
         setChatWidthDragging(false);
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
+      document.body.classList.add("sidebar-chat-resizing");
     },
-    [chatPanelWidth],
+    [chatPanelWidth, resizePanels, scheduleResize],
   );
 
-  const asideWidth = (taskPanelOpen ? 240 : 0) + (chatPanelOpen ? chatPanelWidth : 0);
+  /** 拖动对话面板左侧分隔线，仅调节任务栏宽度 */
+  const startTaskWidthDrag = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = taskPanelWidth;
+      setChatWidthDragging(true);
+
+      let lastWidth = startWidth;
+      const onMove = (ev: MouseEvent) => {
+        lastWidth = clamp(startWidth + (ev.clientX - startX), TASK_PANEL_MIN_WIDTH, TASK_PANEL_MAX_WIDTH);
+        scheduleResize(lastWidth, "task");
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        if (resizeFrameRef.current !== null) {
+          window.cancelAnimationFrame(resizeFrameRef.current);
+          resizeFrameRef.current = null;
+        }
+        resizePanels(lastWidth, "task");
+        setTaskPanelWidth(lastWidth);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.body.classList.remove("sidebar-chat-resizing");
+        setChatWidthDragging(false);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.body.classList.add("sidebar-chat-resizing");
+    },
+    [resizePanels, scheduleResize, taskPanelWidth],
+  );
+
+  const asideWidth =
+    (taskPanelOpen ? taskPanelWidth + RESIZE_HANDLE_WIDTH : 0) +
+    (chatPanelOpen ? chatPanelWidth + RESIZE_HANDLE_WIDTH : 0);
 
   return (
     <aside
+      ref={asideRef}
       style={{ width: open && asideWidth > 0 ? `${asideWidth}px` : "0px" }}
-      className={`relative shrink-0 h-full flex flex-col bg-paper border-r border-paper-deep/15 transition-[width,opacity,margin] duration-300 ease-out overflow-hidden ${
+      className={`sidebar-chat-panel relative shrink-0 h-full flex flex-col bg-paper border-r border-paper-deep/15 transition-[width,opacity,margin] duration-300 ease-out overflow-hidden ${
         chatWidthDragging ? "transition-none" : ""
       } ${
         open && asideWidth > 0 ? "opacity-100" : "opacity-0 border-r-0"
@@ -881,7 +993,11 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
       <div className="h-full flex overflow-hidden">
         {/* 任务列表面板（对话栏的左侧栏） */}
         {taskPanelOpen && (
-        <div className="w-[240px] shrink-0 flex flex-col border-r border-paper-deep/15 bg-paper-warm/30">
+        <div
+          ref={taskPanelRef}
+          style={{ width: taskPanelWidth }}
+          className="sidebar-chat-task-panel shrink-0 flex flex-col min-w-[180px] max-w-[320px] border-r border-paper-deep/15 bg-paper-warm/30"
+        >
           <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-paper-deep/20">
             <span className="text-[11px] font-semibold text-ink-ghost">任务列表</span>
             <div className="flex items-center gap-1">
@@ -1049,17 +1165,24 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
         </div>
         )}
 
+        {taskPanelOpen && chatPanelOpen && (
+          <div
+            className="w-[6px] shrink-0 cursor-col-resize bg-transparent hover:bg-paper-deep/25 active:bg-paper-deep/35 transition-colors"
+            onMouseDown={startTaskWidthDrag}
+            title="拖动调节任务栏宽度"
+          />
+        )}
+
         {/* 对话面板 */}
         {chatPanelOpen && (
         <>
         <div
-          className="w-[5px] shrink-0 cursor-col-resize bg-transparent hover:bg-bamboo/30 active:bg-bamboo/40 transition-colors"
-          onMouseDown={startChatWidthDrag}
-          title="拖动调节宽度"
-        />
-        <div style={{ width: chatPanelWidth }} className="shrink-0 flex flex-col min-w-[260px] max-w-[560px]">
-          <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-paper-deep/20">
-            <div className="flex items-center gap-2 min-w-0">
+          ref={chatPanelRef}
+          style={{ width: chatPanelWidth }}
+          className="sidebar-chat-conversation relative shrink-0 flex flex-col min-w-[340px] max-w-[640px] contain-layout"
+        >
+          <div className="shrink-0 flex min-h-[44px] items-center justify-between gap-2 px-3 py-2.5 border-b border-paper-deep/20">
+            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
               <svg
                 width="15"
                 height="15"
@@ -1074,15 +1197,15 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 <path d="M8 10h.01M12 10h.01M16 10h.01" />
               </svg>
-              <span className="text-[13px] font-display font-semibold text-ink select-none">
+              <span className="shrink-0 text-[13px] font-display font-semibold text-ink select-none">
                 AI 助手
               </span>
-              <span className="max-w-[120px] truncate rounded-full bg-paper-warm/70 px-2 py-0.5 text-[9px] text-ink-ghost">
+              <span className="min-w-0 max-w-[140px] truncate rounded-full bg-paper-warm/70 px-2 py-0.5 text-[9px] text-ink-ghost">
                 {activeTask.title}
               </span>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0 ml-2">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={toggleChanges}
@@ -1370,6 +1493,11 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
             agentModeLabel={agentModeLabel}
           />
         </div>
+          <div
+            className="absolute right-0 top-0 bottom-0 z-20 w-[6px] translate-x-1/2 cursor-col-resize bg-transparent hover:bg-bamboo/30 active:bg-bamboo/40 transition-colors"
+            onMouseDown={startChatWidthDrag}
+            title="拖动调节对话区域宽度"
+          />
         </div>
         </>
         )}

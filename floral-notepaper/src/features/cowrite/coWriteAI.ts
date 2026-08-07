@@ -29,6 +29,7 @@ export async function callChatCompletion(
   providers: ProviderConfig[],
   messages: Array<{ role: string; content: string }>,
   temperature = 0.8,
+  maxTokens = 500,
 ): Promise<string> {
   const config = getActiveApiConfig(providers);
   if (!config) {
@@ -57,7 +58,7 @@ export async function callChatCompletion(
       messages,
       stream: false,
       temperature,
-      max_tokens: 500,
+      max_tokens: maxTokens,
     }),
   });
 

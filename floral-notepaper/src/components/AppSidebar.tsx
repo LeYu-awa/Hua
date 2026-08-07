@@ -1,4 +1,4 @@
-import { useState } from "react";
+import type { ReactNode } from "react";
 
 export type AppView = "home" | "main" | "settings" | "canvas" | "garden" | "profile" | "studio" | "community";
 
@@ -14,121 +14,114 @@ interface AppSidebarProps {
 interface SidebarItem {
   view: AppView;
   label: string;
-  icon: (props: { size?: number }) => React.ReactNode;
+  icon: (props: { size?: number }) => ReactNode;
 }
 
-function HomeIcon({ size = 18 }: { size?: number }) {
+interface IconShellProps {
+  size?: number;
+  children: ReactNode;
+}
+
+function IconShell({ size = 20, children }: IconShellProps) {
   return (
     <svg
+      className="app-sidebar-icon-svg"
       width={size}
       height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
+      {children}
     </svg>
   );
 }
 
-function NoteIcon({ size = 18 }: { size?: number }) {
+function HomeIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z" />
-      <polyline points="16 3 16 8 21 8" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-      <line x1="8" y1="16" x2="14" y2="16" />
-    </svg>
+    <IconShell size={size}>
+      <path d="M4.5 10.2 12 4.4l7.5 5.8" />
+      <path d="M6.4 9.5v8.1c0 1.05.78 1.9 1.74 1.9h7.72c.96 0 1.74-.85 1.74-1.9V9.5" />
+      <path d="M10 19.5v-5.2h4v5.2" />
+      <path d="M8.2 6.9V4.8h2.4" opacity="0.42" />
+    </IconShell>
   );
 }
 
-function SettingsIcon({ size = 18 }: { size?: number }) {
+function NoteIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+    <IconShell size={size}>
+      <path d="M7.2 4.2h6.95L18.8 8.9v9.05c0 1.03-.82 1.85-1.85 1.85h-9.7a1.85 1.85 0 0 1-1.85-1.85V6.05c0-1.03.82-1.85 1.8-1.85Z" />
+      <path d="M14 4.45V8.1c0 .56.44 1 1 1h3.55" opacity="0.5" />
+      <path d="M8.9 12.4h6.2" />
+      <path d="M8.9 15.7h4.6" opacity="0.72" />
+    </IconShell>
   );
 }
 
-function CanvasIcon({ size = 18 }: { size?: number }) {
+function SettingsIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <circle cx="15.5" cy="15.5" r="1.5" />
-      <path d="M3 12h18" opacity="0.3" />
-      <path d="M12 3v18" opacity="0.3" />
-    </svg>
+    <IconShell size={size}>
+      <path d="M12 8.3a3.7 3.7 0 1 1 0 7.4 3.7 3.7 0 0 1 0-7.4Z" />
+      <path d="M18.05 9.35 19.3 7.8l-1.95-2.05-1.62 1.13a7.36 7.36 0 0 0-1.7-.7L13.65 4h-3.3l-.38 2.18c-.6.17-1.18.4-1.7.7L6.65 5.75 4.7 7.8l1.25 1.55a7.62 7.62 0 0 0-.7 1.68L3.2 11.5v2.95l2.05.48c.17.6.4 1.16.7 1.67L4.7 18.2l1.95 2.05 1.62-1.13c.52.3 1.1.53 1.7.7l.38 2.18h3.3l.38-2.18c.6-.17 1.18-.4 1.7-.7l1.62 1.13 1.95-2.05-1.25-1.6c.3-.51.53-1.07.7-1.67l2.05-.48V11.5l-2.05-.47a7.62 7.62 0 0 0-.7-1.68Z" opacity="0.62" />
+    </IconShell>
   );
 }
 
-function GardenIcon({ size = 18 }: { size?: number }) {
+function CanvasIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3c-4.97 0-9 3.58-9 8 0 2.52 1.32 4.76 3.36 6.22l-1.36 4.78 5.64-3.22c.44.14.9.22 1.36.22 4.97 0 9-3.58 9-8s-4.03-8-9-8z" />
-      <circle cx="9" cy="11" r="0.5" fill="currentColor" opacity="0.6" />
-      <circle cx="12" cy="10" r="0.5" fill="currentColor" opacity="0.6" />
-      <circle cx="15" cy="11" r="0.5" fill="currentColor" opacity="0.6" />
-    </svg>
+    <IconShell size={size}>
+      <rect x="4.2" y="4.2" width="15.6" height="15.6" rx="3.2" />
+      <path d="M8.1 8.5h.1" />
+      <path d="M15.8 15.5h.1" />
+      <path d="M8.25 8.5 15.75 15.5" opacity="0.5" />
+      <path d="M12 4.2v15.6" opacity="0.22" />
+      <path d="M4.2 12h15.6" opacity="0.22" />
+    </IconShell>
   );
 }
 
-function StudioIcon({ size = 18 }: { size?: number }) {
+function GardenIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-      <circle cx="12" cy="12" r="0.5" fill="currentColor" opacity="0.3" />
-    </svg>
+    <IconShell size={size}>
+      <path d="M12 19.6c4.14 0 7.5-3.08 7.5-6.88 0-3.8-3.36-6.88-7.5-6.88s-7.5 3.08-7.5 6.88c0 1.94.87 3.7 2.28 4.95l-.84 2.77 3.02-1.52c.92.43 1.96.68 3.04.68Z" />
+      <path d="M9.1 12.45h.1" />
+      <path d="M12 11.55h.1" />
+      <path d="M14.9 12.45h.1" />
+    </IconShell>
   );
 }
 
-function ProfileIcon({ size = 18 }: { size?: number }) {
+function StudioIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
+    <IconShell size={size}>
+      <path d="M5 18.9h14" opacity="0.5" />
+      <path d="m14.9 4.75 4.35 4.35-8.9 8.9-4.6 1.25 1.25-4.6 7.9-7.9Z" />
+      <path d="m13.45 6.2 4.35 4.35" opacity="0.45" />
+    </IconShell>
   );
 }
 
-function ChatIcon({ size = 18 }: { size?: number }) {
+function ProfileIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </svg>
+    <IconShell size={size}>
+      <path d="M12 12.1a3.95 3.95 0 1 0 0-7.9 3.95 3.95 0 0 0 0 7.9Z" />
+      <path d="M4.75 19.8c.9-3.05 3.55-5.05 7.25-5.05s6.35 2 7.25 5.05" />
+    </IconShell>
+  );
+}
+
+function ChatIcon({ size = 20 }: { size?: number }) {
+  return (
+    <IconShell size={size}>
+      <path d="M5.2 18.35 4.5 21l3.05-1.38c1.22.6 2.62.93 4.1.93 4.65 0 8.42-3.42 8.42-7.65s-3.77-7.65-8.42-7.65-8.42 3.42-8.42 7.65c0 2.12.94 4.03 2.47 5.45Z" />
+      <path d="M8.7 12.55h.1" />
+      <path d="M11.8 12.55h.1" />
+      <path d="M14.9 12.55h.1" />
+    </IconShell>
   );
 }
 
@@ -141,66 +134,62 @@ const sidebarItems: SidebarItem[] = [
   { view: "profile", label: "主页", icon: ProfileIcon },
 ];
 
+function getSidebarItemClass(active: boolean) {
+  return active ? "app-sidebar-item is-active" : "app-sidebar-item";
+}
+
 export function AppSidebar({ activeView, onViewChange, chatOpen = false, onToggleChat }: AppSidebarProps) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const settingsActive = activeView === "settings";
 
   return (
-    <nav className="w-[110px] h-full bg-paper flex flex-col py-4 gap-0.5 shrink-0 border-r border-paper-deep/15">
-      {/* AI 对话窗口开关 */}
+    <nav className="app-sidebar-pro" aria-label="主导航">
       <button
         type="button"
         onClick={onToggleChat}
         title={chatOpen ? "收起 AI 助手" : "展开 AI 助手"}
-        className={`flex items-center gap-2.5 mx-1.5 px-2.5 h-10 rounded-xl transition-all duration-200 cursor-pointer ${
-          chatOpen
-            ? "text-bamboo bg-bamboo-mist/80"
-            : "text-ink-ghost hover:text-ink-soft hover:bg-paper-warm/80"
-        }`}
+        aria-pressed={chatOpen}
+        disabled={!onToggleChat}
+        className={getSidebarItemClass(chatOpen)}
       >
-        <ChatIcon size={20} />
-        <span className="text-[12px] font-medium">AI 助手</span>
+        <span className="app-sidebar-icon-frame">
+          <ChatIcon />
+        </span>
+        <span className="app-sidebar-label">AI 助手</span>
       </button>
 
-      <div className="mx-2 my-1 h-px bg-paper-deep/15" />
+      <div className="app-sidebar-separator" />
 
-      {sidebarItems.map((item, idx) => {
+      {sidebarItems.map((item) => {
         const isActive = activeView === item.view;
-        const isHovered = hoveredIdx === idx;
 
         return (
           <button
             key={item.view}
+            type="button"
             onClick={() => onViewChange(item.view)}
-            onMouseEnter={() => setHoveredIdx(idx)}
-            onMouseLeave={() => setHoveredIdx(null)}
-            className={`flex items-center gap-2.5 mx-1.5 px-2.5 h-10 rounded-xl transition-all duration-200 cursor-pointer ${
-              isActive
-                ? "text-bamboo bg-bamboo-mist/80"
-                : isHovered
-                  ? "text-ink-soft bg-paper-warm/80"
-                  : "text-ink-ghost hover:text-ink-faint"
-            }`}
+            aria-current={isActive ? "page" : undefined}
+            className={getSidebarItemClass(isActive)}
           >
-            <item.icon size={20} />
-            <span className="text-[12px] font-medium truncate">{item.label}</span>
+            <span className="app-sidebar-icon-frame">
+              <item.icon />
+            </span>
+            <span className="app-sidebar-label">{item.label}</span>
           </button>
         );
       })}
 
-      <div className="flex-1" />
+      <div className="app-sidebar-spacer" />
 
       <button
         type="button"
         onClick={() => onViewChange("settings")}
-        className={`flex items-center gap-2.5 mx-1.5 px-2.5 h-10 rounded-xl transition-all duration-200 cursor-pointer ${
-          settingsActive
-            ? "text-bamboo bg-bamboo-mist/80"
-            : "text-ink-ghost hover:text-ink-soft hover:bg-paper-warm/80"
-        }`}
+        aria-current={settingsActive ? "page" : undefined}
+        className={getSidebarItemClass(settingsActive)}
       >
-        <SettingsIcon size={20} />
-        <span className="text-[12px] font-medium">设置</span>
+        <span className="app-sidebar-icon-frame">
+          <SettingsIcon />
+        </span>
+        <span className="app-sidebar-label">设置</span>
       </button>
     </nav>
   );

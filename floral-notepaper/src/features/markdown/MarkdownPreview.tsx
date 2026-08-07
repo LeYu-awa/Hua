@@ -10,41 +10,127 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Components } from "react-markdown";
 import "katex/dist/katex.min.css";
+import "./markdown-preview-skins.css";
 import remarkAlerts from "./remarkAlerts";
+
+const CODE_KEYWORDS = new Set([
+  "abstract",
+  "async",
+  "await",
+  "boolean",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "default",
+  "do",
+  "else",
+  "enum",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "from",
+  "function",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "interface",
+  "let",
+  "new",
+  "null",
+  "number",
+  "of",
+  "private",
+  "protected",
+  "public",
+  "readonly",
+  "return",
+  "string",
+  "switch",
+  "throw",
+  "true",
+  "try",
+  "type",
+  "undefined",
+  "unknown",
+  "var",
+  "void",
+  "while",
+]);
+
+function tokenClass(token: string, language: string): string | null {
+  const normalized = language.toLowerCase();
+  if (/^\/\//.test(token) || /^\/\*/.test(token) || token.startsWith("# ")) return "md-token-comment";
+  if (/^(['"`])/.test(token)) return "md-token-string";
+  if (/^#([\da-f]{3,8})\b/i.test(token)) return "md-token-string";
+  if (/^\d+(\.\d+)?/.test(token)) return "md-token-number";
+  if (CODE_KEYWORDS.has(token)) return "md-token-keyword";
+  if (/^[{}()[\].,;:+\-*/%=<>!&|?]+$/.test(token)) return "md-token-punctuation";
+  if ((normalized.includes("css") || normalized.includes("scss")) && /^[.#]?[a-z_-][\w-]*/i.test(token)) {
+    return "md-token-property";
+  }
+  if ((normalized.includes("html") || normalized.includes("xml")) && /^<\/?[\w-]+/.test(token)) {
+    return "md-token-keyword";
+  }
+  if (/^[A-Z][A-Za-z0-9_$]*$/.test(token)) return "md-token-type";
+  if (/^[a-zA-Z_$][\w$]*(?=\s*\()/.test(token)) return "md-token-function";
+  return null;
+}
+
+function highlightCode(code: string, language = ""): React.ReactNode[] {
+  const pattern = /(\/\/.*|\/\*[\s\S]*?\*\/|`(?:\\.|[^`])*`|'(?:\\.|[^'])*'|"(?:\\.|[^"])*"|#(?:[\da-f]{3,8})\b|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b|<\/?[\w-]+|[{}()[\].,;:+\-*/%=<>!&|?]+|\s+|.)/g;
+  const nodes: React.ReactNode[] = [];
+  const tokens = code.match(pattern) ?? [code];
+
+  tokens.forEach((token, index) => {
+    const className = tokenClass(token, language);
+    if (!className) {
+      nodes.push(token);
+      return;
+    }
+    nodes.push(
+      <span key={`${token}-${index}`} className={className}>
+        {token}
+      </span>,
+    );
+  });
+
+  return nodes;
+}
 
 function CodeBlock({ children, language }: { children: React.ReactNode; language?: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const codeText = extractText(children).replace(/\n$/, "");
 
   const handleCopy = useCallback(() => {
-    const text = extractText(children);
-    void navigator.clipboard.writeText(text).then(() => {
+    void navigator.clipboard.writeText(codeText).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
-  }, [children]);
+  }, [codeText]);
 
   return (
-    <pre
-      className={`my-3 px-4 rounded bg-paper-warm/80 overflow-x-auto relative group ${
-        language ? "pt-8 pb-3" : "py-3"
-      }`}
-    >
-      {language && (
-        <span className="absolute top-2 left-3 text-[10px] font-mono text-ink-faint/70 uppercase tracking-wider select-none">
-          {language}
-        </span>
-      )}
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-mono bg-paper-deep/30 text-ink-ghost opacity-0 group-hover:opacity-100 hover:bg-paper-deep/50 hover:text-ink-soft transition-all cursor-pointer"
-      >
-        {copied
-          ? t("markdown.copied", { defaultValue: "已复制" })
-          : t("markdown.copy", { defaultValue: "复制" })}
-      </button>
-      {children}
+    <pre className={`markdown-code-block group ${language ? "has-language" : ""}`}>
+      <span className="markdown-code-header">
+        <span className="markdown-code-language">{language || "code"}</span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={`markdown-code-copy ${copied ? "is-copied" : ""}`}
+          aria-label={t("markdown.copyCode", { defaultValue: "复制代码" })}
+        >
+          {copied
+            ? t("markdown.copied", { defaultValue: "已复制" })
+            : t("markdown.copy", { defaultValue: "复制" })}
+        </button>
+      </span>
+      <code className="markdown-code-content">{highlightCode(codeText, language)}</code>
     </pre>
   );
 }
@@ -74,6 +160,36 @@ function parseInlineStyle(style: string): React.CSSProperties {
     }
     return acc;
   }, {});
+}
+
+function normalizeMarkdownCodeFences(content: string): string {
+  const lines = content.split("\n");
+  let activeFence: { marker: "`" | "~"; length: number } | null = null;
+
+  for (const line of lines) {
+    if (activeFence) {
+      const closeMatch = line.match(/^\s*((?:`{3,})|(?:~{3,}))\s*$/);
+      if (
+        closeMatch &&
+        closeMatch[1][0] === activeFence.marker &&
+        closeMatch[1].length >= activeFence.length
+      ) {
+        activeFence = null;
+      }
+      continue;
+    }
+
+    const openMatch = line.match(/^\s*((?:`{3,})|(?:~{3,}))/);
+    if (openMatch) {
+      activeFence = {
+        marker: openMatch[1][0] as "`" | "~",
+        length: openMatch[1].length,
+      };
+    }
+  }
+
+  if (!activeFence) return content;
+  return `${content}\n${activeFence.marker.repeat(activeFence.length)}`;
 }
 
 interface MarkdownPreviewProps {
@@ -156,69 +272,46 @@ function Blockquote({
       </div>
     );
   }
-  return (
-    <blockquote className="border-l-2 border-bamboo/40 pl-4 my-3 text-ink-soft/80 italic leading-[1.9]">
-      {children}
-    </blockquote>
-  );
+  return <blockquote className="markdown-blockquote">{children}</blockquote>;
 }
 
 const staticComponents: Components = {
   h1: ({ children, id }) => (
-    <h1 id={id} className="text-[1.57em] font-display font-bold text-ink mt-6 mb-4 tracking-wide">
+    <h1 id={id} className="markdown-heading markdown-heading-1">
       {children}
     </h1>
   ),
   h2: ({ children, id }) => (
-    <h2 id={id} className="text-[1.21em] font-display font-bold text-ink mt-7 mb-3 tracking-wide">
+    <h2 id={id} className="markdown-heading markdown-heading-2">
       {children}
     </h2>
   ),
   h3: ({ children, id }) => (
-    <h3 id={id} className="text-[1.07em] font-display font-bold text-ink mt-5 mb-2 tracking-wide">
+    <h3 id={id} className="markdown-heading markdown-heading-3">
       {children}
     </h3>
   ),
   h4: ({ children, id }) => (
-    <h4 id={id} className="text-[1em] font-display font-semibold text-ink mt-4 mb-2 tracking-wide">
+    <h4 id={id} className="markdown-heading markdown-heading-4">
       {children}
     </h4>
   ),
-  p: ({ children }) => <p className="text-ink-soft leading-[1.9]">{children}</p>,
-  strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
-  em: ({ children }) => <em className="italic text-bamboo-light">{children}</em>,
+  p: ({ children }) => <p className="markdown-paragraph">{children}</p>,
+  strong: ({ children }) => <strong className="markdown-strong">{children}</strong>,
+  em: ({ children }) => <em className="markdown-emphasis">{children}</em>,
   blockquote: Blockquote,
-  ul: ({ children }) => (
-    <ul className="ml-4 text-ink-soft leading-[1.9] list-disc list-outside marker:text-bamboo/40">
-      {children}
-    </ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="ml-4 text-ink-soft leading-[1.9] list-decimal list-outside marker:text-bamboo/50 marker:font-mono marker:text-[0.85em]">
-      {children}
-    </ol>
-  ),
-  li: ({ children }) => <li className="text-ink-soft leading-[1.9]">{children}</li>,
-  hr: () => (
-    <hr className="my-6 border-none h-px bg-gradient-to-r from-transparent via-paper-deep to-transparent" />
-  ),
+  ul: ({ children }) => <ul className="markdown-list markdown-list-unordered">{children}</ul>,
+  ol: ({ children }) => <ol className="markdown-list markdown-list-ordered">{children}</ol>,
+  li: ({ children }) => <li className="markdown-list-item">{children}</li>,
+  hr: () => <hr className="markdown-divider" />,
   code: ({ className, children }) => {
     const isBlock = className?.startsWith("language-") || String(children).includes("\n");
     if (isBlock) {
-      return (
-        <code className="text-[0.85em] font-mono text-ink-soft leading-[1.8] whitespace-pre">
-          {children}
-        </code>
-      );
+      return <code className="markdown-code-raw">{children}</code>;
     }
-    return (
-      <code className="px-1.5 py-0.5 text-[0.85em] font-mono bg-paper-warm rounded text-bamboo">
-        {children}
-      </code>
-    );
+    return <code className="markdown-inline-code">{children}</code>;
   },
   pre: ({ children }) => {
-    // Extract language from the <code> element's className
     let language = "";
     if (
       children != null &&
@@ -245,26 +338,18 @@ const staticComponents: Components = {
           document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
         }
       }}
-      className="text-bamboo hover:text-bamboo-light underline underline-offset-2 cursor-pointer"
+      className="markdown-link"
     >
       {children}
     </a>
   ),
   table: ({ children }) => (
-    <div className="my-3 overflow-x-auto">
-      <table className="w-full text-[0.93em] border-collapse border border-paper-deep/50">
-        {children}
-      </table>
+    <div className="markdown-table-wrap">
+      <table className="markdown-table">{children}</table>
     </div>
   ),
-  th: ({ children }) => (
-    <th className="text-left px-3 py-1.5 border border-paper-deep/40 font-semibold text-ink text-[0.85em] bg-paper-warm/50">
-      {children}
-    </th>
-  ),
-  td: ({ children }) => (
-    <td className="px-3 py-1.5 border border-paper-deep/35 text-ink-soft">{children}</td>
-  ),
+  th: ({ children }) => <th className="markdown-th">{children}</th>,
+  td: ({ children }) => <td className="markdown-td">{children}</td>,
   input: ({ checked, ...props }) => (
     <input {...props} checked={checked} disabled className="mr-1.5 accent-bamboo" />
   ),
@@ -311,18 +396,20 @@ export function MarkdownPreview({
     }),
     [imageBaseDir],
   );
+  const normalizedContent = useMemo(() => normalizeMarkdownCodeFences(content), [content]);
+
   return (
-    <div className="font-body" style={{ fontSize: `${fontSize}px` }}>
-      {content.trim() ? (
+    <div className="markdown-preview" style={{ fontSize: `${fontSize}px` }}>
+      {normalizedContent.trim() ? (
         <Markdown
           remarkPlugins={remarkPlugins}
           rehypePlugins={renderHtml ? rehypePluginsWithHtml : rehypePluginsDefault}
           components={components}
         >
-          {content}
+          {normalizedContent}
         </Markdown>
       ) : (
-        <p className="text-ink-ghost leading-[1.9]">
+        <p className="markdown-empty">
           {t("markdown.emptyHint", { defaultValue: "预览区会显示当前笔记内容" })}
         </p>
       )}

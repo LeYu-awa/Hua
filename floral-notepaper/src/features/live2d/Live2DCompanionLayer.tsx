@@ -319,8 +319,10 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [draggingEmbedded, setDraggingEmbedded] = useState(false);
+  const [showDragHandle, setShowDragHandle] = useState(false);
   const dragStateRef = useRef<EmbeddedDragState | null>(null);
   const dragTimerRef = useRef<number | null>(null);
+  const dragHandleTimerRef = useRef<number | null>(null);
   const latestPositionRef = useRef(config.position);
   // 嵌入式层仅在非浮动模式激活，浮动窗口仅在 floating 模式激活，避免同一配置双份渲染
   const isSurfaceActive = surface === "floating" ? config.mode === "floating" : config.mode !== "floating";
@@ -337,6 +339,9 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
     return () => {
       if (dragTimerRef.current !== null) {
         window.clearTimeout(dragTimerRef.current);
+      }
+      if (dragHandleTimerRef.current !== null) {
+        window.clearTimeout(dragHandleTimerRef.current);
       }
     };
   }, []);
@@ -375,6 +380,34 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
       bubbleTimerRef.current = null;
     }, 5000);
   }, []);
+
+  const showDragHandleBriefly = useCallback(() => {
+    setShowDragHandle(true);
+    if (dragHandleTimerRef.current !== null) {
+      window.clearTimeout(dragHandleTimerRef.current);
+    }
+    dragHandleTimerRef.current = window.setTimeout(() => {
+      dragHandleTimerRef.current = null;
+      setShowDragHandle(false);
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const layer = layerRef.current;
+      if (!layer || draggingEmbedded) return;
+      const rect = layer.getBoundingClientRect();
+      const inside =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom;
+      if (inside) showDragHandleBriefly();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    return () => window.removeEventListener("pointermove", handlePointerMove);
+  }, [draggingEmbedded, showDragHandleBriefly]);
 
   /**
    * 构建项目自研 Pixi v8 + @naari3/pixi-live2d-display 控制器。
@@ -746,6 +779,11 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         window.clearTimeout(dragTimerRef.current);
         dragTimerRef.current = null;
       }
+      if (dragHandleTimerRef.current !== null) {
+        window.clearTimeout(dragHandleTimerRef.current);
+        dragHandleTimerRef.current = null;
+      }
+      setShowDragHandle(true);
       setDraggingEmbedded(true);
     },
     [],
@@ -801,7 +839,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
         height: scaledSize.height,
         zIndex: 999,
         opacity: clamp(config.opacity, 0.2, 1),
-        pointerEvents: draggingEmbedded ? "auto" : "none",
+        pointerEvents: draggingEmbedded || showDragHandle ? "auto" : "none",
         overflow: "visible",
         background: "transparent",
         backgroundColor: "transparent",
@@ -839,14 +877,16 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded" }: L
             height: LIVE2D_DRAG_HANDLE_SIZE,
             zIndex: 2,
             borderRadius: 999,
-            background: draggingEmbedded ? "rgba(71, 202, 54, 0.76)" : "rgba(20,20,20,0.36)",
+            background: draggingEmbedded ? "rgba(85, 124, 96, 0.78)" : "rgba(20,20,20,0.36)",
             color: "#fff",
-            cursor: "grab",
+            cursor: draggingEmbedded ? "grabbing" : "grab",
             fontSize: 16,
             lineHeight: "30px",
-            pointerEvents: "auto",
+            opacity: draggingEmbedded || showDragHandle ? 1 : 0,
+            pointerEvents: draggingEmbedded || showDragHandle ? "auto" : "none",
             userSelect: "none",
             backdropFilter: "blur(6px)",
+            transition: "opacity 0.2s ease, background-color 0.2s ease",
           }}
         >
           ↕

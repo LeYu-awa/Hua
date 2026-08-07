@@ -23,7 +23,7 @@ export interface WritingCompanionProps {
   /** 用户忽略焦虑关怀提示时回调 */
   onAlertDismiss?: () => void;
   /** 位置 */
-  position?: "bottom-right" | "bottom-left";
+  position?: "bottom-right" | "bottom-left" | "bottom-center";
 }
 
 const DEFAULT_MESSAGES = [
@@ -52,7 +52,7 @@ export function WritingCompanion({
   onDismiss,
   alertMessage = null,
   onAlertDismiss,
-  position = "bottom-right",
+  position = "bottom-center",
 }: WritingCompanionProps) {
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [nudgeMessage, setNudgeMessage] = useState<string>(() => randomMessage(messages));
@@ -65,6 +65,8 @@ export function WritingCompanion({
     switch (position) {
       case "bottom-left":
         return "left-6";
+      case "bottom-center":
+        return "left-1/2 -translate-x-1/2";
       case "bottom-right":
       default:
         return "right-6";

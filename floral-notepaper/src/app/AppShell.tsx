@@ -209,7 +209,7 @@ export function AppShell() {
             onClose={() => setChatOpen(false)}
             providers={providers}
           />
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="app-main-content flex-1 flex flex-col min-w-0">
             {renderMainView({
               sidebarView,
               currentNoteId,
