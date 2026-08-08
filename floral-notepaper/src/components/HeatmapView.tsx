@@ -231,7 +231,9 @@ export function HeatmapView({
                     width: cellSize,
                     height: cellSize,
                     borderRadius: 3,
-                    backgroundColor: `var(--heatmap-level-${level})`,
+                    // 无记录（level 0）不填充，保持页面底色（浅色=白，深色=深）
+                    backgroundColor:
+                      level === 0 ? "transparent" : `var(--heatmap-level-${level})`,
                     border: "1px solid var(--heatmap-cell-border)",
                     transform: hoveredSlot === slotIndex ? "scale(1.1)" : "scale(1)",
                     transition: "transform 150ms ease-out, background-color 0.2s ease, border-color 0.2s ease",

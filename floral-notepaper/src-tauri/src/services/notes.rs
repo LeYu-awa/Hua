@@ -1119,7 +1119,7 @@ fn default_tile_color_mode() -> String {
 }
 
 fn default_theme() -> String {
-    "system".into()
+    "dark".into()
 }
 
 fn default_font_size() -> u32 {
@@ -1307,7 +1307,7 @@ mod tests {
         assert!(default_config.note_surface_auto_save);
         assert_eq!(default_config.tile_color, "#f6f3ec");
         assert_eq!(default_config.tile_color_mode, "system");
-        assert_eq!(default_config.theme, "system");
+        assert_eq!(default_config.theme, "dark");
         assert_eq!(default_config.locale, "zh-CN");
         assert!(default_config.notes_dir.ends_with("notes"));
 
@@ -1383,7 +1383,7 @@ mod tests {
         assert!(loaded.note_surface_auto_save);
         assert_eq!(loaded.tile_color, "#f6f3ec");
         assert_eq!(loaded.tile_color_mode, "system");
-        assert_eq!(loaded.theme, "system");
+        assert_eq!(loaded.theme, "dark");
         assert_eq!(loaded.locale, "zh-CN");
         assert_eq!(loaded.font_size, 14);
         assert_eq!(loaded.surface_font_size, 14);

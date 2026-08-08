@@ -6,7 +6,7 @@ import {
   startCurrentWindowDrag,
 } from "../features/windows/controls";
 import { usesNativeTitleBar } from "../features/windows/platform";
-import floralIcon from "../assets/images/floral-icon.png";
+import floralIcon from "../assets/images/app-icon.png";
 
 interface WindowFrameProps {
   /** Children rendered below the title bar */
