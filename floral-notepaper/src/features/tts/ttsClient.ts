@@ -109,6 +109,7 @@ async function synthesizeOpenAI(
       model: config.model.trim() || "tts-1",
       voice: (config.voice ?? "").trim() || "alloy",
       input: text,
+      response_format: "mp3",
       speed: speedForEmotion(config.defaultSpeed, emotion),
     }),
   });

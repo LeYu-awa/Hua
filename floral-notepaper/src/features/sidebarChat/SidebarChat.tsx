@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ProviderConfig } from "../settings/types";
 import { logUsage } from "../settings/stats";
-import { shouldAutoSpeak, speakText, stopSpeech } from "../tts";
+import { shouldAutoSpeak, speakText, stopSpeech, subscribeSpeechState, unlockSpeechPlayback } from "../tts";
 import {
   buildPendingToolMessage,
   formatAgentToolOutput,
@@ -89,6 +89,7 @@ const CHAT_PANEL_MAX_WIDTH = 640;
 const TASK_PANEL_MIN_WIDTH = 180;
 const TASK_PANEL_MAX_WIDTH = 320;
 const RESIZE_HANDLE_WIDTH = 6;
+const AUTO_SPEAK_MAX_CHARS = 72;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -156,6 +157,17 @@ function extractReferencedNotes(text: string, notes: NoteMention[]): { id: strin
   return refs;
 }
 
+function getAutoSpeakText(text: string): string {
+  const normalized = text
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/[#>*_`\-[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalized.length <= AUTO_SPEAK_MAX_CHARS) return normalized;
+  const sentence = normalized.match(/^.{12,72}?[。！？!?]/)?.[0]?.trim();
+  return sentence || `${normalized.slice(0, AUTO_SPEAK_MAX_CHARS)}……`;
+}
+
 /** 格式化变更时间戳（ISO 字符串）为「MM-DD HH:mm」 */
 function formatChangeTime(value: string): string {
   const date = new Date(value);
@@ -212,6 +224,7 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
   const [renameDraft, setRenameDraft] = useState("");
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(true);
+  const [speechPlaying, setSpeechPlaying] = useState(false);
   /** 对话面板宽度（默认 360，可拖动，持久化本地） */
   const [chatPanelWidth, setChatPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("sidebar_chat_panel_width"));
@@ -337,15 +350,22 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
   }, [enabledProviders, selectedProviderId]);
 
   useEffect(() => {
+    return subscribeSpeechState(setSpeechPlaying);
+  }, []);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, loading, pendingTool]);
 
   const speakAssistantReply = useCallback((reply: string) => {
-    if (reply.trim() && shouldAutoSpeak()) {
-      void speakText(reply, { emotion: "happy" });
-    }
+    const text = reply.trim();
+    if (!text || !shouldAutoSpeak()) return;
+    const speechText = getAutoSpeakText(text);
+    void speakText(speechText, { emotion: "happy" }).then((ok) => {
+      if (!ok) console.warn("[tts] AI 助手回复未能开始播放，请检查 TTS 配置或本地服务。", { text: speechText.slice(0, 80) });
+    });
   }, []);
 
   const appendAssistantReply = useCallback(
@@ -645,6 +665,8 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || loading) return;
+
+    void unlockSpeechPlayback();
 
     const userMsg: SidebarChatMessage = { role: "user", content: text, createdAt: Date.now() };
     const nextMessages = [...messages, userMsg].slice(-STORAGE_LIMIT);
@@ -1206,6 +1228,26 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={stopSpeech}
+                className={`w-6 h-6 flex items-center justify-center rounded-md transition-all cursor-pointer ${
+                  speechPlaying
+                    ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/15"
+                    : "text-ink-ghost hover:text-ink-faint hover:bg-paper-warm"
+                }`}
+                title={speechPlaying ? "停止当前 AI 朗读" : "停止 AI 朗读"}
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="6" width="12" height="12" rx="1.5" />
+                </svg>
+              </button>
               <button
                 type="button"
                 onClick={toggleChanges}

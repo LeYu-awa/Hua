@@ -4,6 +4,8 @@ import {
   signUp,
   signIn,
   signOut,
+  resetPassword,
+  updatePassword,
   getProfile,
   updateProfile,
   uploadAvatar,
@@ -19,6 +21,41 @@ interface AccountPanelProps {
   onConfigChange: (config: AppConfig) => void;
 }
 
+type AuthMode = "login" | "register" | "forgotPassword" | "resetPassword";
+
+const PASSWORD_REQUIREMENT_MESSAGE = "密码需至少 8 位，并包含字母、数字和特殊字符";
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function getPasswordResetRedirectTo(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function isRecoveryUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const searchParams = new URLSearchParams(window.location.search);
+  return hashParams.get("type") === "recovery" || searchParams.get("type") === "recovery";
+}
+
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return PASSWORD_REQUIREMENT_MESSAGE;
+  if (!/[A-Za-z]/.test(password)) return PASSWORD_REQUIREMENT_MESSAGE;
+  if (!/\d/.test(password)) return PASSWORD_REQUIREMENT_MESSAGE;
+  if (!/[^A-Za-z0-9]/.test(password)) return PASSWORD_REQUIREMENT_MESSAGE;
+  return null;
+}
+
+function getAuthTitle(mode: AuthMode): string {
+  if (mode === "register") return "注册";
+  if (mode === "forgotPassword") return "找回密码";
+  if (mode === "resetPassword") return "设置新密码";
+  return "登录";
+}
+
 export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
   const [session, setSession] = useState<boolean>(false);
   const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
@@ -26,11 +63,13 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
   const [loading, setLoading] = useState(true);
 
   // auth form state
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   // edit state
@@ -40,6 +79,11 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
 
   // init session
   useEffect(() => {
+    if (isRecoveryUrl()) {
+      setMode("resetPassword");
+      setNotice("请设置新密码完成账号恢复。");
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       const s = data.session;
       if (s?.user) {
@@ -52,7 +96,11 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
 
     const sub = onAuthStateChange((event, sess) => {
       const s = sess as { user?: { id: string; email?: string } } | null;
-      if (event === "SIGNED_IN" && s?.user) {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("resetPassword");
+        setNotice("请设置新密码完成账号恢复。");
+      }
+      if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && s?.user) {
         setSession(true);
         setUser({ id: s.user.id, email: s.user.email ?? null });
         getProfile(s.user.id).then(setProfile);
@@ -60,6 +108,7 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
         setSession(false);
         setUser(null);
         setProfile(null);
+        setMode("login");
       }
     });
 
@@ -69,22 +118,59 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
   // ─── handlers ───
 
   const handleSubmit = useCallback(async () => {
+    const trimmedEmail = email.trim();
     setError("");
+    setNotice("");
     setSubmitting(true);
     try {
+      if ((mode === "login" || mode === "register" || mode === "forgotPassword") && !isValidEmail(trimmedEmail)) {
+        setError("请输入有效邮箱");
+        return;
+      }
+
+      if (mode === "forgotPassword") {
+        await resetPassword(trimmedEmail, getPasswordResetRedirectTo());
+        setNotice("重置邮件已发送，请检查邮箱。");
+        return;
+      }
+
+      if (mode === "resetPassword") {
+        const passwordError = validatePassword(password);
+        if (passwordError) {
+          setError(passwordError);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError("两次输入的密码不一致");
+          return;
+        }
+        await updatePassword(password);
+        setPassword("");
+        setConfirmPassword("");
+        setMode("login");
+        setNotice("密码修改成功，请使用新密码登录。");
+        await signOut();
+        return;
+      }
+
       if (mode === "register") {
-        await signUp(email, password);
-        setError("注册成功！请检查邮箱确认链接，或直接尝试登录。");
+        const passwordError = validatePassword(password);
+        if (passwordError) {
+          setError(passwordError);
+          return;
+        }
+        await signUp(trimmedEmail, password);
+        setNotice("注册成功！请检查邮箱确认链接，或直接尝试登录。");
         setMode("login");
       } else {
-        await signIn(email, password);
+        await signIn(trimmedEmail, password);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "操作失败");
     } finally {
       setSubmitting(false);
     }
-  }, [mode, email, password]);
+  }, [mode, email, password, confirmPassword]);
 
   const handleLogout = useCallback(async () => {
     await signOut();
@@ -149,12 +235,12 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
   // ─── loading ───
   // 注意：session=true 但 profile 尚未加载完成时也要显示加载状态，
   // 避免中间态渲染登录表单导致闪烁
-  if (loading || (session && !profile)) {
+  if (loading || (session && mode !== "resetPassword" && !profile)) {
     return <AccountPanelSkeleton />;
   }
 
   // ─── logged in ───
-  if (session && user && profile) {
+  if (session && user && profile && mode !== "resetPassword") {
     return (
       <ScrollFrame>
         {/* 个人信息卡片 */}
@@ -285,13 +371,30 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
     );
   }
 
+  const requiresEmail = mode === "login" || mode === "register" || mode === "forgotPassword";
+  const requiresPassword = mode === "login" || mode === "register" || mode === "resetPassword";
+  const submitDisabled =
+    submitting ||
+    (requiresEmail && !email.trim()) ||
+    (requiresPassword && !password) ||
+    (mode === "resetPassword" && !confirmPassword);
+  const submitLabel = submitting
+    ? "处理中..."
+    : mode === "register"
+      ? "注册"
+      : mode === "forgotPassword"
+        ? "发送重置邮件"
+        : mode === "resetPassword"
+          ? "更新密码"
+          : "登录";
+
   // ─── login / register form ───
   return (
     <ScrollFrame center>
       <div className="max-w-[360px] w-full pt-4">
         <Card>
           <h3 className="text-[15px] font-display font-semibold text-ink mb-4">
-            {mode === "login" ? "登录" : "注册"}
+            {getAuthTitle(mode)}
           </h3>
 
           {error && (
@@ -300,30 +403,56 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
             </div>
           )}
 
-          <div className="space-y-3">
-            <div>
-              <label className="block text-[10px] font-mono text-ink-faint mb-1">邮箱</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="w-full h-9 px-3 rounded-lg bg-paper-warm/70 border border-paper-deep/40 text-[12px] text-ink placeholder:text-ink-ghost/50 outline-none focus:border-bamboo/30"
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              />
+          {notice && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-bamboo-mist/40 border border-bamboo/20 text-[11px] text-bamboo">
+              {notice}
             </div>
+          )}
 
-            <div>
-              <label className="block text-[10px] font-mono text-ink-faint mb-1">密码</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="至少 6 位"
-                className="w-full h-9 px-3 rounded-lg bg-paper-warm/70 border border-paper-deep/40 text-[12px] text-ink placeholder:text-ink-ghost/50 outline-none focus:border-bamboo/30"
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              />
-            </div>
+          <div className="space-y-3">
+            {mode !== "resetPassword" && (
+              <div>
+                <label className="block text-[10px] font-mono text-ink-faint mb-1">邮箱</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full h-9 px-3 rounded-lg bg-paper-warm/70 border border-paper-deep/40 text-[12px] text-ink placeholder:text-ink-ghost/50 outline-none focus:border-bamboo/30"
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                />
+              </div>
+            )}
+
+            {mode !== "forgotPassword" && (
+              <div>
+                <label className="block text-[10px] font-mono text-ink-faint mb-1">
+                  {mode === "resetPassword" ? "新密码" : "密码"}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="至少 8 位，含字母、数字、特殊字符"
+                  className="w-full h-9 px-3 rounded-lg bg-paper-warm/70 border border-paper-deep/40 text-[12px] text-ink placeholder:text-ink-ghost/50 outline-none focus:border-bamboo/30"
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                />
+              </div>
+            )}
+
+            {mode === "resetPassword" && (
+              <div>
+                <label className="block text-[10px] font-mono text-ink-faint mb-1">确认新密码</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="再次输入新密码"
+                  className="w-full h-9 px-3 rounded-lg bg-paper-warm/70 border border-paper-deep/40 text-[12px] text-ink placeholder:text-ink-ghost/50 outline-none focus:border-bamboo/30"
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                />
+              </div>
+            )}
 
             {mode === "register" && (
               <div>
@@ -341,21 +470,34 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
 
             <button
               onClick={handleSubmit}
-              disabled={submitting || !email || !password}
+              disabled={submitDisabled}
               className="w-full h-10 rounded-xl bg-bamboo/90 text-cloud text-[13px] font-medium hover:bg-bamboo disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer mt-1"
             >
-              {submitting ? "处理中..." : mode === "login" ? "登录" : "注册"}
+              {submitLabel}
             </button>
           </div>
 
           <p className="text-[11px] text-ink-ghost text-center mt-4">
             {mode === "login" ? (
               <>
+                <button
+                  onClick={() => {
+                    setMode("forgotPassword");
+                    setError("");
+                    setNotice("");
+                    setPassword("");
+                  }}
+                  className="text-bamboo hover:underline cursor-pointer"
+                >
+                  忘记密码？
+                </button>
+                <span className="mx-2 text-ink-ghost/50">·</span>
                 还没有账号？{" "}
                 <button
                   onClick={() => {
                     setMode("register");
                     setError("");
+                    setNotice("");
                   }}
                   className="text-bamboo hover:underline cursor-pointer"
                 >
@@ -364,11 +506,14 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
               </>
             ) : (
               <>
-                已有账号？{" "}
+                {mode === "forgotPassword" ? "想起密码了？" : "已有账号？"}{" "}
                 <button
                   onClick={() => {
                     setMode("login");
                     setError("");
+                    setNotice("");
+                    setPassword("");
+                    setConfirmPassword("");
                   }}
                   className="text-bamboo hover:underline cursor-pointer"
                 >

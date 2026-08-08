@@ -20,9 +20,11 @@ interface CanvasPageProps {
   onSave?: (doc: CanvasDocument) => void;
 }
 
-const NODE_DEFAULTS: Record<CanvasNodeType, { width: number; height: number }> = {
-  text: { width: 200, height: 80 },
-  card: { width: 240, height: 120 },
+const NODE_DEFAULTS: Record<CanvasNodeType, { width: number; height: number; label: string }> = {
+  text: { width: 200, height: 80, label: "新节点" },
+  card: { width: 240, height: 120, label: "新卡片" },
+  resource: { width: 260, height: 110, label: "资料节点" },
+  task: { width: 220, height: 96, label: "待办任务" },
 };
 
 function CanvasActionIcon({ children }: { children: ReactNode }) {
@@ -49,6 +51,26 @@ function CardIcon() {
       <rect x="2.4" y="3.2" width="11.2" height="9.6" rx="2" />
       <path d="M4.7 6.2h6.6" />
       <path d="M4.7 9h4.8" opacity="0.62" />
+    </CanvasActionIcon>
+  );
+}
+
+function ResourceIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M3.2 3.5h6.2l3.4 3.3v5.7H3.2z" />
+      <path d="M9.2 3.7v3.4h3.3" opacity="0.62" />
+      <path d="M5.1 9h5.8" />
+    </CanvasActionIcon>
+  );
+}
+
+function TaskIcon() {
+  return (
+    <CanvasActionIcon>
+      <rect x="2.8" y="3" width="10.4" height="10" rx="2" />
+      <path d="m5.2 8 1.5 1.5 3.9-4" />
+      <path d="M5.2 11.2h5.4" opacity="0.62" />
     </CanvasActionIcon>
   );
 }
@@ -147,6 +169,8 @@ export function CanvasPage({
   const [archiveSuggestions, setArchiveSuggestions] = useState<ArchiveSuggestion[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveDismissed, setArchiveDismissed] = useState(false);
+  const [linkSourceNodeId, setLinkSourceNodeId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Agent 智能覆盖层（场景一：隐含连接 / 场景二：语义空白区 / 场景三：共识分歧）
   const agent = useCanvasAgent(providers, agentEnabled);
@@ -233,15 +257,16 @@ export function CanvasPage({
         y: 100 + Math.random() * 40,
         width: defaults.width,
         height: defaults.height,
-        text: text || (type === "text" ? t("canvas.newText", { defaultValue: "新节点" }) : ""),
+        text: text || defaults.label,
       };
       setDoc((prev) => ({
         ...prev,
         nodes: [...prev.nodes, newNode],
       }));
       setEditingNodeId(newNode.id);
+      setSaveStatus("idle");
     },
-    [t],
+    [],
   );
 
   const updateNodeText = useCallback((nodeId: string, text: string) => {
@@ -249,6 +274,7 @@ export function CanvasPage({
       ...prev,
       nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text } : n)),
     }));
+    setSaveStatus("idle");
   }, []);
 
   const updateNodePosition = useCallback((nodeId: string, x: number, y: number) => {
@@ -256,7 +282,34 @@ export function CanvasPage({
       ...prev,
       nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)),
     }));
+    setSaveStatus("idle");
   }, []);
+
+  const createEdge = useCallback((fromNodeId: string, toNodeId: string, style: "solid" | "dashed" = "solid") => {
+    if (fromNodeId === toNodeId) return;
+    setDoc((prev) => {
+      const exists = prev.edges.some(
+        (e) =>
+          (e.fromNodeId === fromNodeId && e.toNodeId === toNodeId) ||
+          (e.fromNodeId === toNodeId && e.toNodeId === fromNodeId),
+      );
+      if (exists) return prev;
+      return {
+        ...prev,
+        edges: [...prev.edges, { id: generateId(), fromNodeId, toNodeId, style }],
+      };
+    });
+    setSaveStatus("idle");
+  }, []);
+
+  const handleNodeClick = useCallback(
+    (nodeId: string) => {
+      if (!linkSourceNodeId) return;
+      createEdge(linkSourceNodeId, nodeId);
+      setLinkSourceNodeId(null);
+    },
+    [createEdge, linkSourceNodeId],
+  );
 
   const deleteNode = useCallback((nodeId: string) => {
     setDoc((prev) => ({
@@ -266,6 +319,8 @@ export function CanvasPage({
     }));
     setSelectedNodeId(null);
     setEditingNodeId(null);
+    setLinkSourceNodeId((current) => (current === nodeId ? null : current));
+    setSaveStatus("idle");
   }, []);
 
   const handleMouseDown = useCallback(
@@ -302,9 +357,16 @@ export function CanvasPage({
     setDragState(null);
   }, []);
 
-  const handleSave = useCallback(() => {
-    void saveCanvasDocument(doc);
-    onSave?.(doc);
+  const handleSave = useCallback(async () => {
+    setSaveStatus("saving");
+    try {
+      const saved = await saveCanvasDocument(doc);
+      onSave?.(saved);
+      setSaveStatus("saved");
+      window.setTimeout(() => setSaveStatus("idle"), 1800);
+    } catch {
+      setSaveStatus("error");
+    }
   }, [doc, onSave]);
 
   const handleArchiveSuggestions = useCallback(async () => {
@@ -326,6 +388,7 @@ export function CanvasPage({
       ...prev,
       nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text: `${tag}: ${n.text}` } : n)),
     }));
+    setSaveStatus("idle");
   }, []);
 
   if (loading) {
@@ -360,11 +423,30 @@ export function CanvasPage({
         </button>
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => addNode("resource")}
+          className="canvas-control-button canvas-button-secondary"
+        >
+          <ResourceIcon />
+          {t("canvas.addResource", { defaultValue: "资料" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => addNode("task")}
+          className="canvas-control-button canvas-button-secondary"
+        >
+          <TaskIcon />
+          {t("canvas.addTask", { defaultValue: "任务" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saveStatus === "saving"}
           className="canvas-control-button canvas-button-primary"
         >
           <SaveIcon />
-          {t("common.save", { defaultValue: "保存" })}
+          {saveStatus === "saving"
+            ? t("common.saving", { defaultValue: "保存中…" })
+            : t("common.save", { defaultValue: "保存" })}
         </button>
         <button
           type="button"
@@ -428,7 +510,17 @@ export function CanvasPage({
       </div>
 
       {selectedNodeId && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setLinkSourceNodeId(selectedNodeId)}
+            className="canvas-control-button canvas-button-secondary"
+          >
+            <LinkIcon />
+            {linkSourceNodeId === selectedNodeId
+              ? t("canvas.pickTarget", { defaultValue: "选择目标" })
+              : t("canvas.connectFrom", { defaultValue: "连线" })}
+          </button>
           <button
             type="button"
             onClick={() => deleteNode(selectedNodeId)}
@@ -436,6 +528,14 @@ export function CanvasPage({
           >
             {t("common.delete", { defaultValue: "删除" })}
           </button>
+        </div>
+      )}
+
+      {saveStatus !== "idle" && saveStatus !== "saving" && (
+        <div className="absolute bottom-4 right-4 z-20 px-3 py-1.5 rounded-full bg-paper/90 border border-paper-deep/30 text-[10px] text-ink-faint shadow-sm">
+          {saveStatus === "saved"
+            ? t("canvas.saveDone", { defaultValue: "画布已保存" })
+            : t("canvas.saveFailed", { defaultValue: "保存失败，请稍后重试" })}
         </div>
       )}
 
@@ -613,6 +713,7 @@ export function CanvasPage({
         onClick={() => {
           setSelectedNodeId(null);
           setEditingNodeId(null);
+          setLinkSourceNodeId(null);
         }}
       >
         <rect width="100%" height="100%" fill="transparent" />
@@ -676,7 +777,10 @@ export function CanvasPage({
             key={node.id}
             transform={`translate(${node.x}, ${node.y})`}
             onMouseDown={(e) => handleMouseDown(e, node.id)}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNodeClick(node.id);
+            }}
             className="cursor-move"
           >
             <rect

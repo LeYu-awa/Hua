@@ -22,7 +22,24 @@ export function loadTTSConfig(): TTSConfig {
     if (!saved) return { ...DEFAULT_TTS };
     const parsed = JSON.parse(saved) as Partial<TTSConfig>;
     const engine = LEGACY_ENGINE_LABEL_TO_KEY[String(parsed.engine)] ?? parsed.engine;
-    return { ...DEFAULT_TTS, ...parsed, engine: engine ?? DEFAULT_TTS.engine };
+    const merged = { ...DEFAULT_TTS, ...parsed, engine: engine ?? DEFAULT_TTS.engine };
+    const apiUrl = String(parsed.apiUrl ?? "").trim();
+    const isEmptyLegacyGptSovits =
+      merged.engine === "gpt-sovits" &&
+      (!apiUrl || apiUrl.includes("127.0.0.1:9880")) &&
+      !String(parsed.voice ?? "").trim() &&
+      !String(parsed.gptWeightsPath ?? "").trim() &&
+      !String(parsed.sovitsWeightsPath ?? "").trim() &&
+      !String(parsed.refAudioDir ?? "").trim();
+    const isCloudOpenAiDefault =
+      merged.engine === "openai" &&
+      (!apiUrl || apiUrl === "https://api.openai.com/v1") &&
+      !String(parsed.apiKey ?? "").trim();
+    const isLocalVibeVoiceDefault =
+      merged.engine === "openai" &&
+      apiUrl.replace(/\/+$/, "") === DEFAULT_TTS.apiUrl.replace(/\/+$/, "") &&
+      (parsed.enabled !== true || parsed.autoSpeak !== true);
+    return isEmptyLegacyGptSovits || isCloudOpenAiDefault || isLocalVibeVoiceDefault ? { ...DEFAULT_TTS } : merged;
   } catch {
     return { ...DEFAULT_TTS };
   }

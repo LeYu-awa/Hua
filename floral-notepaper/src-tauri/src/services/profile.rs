@@ -249,7 +249,13 @@ mod tests {
             delete_ratio: 20.0,
         };
         let json = serde_json::to_string(&doc).unwrap();
-        assert!(json.contains("noteId"), "expected camelCase noteId, got: {json}");
-        assert!(json.contains("deleteRatio"), "expected camelCase deleteRatio, got: {json}");
+        assert!(
+            json.contains("noteId"),
+            "expected camelCase noteId, got: {json}"
+        );
+        assert!(
+            json.contains("deleteRatio"),
+            "expected camelCase deleteRatio, got: {json}"
+        );
     }
 }

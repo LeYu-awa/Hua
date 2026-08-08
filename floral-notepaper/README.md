@@ -160,6 +160,47 @@ floral-notepaper/
 └─ README.md               # 简体中文说明文档
 ```
 
+## 本地依赖服务：VibeVoice TTS（Docker）
+
+语音播报 / 角色朗读默认走本地 VibeVoice TTS（`http://127.0.0.1:8001/v1`，OpenAI 兼容接口）。该服务是外部依赖，已通过 **git submodule** 随仓库提供（仅含服务源码与启动配置），本仓库内另包含自定义音色文件。
+
+### 前置条件
+
+- NVIDIA GPU + Docker（NVIDIA Container Toolkit）
+
+### 初始化子模块
+
+```bash
+# 首次 clone 时拉取所有子模块：
+git clone --recurse-submodules https://github.com/LeYu-awa/Hua.git
+# 或已 clone 过，补拉子模块：
+git submodule update --init
+```
+
+### 启动 TTS 服务
+
+```bash
+# 在仓库根目录（Hua）执行
+docker compose -f floral-notepaper/docker/vibevoice/docker-compose.yml up -d --build
+```
+
+首次启动会下载模型（`microsoft/VibeVoice-1.5B`），耗时取决于网络，之后走本地 HuggingFace 缓存。验证：
+
+```bash
+curl http://127.0.0.1:8001/health
+# {"status":"healthy"}
+```
+
+### 音色文件
+
+自定义音色位于 `resources/voices/`（如 `furina.wav`），启动时由 compose 挂载进容器 `/app/voices`。新增音色：把音频放入该目录，并在 `docker/vibevoice/docker-compose.yml` 的 `OPENAI_VOICE_MAPPING` 中映射即可。
+
+### 注意事项
+
+- GPU 不可用时检查 compose 中 `device_ids` 是否与显卡编号一致（多卡机器）。
+- 显存：VibeVoice（约 7.6GB）与本地 LLM 无法在 8GB 显卡上同时运行，需错峰使用。
+- 不依赖 Docker 的备选：TTS 引擎可在应用内切到 Edge TTS（云端）或任意 OpenAI 兼容服务地址。
+
 ## 从源码运行
 
 ### 环境要求
@@ -171,7 +212,7 @@ floral-notepaper/
 ### 安装依赖
 
 ```bash
-git clone https://github.com/LeYu-awa/Hua.git
+git clone --recurse-submodules https://github.com/LeYu-awa/Hua.git
 cd Hua/floral-notepaper
 npm install
 ```

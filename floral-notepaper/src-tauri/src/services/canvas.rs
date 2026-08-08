@@ -184,8 +184,8 @@ mod tests {
                 {"id":"e1","fromNodeId":"a","toNodeId":"b","style":"dashed"}
             ]
         }"#;
-        let doc: CanvasDocument = serde_json::from_str(frontend_json)
-            .expect("前端形状的 JSON 必须能被 Rust 反序列化");
+        let doc: CanvasDocument =
+            serde_json::from_str(frontend_json).expect("前端形状的 JSON 必须能被 Rust 反序列化");
         assert_eq!(doc.nodes.len(), 2);
         assert_eq!(doc.nodes[0].node_type, "text");
         assert_eq!(doc.nodes[1].node_type, "card");
@@ -202,8 +202,26 @@ mod tests {
             note_id: Some("n1".into()),
             co_write_session_id: None,
             nodes: vec![
-                CanvasNode { id: "a".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "A".into(), source: None },
-                CanvasNode { id: "b".into(), node_type: "text".into(), x: 700.0, y: 0.0, width: 200.0, height: 80.0, text: "B".into(), source: None },
+                CanvasNode {
+                    id: "a".into(),
+                    node_type: "text".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    width: 200.0,
+                    height: 80.0,
+                    text: "A".into(),
+                    source: None,
+                },
+                CanvasNode {
+                    id: "b".into(),
+                    node_type: "text".into(),
+                    x: 700.0,
+                    y: 0.0,
+                    width: 200.0,
+                    height: 80.0,
+                    text: "B".into(),
+                    source: None,
+                },
             ],
             edges: vec![],
         };

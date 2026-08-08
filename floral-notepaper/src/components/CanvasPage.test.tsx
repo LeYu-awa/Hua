@@ -129,7 +129,7 @@ describe("CanvasPage — SVG 画布接线", () => {
   it("加载失败时回退 initialDocument 并渲染 SVG 画布", async () => {
     const { container } = renderCanvas();
 
-    await waitFor(() => expect(screen.getByText("+ 文本")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
     expect(container.querySelector("svg")).toBeTruthy();
     expect(screen.getByText("保存")).toBeTruthy();
     expect(screen.getByText("智能归档")).toBeTruthy();
@@ -142,7 +142,7 @@ describe("CanvasPage — SVG 画布接线", () => {
   it("SVG 画布中显示 initialDocument 的节点且可触发保存", async () => {
     renderCanvas();
 
-    await waitFor(() => expect(screen.getByText("+ 文本")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
     // 初始节点文本应渲染
     expect(screen.getByText("用户需要实时同步")).toBeTruthy();
     expect(screen.getByText("架构选型")).toBeTruthy();

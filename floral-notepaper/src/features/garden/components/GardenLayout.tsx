@@ -49,11 +49,20 @@ export function GardenLayout({ userId }: GardenLayoutProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-paper">
       {/* Global header with SpaceSwitcher */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-paper-deep/10">
-        <h2 className="text-[15px] font-medium text-ink-soft">
-          {space === 'public' ? t('garden.publicGarden', '公共花园') : t('garden.personalGarden', '个人花园')}
-        </h2>
-        <SpaceSwitcher active={space} onChange={setSpace} />
+      <div className="px-6 py-4 border-b border-paper-deep/10 bg-paper/80">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-[16px] font-medium text-ink-soft">
+              {space === 'public' ? t('garden.publicGarden', '公共花园') : t('garden.personalGarden', '我的花园')}
+            </h2>
+            <p className="text-[11px] text-ink-ghost/75 mt-0.5">
+              {space === 'public'
+                ? t('garden.publicGardenHint', '发现公开作品、灵感集合和主题分类')
+                : t('garden.personalGardenHint', '整理项目、草稿、画布与长期写作状态')}
+            </p>
+          </div>
+          <SpaceSwitcher active={space} onChange={setSpace} />
+        </div>
       </div>
 
       {/* Content */}

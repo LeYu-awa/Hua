@@ -2,6 +2,7 @@ pub mod agent;
 pub mod assistant_tools;
 pub mod canvas;
 pub mod cowrite;
+pub mod diary;
 pub mod embedding_cache;
 pub mod ink;
 pub mod notes;

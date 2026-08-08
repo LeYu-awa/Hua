@@ -51,3 +51,9 @@ three/
 
 # Nested standalone repos (not part of this project)
 doudoubao/
+ai2d/
+comfyui/
+EchoBot/
+live2d-widget-models/
+neko-realtime-api/
+next-site/

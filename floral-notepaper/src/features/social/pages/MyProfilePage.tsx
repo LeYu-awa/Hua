@@ -18,6 +18,15 @@ interface MyProfilePageProps {
   currentUserId?: string | null;
 }
 
+function ProfileMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-paper-deep/20 bg-paper/70 px-4 py-3">
+      <div className="text-[18px] font-semibold text-ink-soft">{value}</div>
+      <div className="text-[11px] text-ink-ghost/70 mt-0.5">{label}</div>
+    </div>
+  );
+}
+
 export function MyProfilePage({ userId, currentUserId }: MyProfilePageProps) {
   const { t } = useTranslation();
   const { profile, stats, isFollowing, loading, activeTab, setActiveTab, loadProfile, toggleFollow, updateProfile } = useProfileStore(currentUserId);
@@ -28,6 +37,9 @@ export function MyProfilePage({ userId, currentUserId }: MyProfilePageProps) {
   const [editBio, setEditBio] = useState('');
 
   const isOwnProfile = currentUserId === userId;
+  const publicCount = articles.filter(article => article.isPublic).length;
+  const totalViews = articles.reduce((sum, article) => sum + article.viewCount, 0);
+  const totalLikes = articles.reduce((sum, article) => sum + article.likeCount, 0);
 
   const tabs: ProfileTab[] = [
     { key: 'articles', label: t('profile.articles', '文章'), count: stats?.articleCount },
@@ -75,11 +87,20 @@ export function MyProfilePage({ userId, currentUserId }: MyProfilePageProps) {
         onEditProfile={handleEditProfile}
       />
 
+      <div className="px-8 py-4 border-b border-paper-deep/10 bg-paper-warm/25">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <ProfileMetric label={t('profile.totalWorks', '全部作品')} value={articles.length} />
+          <ProfileMetric label={t('profile.publicWorks', '公开作品')} value={publicCount} />
+          <ProfileMetric label={t('profile.views', '浏览')} value={stats?.viewCount ?? totalViews} />
+          <ProfileMetric label={t('profile.likes', '获赞')} value={stats?.likeCount ?? totalLikes} />
+        </div>
+      </div>
+
       <ProfileTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'articles' && (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4">
             {articles.map(article => (
               <CreationCard key={article.id} article={article} />
             ))}

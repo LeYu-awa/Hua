@@ -224,7 +224,7 @@ export function AppShell() {
           </div>
         </div>
         {/* 主窗口嵌入式 Live2D 层（surface=embedded，position:fixed 覆盖在主界面之上） */}
-        <Live2DCompanionLayer surface="embedded" />
+        <Live2DCompanionLayer surface="embedded" providers={providers} />
       </WindowFrame>
     </ContextMenuProvider>
   );

@@ -8,4 +8,12 @@ export {
   type TTSEngineKey,
 } from "./types";
 export { synthesizeWithConfig, type TtsContext, type TtsResult } from "./ttsClient";
-export { speakText, stopSpeech, shouldAutoSpeak } from "./ttsService";
+export {
+  speakText,
+  stopSpeech,
+  shouldAutoSpeak,
+  isSpeechPlaying,
+  subscribeSpeechState,
+  subscribeMouthValue,
+  unlockSpeechPlayback,
+} from "./ttsService";

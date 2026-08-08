@@ -5,7 +5,10 @@ use super::types::WorkflowDag;
 use crate::services::agent::{self, AgentEvent, AgentEventInput};
 use crate::services::notes::AppError;
 
-pub fn record_workflow_run(dag: &WorkflowDag, queue: &[String]) -> Result<Vec<AgentEvent>, AppError> {
+pub fn record_workflow_run(
+    dag: &WorkflowDag,
+    queue: &[String],
+) -> Result<Vec<AgentEvent>, AppError> {
     let conversation_id = dag.workflow_id.clone();
     let timestamp = Utc::now();
     let events = queue

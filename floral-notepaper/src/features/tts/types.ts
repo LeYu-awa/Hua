@@ -50,7 +50,7 @@ export const TTS_ENGINE_OPTIONS: Array<{ key: TTSEngineKey; label: string }> = [
   { key: "gpt-sovits", label: "GPT-SoVITS (本地)" },
   { key: "vits", label: "VITS (本地)" },
   { key: "edge", label: "Edge TTS (云端)" },
-  { key: "openai", label: "OpenAI TTS (云端)" },
+  { key: "openai", label: "OpenAI 兼容 / VibeVoice (本地)" },
 ];
 
 export const OPENAI_TTS_VOICES = [
@@ -63,18 +63,18 @@ export const OPENAI_TTS_VOICES = [
 ];
 
 export const DEFAULT_TTS: TTSConfig = {
-  engine: "gpt-sovits",
-  model: "",
-  apiUrl: "http://127.0.0.1:9880",
+  engine: "openai",
+  model: "tts-1",
+  apiUrl: "http://127.0.0.1:8001/v1",
   gptWeightsPath: "",
   sovitsWeightsPath: "",
   refAudioDir: "",
   defaultSpeed: 1.1,
   volume: 0.8,
-  voice: "",
+  voice: "furina",
   apiKey: "",
   enabled: true,
-  autoSpeak: false,
+  autoSpeak: true,
 };
 
 /** 情绪 → 语速微调系数（与 Elysia 面板提示一致） */

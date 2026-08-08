@@ -113,7 +113,9 @@ struct SearchResultItem {
     snippet: String,
 }
 
-pub async fn execute_tool(request: AssistantToolRequest) -> Result<AssistantToolResponse, AppError> {
+pub async fn execute_tool(
+    request: AssistantToolRequest,
+) -> Result<AssistantToolResponse, AppError> {
     let tool = request.tool.trim().to_string();
     if tool.is_empty() {
         return Err(AppError::new("invalidTool", "工具名称不能为空"));
@@ -125,7 +127,10 @@ pub async fn execute_tool(request: AssistantToolRequest) -> Result<AssistantTool
     if requires_confirmation(&tool, &config) && !request.confirmed {
         let summary = format!("已拦截未确认的工具调用：{}", tool_label(&tool));
         let _ = append_log(&tool, "denied", &summary, &request.params);
-        return Err(AppError::new("permissionRequired", "该操作需要先由用户确认"));
+        return Err(AppError::new(
+            "permissionRequired",
+            "该操作需要先由用户确认",
+        ));
     }
 
     if requires_confirmation(&tool, &config) {
@@ -366,7 +371,8 @@ fn execute_note_update(params: &Value) -> Result<AssistantToolResponse, AppError
     let mode = optional_string_param(params, "mode").unwrap_or_else(|| "append".into());
     let content = string_param(params, "content")?;
     let title = optional_string_param(params, "title").unwrap_or_else(|| note.title.clone());
-    let category = optional_string_param(params, "category").unwrap_or_else(|| note.category.clone());
+    let category =
+        optional_string_param(params, "category").unwrap_or_else(|| note.category.clone());
     validate_category(&category)?;
 
     if !category.is_empty() {
@@ -404,7 +410,11 @@ fn execute_note_update(params: &Value) -> Result<AssistantToolResponse, AppError
         tool: "note.update".into(),
         summary: format!(
             "已{}笔记「{}」。",
-            if mode == "replace" { "更新" } else { "追加" },
+            if mode == "replace" {
+                "更新"
+            } else {
+                "追加"
+            },
             updated.title
         ),
         data: json!({ "note": updated, "mode": mode }),
@@ -421,7 +431,11 @@ fn execute_note_move_category(params: &Value) -> Result<AssistantToolResponse, A
     }
 
     let moved = default_store()?.move_note_to_category(&note.id, &category)?;
-    let category_label = if category.is_empty() { "未分类" } else { &category };
+    let category_label = if category.is_empty() {
+        "未分类"
+    } else {
+        &category
+    };
     Ok(AssistantToolResponse {
         tool: "note.moveCategory".into(),
         summary: format!("已将笔记「{}」归类到「{}」。", moved.title, category_label),
@@ -534,7 +548,10 @@ fn execute_external_copy_text(params: &Value) -> Result<AssistantToolResponse, A
 
     Ok(AssistantToolResponse {
         tool: "external.copyText".into(),
-        summary: format!("已通过权限校验，可复制 {} 个字符到剪贴板。", text.chars().count()),
+        summary: format!(
+            "已通过权限校验，可复制 {} 个字符到剪贴板。",
+            text.chars().count()
+        ),
         data: json!({ "action": "copyText", "text": text }),
     })
 }
@@ -550,7 +567,10 @@ fn resolve_note(params: &Value) -> Result<Note, AppError> {
     let query_lower = query.to_lowercase();
     let notes = default_store()?.list_notes()?;
 
-    if let Some(note) = notes.iter().find(|note| note.title.to_lowercase() == query_lower) {
+    if let Some(note) = notes
+        .iter()
+        .find(|note| note.title.to_lowercase() == query_lower)
+    {
         return default_store()?.read_note(&note.id);
     }
 
@@ -632,8 +652,15 @@ fn number_param(params: &Value, key: &str) -> Option<u64> {
 }
 
 fn validate_category(category: &str) -> Result<(), AppError> {
-    if category.contains('/') || category.contains('\\') || category.contains(':') || category.contains("..") {
-        return Err(AppError::new("categoryNameInvalidChars", "分类名不能包含特殊字符"));
+    if category.contains('/')
+        || category.contains('\\')
+        || category.contains(':')
+        || category.contains("..")
+    {
+        return Err(AppError::new(
+            "categoryNameInvalidChars",
+            "分类名不能包含特殊字符",
+        ));
     }
     Ok(())
 }
@@ -798,7 +825,9 @@ fn log_path() -> Result<std::path::PathBuf, AppError> {
 }
 
 fn agent_config_path() -> Result<std::path::PathBuf, AppError> {
-    Ok(default_store()?.base_dir().join("assistant_agent_config.json"))
+    Ok(default_store()?
+        .base_dir()
+        .join("assistant_agent_config.json"))
 }
 
 fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), AppError> {

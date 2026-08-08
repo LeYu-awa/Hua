@@ -1,0 +1,68 @@
+# VibeVoice TTS 本地服务（花笺项目依赖）
+#
+# 用途：为花笺的语音播报 / 角色朗读提供 OpenAI 兼容的 TTS 端点
+#       （http://127.0.0.1:8001/v1/audio/speech）。
+#
+# 前置条件：
+#   1. NVIDIA GPU + Docker（NVIDIA Container Toolkit）
+#   2. 上游服务仓库与本仓库同级目录：
+#      git clone https://github.com/ncoder-ai/VibeVoice-FastAPI.git ../VibeVoice-FastAPI
+#
+# 启动：
+#   docker compose -f docker/vibevoice/docker-compose.yml up -d --build
+#
+# 音色：本项目的自定义音色位于 ../../resources/voices/（相对本文件），
+#       启动时挂载进容器 /app/voices，与上游 demo 音色目录解耦。
+
+services:
+  vibevoice-api:
+    build:
+      context: ../../../VibeVoice-FastAPI
+      dockerfile: Dockerfile
+    image: vibevoice-api:latest
+    container_name: vibevoice-api
+
+    # GPU（默认 0 号卡；多卡机器按需修改 device_ids）
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+
+    ports:
+      - "${API_PORT:-8001}:8001"
+
+    environment:
+      # 模型：1.5B 单说话人；4060 8GB 实测可跑（float16 + sdpa）
+      VIBEVOICE_MODEL_PATH: microsoft/VibeVoice-1.5B
+      VIBEVOICE_DEVICE: cuda
+      VIBEVOICE_INFERENCE_STEPS: "4"
+      VIBEVOICE_DTYPE: float16
+      VIBEVOICE_ATTN_IMPLEMENTATION: sdpa
+      # 容器内音色目录（由下方 volume 挂载本项目的 resources/voices）
+      VOICES_DIR: /app/voices
+      # OpenAI 音色名 → 自定义音色 映射（全部指向 furina）
+      OPENAI_VOICE_MAPPING: '{"alloy": "furina", "echo": "furina", "fable": "furina", "onyx": "furina", "nova": "furina", "shimmer": "furina", "furina": "furina"}'
+      # API
+      API_HOST: 0.0.0.0
+      API_PORT: "8001"
+      API_WORKERS: "1"
+      API_CORS_ORIGINS: "*"
+      # 生成默认值
+      DEFAULT_CFG_SCALE: "1.8"
+      DEFAULT_RESPONSE_FORMAT: mp3
+      MAX_GENERATION_LENGTH: "5400"
+      DEFAULT_DO_SAMPLE: "false"
+      LOG_LEVEL: INFO
+
+    volumes:
+      # 本项目音色目录 → 容器
+      - ../../resources/voices:/app/voices:ro
+      # HuggingFace 模型缓存（首次下载后免重下）
+      - ${HF_CACHE_DIR:-~/.cache/huggingface}:/root/.cache/huggingface:rw
+      # torch.compile 缓存（开启 TORCH_COMPILE 时加速重启后首请求）
+      - ${TORCH_CACHE_DIR:-~/.cache/torch_compile_vibevoice}:/app/torch_cache:rw
+
+    restart: unless-stopped

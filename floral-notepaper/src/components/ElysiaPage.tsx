@@ -197,7 +197,7 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
             placeholder={
               config.engine === "openai"
-                ? "https://api.openai.com/v1"
+                ? DEFAULT_TTS.apiUrl
                 : "http://127.0.0.1:9880"
             }
           />
@@ -205,7 +205,7 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             {config.engine === "gpt-sovits" && "GPT-SoVITS 本地服务的 HTTP API 地址（api_v2.py，POST /tts）"}
             {config.engine === "vits" && "MoeTTS / VITS 服务地址（GET /tts?text=...&id=<说话人>）"}
             {config.engine === "edge" && "无需填写，使用系统内置 Edge / 中文语音"}
-            {config.engine === "openai" && "OpenAI 兼容服务地址（POST /audio/speech）"}
+            {config.engine === "openai" && "OpenAI 兼容 / VibeVoice 服务地址（本地默认 POST /audio/speech）"}
           </p>
         </div>
 
@@ -365,7 +365,7 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               <>使用系统内置 Edge / 中文语音，无需服务端；音色留空自动选择中文女声。</>
             )}
             {config.engine === "openai" && (
-              <>需填写 API 地址与 Key，请求路径为 <code className="bg-paper-deep/30 px-1 rounded">POST /audio/speech</code>。</>
+              <>默认接本地 VibeVoice：<code className="bg-paper-deep/30 px-1 rounded">http://127.0.0.1:8001/v1</code>，请求路径为 <code className="bg-paper-deep/30 px-1 rounded">POST /audio/speech</code>。本地服务不需要 API Key。</>
             )}
           </p>
         </div>

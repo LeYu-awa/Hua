@@ -1,0 +1,3 @@
+[submodule "VibeVoice-FastAPI"]
+	path = VibeVoice-FastAPI
+	url = https://github.com/ncoder-ai/VibeVoice-FastAPI.git

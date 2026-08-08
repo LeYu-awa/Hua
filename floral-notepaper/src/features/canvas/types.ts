@@ -1,4 +1,4 @@
-export type CanvasNodeType = "text" | "card";
+export type CanvasNodeType = "text" | "card" | "resource" | "task";
 
 export interface CanvasNode {
   id: string;

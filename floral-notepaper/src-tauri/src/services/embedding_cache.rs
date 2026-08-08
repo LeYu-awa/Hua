@@ -73,8 +73,9 @@ impl EmbeddingCacheStore {
             map.insert(entry.key, entry.vector);
         }
 
-        let json = serde_json::to_string(&map)
-            .map_err(|e| AppError::new("serialization", format!("序列化 embedding 缓存失败: {e}")))?;
+        let json = serde_json::to_string(&map).map_err(|e| {
+            AppError::new("serialization", format!("序列化 embedding 缓存失败: {e}"))
+        })?;
         fs::write(self.model_path(model), json)
             .map_err(|e| AppError::new("io", format!("写入 embedding 缓存失败: {e}")))?;
         Ok(())
@@ -138,7 +139,8 @@ mod tests {
     #[test]
     fn deserializes_frontend_entry_shape() {
         let json = r#"{"key":"abc","vector":[0.1,0.2,0.3]}"#;
-        let entry: EmbeddingCacheEntry = serde_json::from_str(json).expect("前端条目形状应可反序列化");
+        let entry: EmbeddingCacheEntry =
+            serde_json::from_str(json).expect("前端条目形状应可反序列化");
         assert_eq!(entry.key, "abc");
         assert_eq!(entry.vector.len(), 3);
     }

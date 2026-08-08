@@ -14,6 +14,9 @@ use services::assistant_tools::{
 };
 use services::canvas::{canvas_delete, canvas_get, canvas_list, canvas_save, CanvasStore};
 use services::cowrite::{self, CoWriteSession, CoWriteSessionSummary, MergeToNoteResult};
+use services::diary::{
+    diary_create, diary_delete, diary_get, diary_list, diary_update, DiaryStore,
+};
 use services::embedding_cache::{
     embedding_cache_clear, embedding_cache_get, embedding_cache_put, EmbeddingCacheStore,
 };
@@ -531,7 +534,9 @@ fn assistant_agent_config_get() -> Result<AssistantAgentConfig, AppError> {
 }
 
 #[tauri::command]
-fn assistant_agent_config_save(config: AssistantAgentConfig) -> Result<AssistantAgentConfig, AppError> {
+fn assistant_agent_config_save(
+    config: AssistantAgentConfig,
+) -> Result<AssistantAgentConfig, AppError> {
     assistant_tools::save_agent_config(config)
 }
 
@@ -549,13 +554,14 @@ pub fn run() {
         }))
         .setup(|app| {
             if let Ok(store) = default_store() {
-                let base = store.base_dir();
+                let base = store.base_dir().to_path_buf();
                 let scope = app.asset_protocol_scope();
                 let _ = scope.allow_directory(base.join("images"), true);
                 let _ = scope.allow_directory(base.join("backgrounds"), true);
-                app.manage(InkStore::new(base));
-                app.manage(CanvasStore::new(base));
-                app.manage(EmbeddingCacheStore::new(base));
+                app.manage(InkStore::new(base.clone()));
+                app.manage(CanvasStore::new(base.clone()));
+                app.manage(DiaryStore::new(base.clone()));
+                app.manage(EmbeddingCacheStore::new(base.clone()));
                 app.manage(ProfileStore::new(base));
             }
             desktop::setup_desktop(app)?;
@@ -631,6 +637,11 @@ pub fn run() {
             ink_list_sessions,
             ink_get_session,
             ink_clear,
+            diary_create,
+            diary_get,
+            diary_list,
+            diary_update,
+            diary_delete,
             canvas_save,
             canvas_get,
             canvas_delete,
