@@ -166,6 +166,11 @@ const AQUARIUS_COPYRIGHT_HIDE_DELAY_MS = 1000;
 const AQUARIUS_COPYRIGHT_HIDE_VALUE = 0;
 const AQUARIUS_COPYRIGHT_TEXTURE_INDEX = 3;
 
+/** Miku 免费模型：水印由 Param137 控制，运行时强制隐藏（模型默认显示水印）。 */
+const MIKU_MODEL_MARKER = "miku";
+const MIKU_WATERMARK_PARAM_ID = "Param137";
+const MIKU_WATERMARK_HIDE_VALUE = 0;
+
 type Live2DDrawableModelApi = {
   getDrawableTextureIndex?: (index: number) => number;
 };
@@ -184,6 +189,15 @@ type Live2DRendererInternalApi = {
 
 function isAquariusModel(modelUrl: string) {
   return decodeURIComponent(modelUrl).includes(AQUARIUS_MODEL_MARKER);
+}
+
+function isMikuModel(modelUrl: string) {
+  return decodeURIComponent(modelUrl).includes(MIKU_MODEL_MARKER);
+}
+
+function hideMikuWatermark(core: Live2DCoreModelParameterApi | null) {
+  if (!core) return false;
+  return setParameterIfPresent(core, MIKU_WATERMARK_PARAM_ID, MIKU_WATERMARK_HIDE_VALUE);
 }
 
 function getCoreModelParameterApi(live2dModel: Live2DModel | null): Live2DCoreModelParameterApi | null {
@@ -499,6 +513,7 @@ export function createLive2DModelController(
   let aquariusCopyrightTimer: number | null = null;
   let aquariusCopyrightHidden = false;
   let aquariusCopyrightHandler: (() => void) | null = null;
+  let mikuWatermarkHandler: (() => void) | null = null;
   let runtimeTick: (() => void) | null = null;
   let releaseSceneResize: (() => void) | null = null;
   let soullinkLocalEngine: SoullinkLocalEngineAdapter | null = null;
@@ -765,6 +780,21 @@ export function createLive2DModelController(
           };
           currentModel.internalModel.on("beforeModelUpdate", aquariusCopyrightHandler);
         }
+
+        if (isMikuModel(modelUrl)) {
+          const hidden = hideMikuWatermark(core);
+          reportModelDebug("W", "modelController.ts:load", "Miku watermark param hidden on load", {
+            modelUrl,
+            paramId: MIKU_WATERMARK_PARAM_ID,
+            hidden,
+          });
+          mikuWatermarkHandler = () => {
+            if (model === currentModel) {
+              hideMikuWatermark(getCoreModelParameterApi(currentModel));
+            }
+          };
+          currentModel.internalModel.on("beforeModelUpdate", mikuWatermarkHandler);
+        }
       }
 
       startRuntimeLoop();
@@ -803,6 +833,11 @@ export function createLive2DModelController(
       if (aquariusCopyrightHandler && model.internalModel) {
         model.internalModel.off("beforeModelUpdate", aquariusCopyrightHandler);
         aquariusCopyrightHandler = null;
+      }
+
+      if (mikuWatermarkHandler && model.internalModel) {
+        model.internalModel.off("beforeModelUpdate", mikuWatermarkHandler);
+        mikuWatermarkHandler = null;
       }
 
       const parent = model.parent;

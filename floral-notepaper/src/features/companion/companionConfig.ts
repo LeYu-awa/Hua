@@ -22,10 +22,15 @@ export const AQUARIUS_LOCAL_MODEL_PATH = `${AQUARIUS_LOCAL_BASE}/aquarius.model3
 export const HIYORI_LOCAL_BASE = "/live2d/hiyori";
 export const HIYORI_LOCAL_MODEL_PATH = `${HIYORI_LOCAL_BASE}/Hiyori.model3.json`;
 
+/** Miku 本地模型地址 */
+export const MIKU_LOCAL_BASE = "/live2d/miku";
+export const MIKU_LOCAL_MODEL_PATH = `${MIKU_LOCAL_BASE}/miku.model3.json`;
+
 export const BUILT_IN_LIVE2D_MODEL_OPTIONS = [
   { skinId: "haru-cdn", label: "Haru", revision: "haru-local-v2", modelPath: HARU_LOCAL_MODEL_PATH },
   { skinId: "hiyori", label: "Hiyori", revision: "hiyori-local-v1", modelPath: HIYORI_LOCAL_MODEL_PATH },
   { skinId: "aquarius-love", label: "水瓶座之恋", revision: "aquarius-love-local-v2", modelPath: AQUARIUS_LOCAL_MODEL_PATH },
+  { skinId: "miku", label: "Miku", revision: "miku-local-v1", modelPath: MIKU_LOCAL_MODEL_PATH },
 ] satisfies Array<{ skinId: CompanionSkinId; label: string; revision: string; modelPath: string }>;
 
 const KEYBOARD_HAND_FRAMES = [0, 1, 2, 3, "leftup", "rightup"];
