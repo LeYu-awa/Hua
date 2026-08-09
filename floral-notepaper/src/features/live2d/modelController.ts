@@ -1,4 +1,4 @@
-// Type-only import — 编译时完全擦除，不会触发模块级副作用
+// Type-only import only; erased at compile time, no runtime module side effects.
 import type { Live2DModel, MotionPriority as Live2DMotionPriority } from "@naari3/pixi-live2d-display/cubism5";
 import type { Container } from "pixi.js";
 import { Assets, Cache, TextureSource, loadTextures } from "pixi.js";
@@ -14,23 +14,6 @@ const MotionPriority = {
   FORCE: 3 as Live2DMotionPriority,
 } as const;
 type MotionPriority = Live2DMotionPriority;
-
-// #region debug-point D:model-controller-report
-const reportModelDebug = (hypothesisId: string, location: string, msg: string, data?: unknown) => {
-  fetch("http://127.0.0.1:7778/event", {
-    method: "POST",
-    body: JSON.stringify({
-      sessionId: "live2d-scale-bug",
-      runId: "post-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data,
-      ts: Date.now(),
-    }),
-  }).catch(() => undefined);
-};
-// #endregion
 
 type Live2DModel3Json = {
   url?: string;
@@ -156,8 +139,18 @@ type Live2DGlContext = WebGLRenderingContext | WebGL2RenderingContext;
 
 type Live2DInternalDrawPatch = {
   draw?: (gl: Live2DGlContext) => void;
+  viewport?: [number, number, number, number] | number[];
   __transparentCanvasDrawPatched?: boolean;
 };
+
+/**
+ * 模型基准适配参照卡片（与 Live2DCompanionLayer 的 LIVE2D_WIDTH/LIVE2D_HEIGHT 保持一致）。
+ * 缩放体系统一为：model.scale = baseScale × config.scale，
+ * baseScale 在 load 时按参照卡片计算一次，不再跟随视口/分辨率变化，避免“两套比例换算”互相覆盖。
+ */
+const MODEL_REFERENCE_WIDTH = 260;
+const MODEL_REFERENCE_HEIGHT = 380;
+const MODEL_REFERENCE_FILL_RATIO = 0.96;
 
 type Live2DCoreModelParameterApi = SoullinkCoreModelApi;
 
@@ -247,7 +240,7 @@ function patchAquariusCopyrightTextureDraw(live2dModel: Live2DModel, shouldHide:
   return true;
 }
 
-function patchTransparentCanvasDraw(live2dModel: Live2DModel) {
+function patchTransparentCanvasDraw(live2dModel: Live2DModel, scene: Live2DScene) {
   const internalModel = live2dModel.internalModel as unknown as Live2DInternalDrawPatch | null;
   if (!internalModel?.draw || internalModel.__transparentCanvasDrawPatched) return false;
 
@@ -257,9 +250,13 @@ function patchTransparentCanvasDraw(live2dModel: Live2DModel) {
     const viewport = gl.getParameter(gl.VIEWPORT) as Int32Array;
     const scissorEnabled = gl.isEnabled(gl.SCISSOR_TEST);
     const scissorBox = gl.getParameter(gl.SCISSOR_BOX) as Int32Array;
+    const previousLive2DViewport = internalModel.viewport ? [...internalModel.viewport] : null;
+    const canvas = scene.app.canvas as HTMLCanvasElement;
 
+    internalModel.viewport = [0, 0, canvas.width || Math.round(scene.app.screen.width * scene.app.renderer.resolution), canvas.height || Math.round(scene.app.screen.height * scene.app.renderer.resolution)];
     originalDraw(gl);
 
+    if (previousLive2DViewport) internalModel.viewport = previousLive2DViewport;
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     gl.scissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
@@ -300,17 +297,10 @@ function scheduleAquariusCopyrightNoticeHide(modelUrl: string, live2dModel: Live
   return window.setTimeout(() => {
     if (!isCurrentModel()) return;
 
-    const before = getAquariusCopyrightNoticeState(live2dModel);
-    const changed = applyAquariusCopyrightNoticeHidden(live2dModel);
+    // 查询当前版权通知参数状态（getAquariusCopyrightNoticeState 与 applyAquariusCopyrightNoticeHidden 配套的只读查询入口）。
+    void getAquariusCopyrightNoticeState(live2dModel);
+    applyAquariusCopyrightNoticeHidden(live2dModel);
     onHidden();
-    const after = getAquariusCopyrightNoticeState(live2dModel);
-
-    reportModelDebug("W", "modelController.ts:scheduleAquariusCopyrightNoticeHide", "Aquarius copyright notice hide parameters applied", {
-      modelUrl,
-      changed,
-      before,
-      after,
-    });
   }, AQUARIUS_COPYRIGHT_HIDE_DELAY_MS);
 }
 
@@ -360,121 +350,8 @@ function ensureModelVisible(live2dModel: Live2DModel, scene: Live2DScene) {
   live2dModel.alpha = 1;
 }
 
-function sampleCanvasPixels(scene: Live2DScene) {
-  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
-  const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
-  if (!gl) return null;
-
-  const samplePoints = [
-    [2, 2],
-    [Math.max(0, Math.floor(canvas.width / 2)), 2],
-    [Math.max(0, canvas.width - 3), 2],
-    [2, Math.max(0, Math.floor(canvas.height / 2))],
-    [Math.max(0, canvas.width - 3), Math.max(0, Math.floor(canvas.height / 2))],
-    [2, Math.max(0, canvas.height - 3)],
-    [Math.max(0, Math.floor(canvas.width / 2)), Math.max(0, canvas.height - 3)],
-    [Math.max(0, canvas.width - 3), Math.max(0, canvas.height - 3)],
-  ];
-
-  return samplePoints.map(([x, y]) => {
-    const pixel = new Uint8Array(4);
-    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-    return { x, y, rgba: Array.from(pixel) };
-  });
-}
-
-function getCanvasScaleSnapshot(scene: Live2DScene) {
-  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
-  return {
-    devicePixelRatio: window.devicePixelRatio || 1,
-    rendererResolution: scene.app.renderer.resolution,
-    screenWidth: scene.app.screen.width,
-    screenHeight: scene.app.screen.height,
-    canvasWidth: canvas.width,
-    canvasHeight: canvas.height,
-    canvasClientWidth: canvas.clientWidth,
-    canvasClientHeight: canvas.clientHeight,
-    backingStoreScaleX: canvas.clientWidth ? canvas.width / canvas.clientWidth : null,
-    backingStoreScaleY: canvas.clientHeight ? canvas.height / canvas.clientHeight : null,
-  };
-}
-
-function getModelSourceSize(live2dModel: Live2DModel) {
-  const coreModel = live2dModel.internalModel?.coreModel as { getCanvasWidth?: () => number; getCanvasHeight?: () => number } | undefined;
-  return {
-    canvasWidth: coreModel?.getCanvasWidth?.() ?? null,
-    canvasHeight: coreModel?.getCanvasHeight?.() ?? null,
-    loadedWidth: live2dModel.width,
-    loadedHeight: live2dModel.height,
-  };
-}
-
-function getTextureQualitySnapshot(live2dModel: Live2DModel) {
-  const textures = ((live2dModel as unknown as { textures?: unknown[] }).textures ?? []) as Array<{
-    width?: number;
-    height?: number;
-    source?: {
-      pixelWidth?: number;
-      pixelHeight?: number;
-      resolution?: number;
-      alphaMode?: string;
-      scaleMode?: string;
-      magFilter?: string;
-      minFilter?: string;
-      mipmapFilter?: string;
-      autoGenerateMipmaps?: boolean;
-      mipLevelCount?: number;
-      antialias?: boolean;
-      style?: {
-        scaleMode?: string;
-        magFilter?: string;
-        minFilter?: string;
-        mipmapFilter?: string;
-        maxAnisotropy?: number;
-      };
-    };
-  }>;
-
-  return textures.map((texture, index) => ({
-    index,
-    width: texture.width ?? null,
-    height: texture.height ?? null,
-    sourcePixelWidth: texture.source?.pixelWidth ?? null,
-    sourcePixelHeight: texture.source?.pixelHeight ?? null,
-    sourceResolution: texture.source?.resolution ?? null,
-    alphaMode: texture.source?.alphaMode ?? null,
-    scaleMode: texture.source?.scaleMode ?? texture.source?.style?.scaleMode ?? null,
-    magFilter: texture.source?.magFilter ?? texture.source?.style?.magFilter ?? null,
-    minFilter: texture.source?.minFilter ?? texture.source?.style?.minFilter ?? null,
-    mipmapFilter: texture.source?.mipmapFilter ?? texture.source?.style?.mipmapFilter ?? null,
-    autoGenerateMipmaps: texture.source?.autoGenerateMipmaps ?? null,
-    mipLevelCount: texture.source?.mipLevelCount ?? null,
-    antialias: texture.source?.antialias ?? null,
-    maxAnisotropy: texture.source?.style?.maxAnisotropy ?? null,
-  }));
-}
-
-function getGlQualitySnapshot(scene: Live2DScene) {
-  const canvas = scene.app.canvas as unknown as HTMLCanvasElement;
-  const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
-  if (!gl) return null;
-  return {
-    contextAttributes: gl.getContextAttributes?.() ?? null,
-    viewport: Array.from(gl.getParameter(gl.VIEWPORT) as Int32Array),
-    unpackPremultiplyAlpha: gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL),
-    blendEnabled: gl.isEnabled(gl.BLEND),
-    blendSrcRgb: gl.getParameter(gl.BLEND_SRC_RGB),
-    blendDstRgb: gl.getParameter(gl.BLEND_DST_RGB),
-    blendSrcAlpha: gl.getParameter(gl.BLEND_SRC_ALPHA),
-    blendDstAlpha: gl.getParameter(gl.BLEND_DST_ALPHA),
-  };
-}
-
 export interface Live2DModelController {
-  /**
-   * 当前已加载模型的句柄。仅用于存在性判断（truthiness），
-   * official 渲染后端返回占位对象，legacy 后端返回 @naari3 的 Live2DModel。
-   */
+  /** Current loaded model handle. Used for truthiness checks; v8 returns the @naari3 Live2DModel instance. */
   model: unknown;
   load: (modelUrl: string, characterLayer?: Container) => Promise<void>;
   unload: () => void;
@@ -486,7 +363,7 @@ export interface Live2DModelController {
   setMouthValue: (value: number) => void;
   pulseMouth: (durationMs?: number) => void;
   triggerEmotion: (mood: SoullinkLocalMood, intensity?: number) => void;
-  /** 把消息交给 Soullink 会话运行时（触发引擎/LLM 反应规划） */
+  /** Send a message into the Soullink runtime and optionally receive an LLM reply. */
   sendMessage: (message: string) => Promise<EmotionIntent | null>;
   focusAt: (clientX: number, clientY: number) => void;
   enableEyeFollow: (enabled: boolean) => void;
@@ -495,7 +372,7 @@ export interface Live2DModelController {
 }
 
 export interface Live2DModelControllerOptions {
-  /** LLM 生成的回复回调（用于展示气泡） */
+  /** Reply generated by the LLM, used for displaying the speech bubble. */
   onReply?: (reply: string) => void;
 }
 
@@ -519,32 +396,48 @@ export function createLive2DModelController(
   let soullinkLocalEngine: SoullinkLocalEngineAdapter | null = null;
   let heartbeatPhase = 0;
 
-  const fitModelToViewport = (live2dModel: Live2DModel) => {
-    const screenWidth = Math.max(live2dScene.app.screen.width || 360, 1);
-    const screenHeight = Math.max(live2dScene.app.screen.height || 520, 1);
-    const availableWidth = Math.max(1, screenWidth - 32);
-    const availableHeight = Math.max(1, screenHeight - 32);
-
+  /**
+   * 统一换算链（源码级）：
+   * 1) 模型内部画布尺寸 = internalModel.width/height（Cubism 画布 × 布局，miku 为 2976×4175）；
+   * 2) 世界坐标映射（已由渲染链路验证）：world = modelVertex × scale + position，anchor=0.5 时
+   *    centeringTransform 的平移与 pivot 抵消，内容以 position 为基准向右下展开；
+   * 3) 因此模型显示尺寸 = internalModel 尺寸 × baseScale × config.scale，与卡片 260×380×scale 恒成比例。
+   */
+  const computeModelCanvasSize = (live2dModel: Live2DModel) => {
     live2dModel.scale.set(1);
-    const modelWidth = Math.max(live2dModel.width || screenWidth, 1);
-    const modelHeight = Math.max(live2dModel.height || screenHeight, 1);
-
-    baseScale = Math.min(availableWidth / modelWidth, availableHeight / modelHeight) * 0.98;
-    live2dModel.scale.set(baseScale);
-    live2dModel.x = screenWidth / 2;
-    live2dModel.y = screenHeight / 2;
-
     return {
-      screenWidth,
-      screenHeight,
-      modelWidth,
-      modelHeight,
-      baseScale,
-      displayWidth: modelWidth * baseScale,
-      displayHeight: modelHeight * baseScale,
-      x: live2dModel.x,
-      y: live2dModel.y,
+      modelWidth: Math.max(live2dModel.width || 1, 1),
+      modelHeight: Math.max(live2dModel.height || 1, 1),
     };
+  };
+
+  const computeBaseScale = (live2dModel: Live2DModel) => {
+    const { modelWidth, modelHeight } = computeModelCanvasSize(live2dModel);
+    baseScale = Math.min(
+      (MODEL_REFERENCE_WIDTH * MODEL_REFERENCE_FILL_RATIO) / modelWidth,
+      (MODEL_REFERENCE_HEIGHT * MODEL_REFERENCE_FILL_RATIO) / modelHeight,
+    );
+    return { modelWidth, modelHeight, baseScale };
+  };
+
+  /**
+   * 内容居中（源码级）：Live2D 的 anchor 仅影响 Pixi pivot，而 Cubism drawingMatrix 中
+   * centeringTransform 的画布中心平移与 pivot 完全抵消（cubism5.es.js onAnchorChange + updateTransform），
+   * 因此模型内容恒以 position 为左上角向右下展开。要令内容几何中心落在画布中心，
+   * 必须把 position 反推为：屏幕中心 − 内容尺寸/2。
+   */
+  const centerModel = (live2dModel: Live2DModel) => {
+    const screenW = Math.max(live2dScene.app.screen.width || 360, 1);
+    const screenH = Math.max(live2dScene.app.screen.height || 520, 1);
+    const contentW = Math.max(live2dModel.width || 1, 1) * Math.max(live2dModel.scale.x, 0.01);
+    const contentH = Math.max(live2dModel.height || 1, 1) * Math.max(live2dModel.scale.y, 0.01);
+    live2dModel.x = screenW / 2 - contentW / 2;
+    live2dModel.y = screenH / 2 - contentH / 2;
+  };
+
+  const applyModelScale = (live2dModel: Live2DModel, scale: number) => {
+    live2dModel.scale.set(baseScale * Math.max(scale, 0.01));
+    centerModel(live2dModel);
   };
 
   const clearIdleTimer = () => {
@@ -639,47 +532,23 @@ export function createLive2DModelController(
     },
 
     async load(modelUrl: string, characterLayer?: Container) {
-      reportModelDebug("A", "modelController.ts:load", "model load enter", { modelUrl, hadExistingModel: !!model });
       if (model) {
         this.unload();
       }
 
-      reportModelDebug("A", "modelController.ts:load", "importing cubism5 model runtime", { modelUrl });
       const { Live2DModel: L2DModel } = await import("@naari3/pixi-live2d-display/cubism5");
-      reportModelDebug("A", "modelController.ts:load", "cubism5 model runtime imported", { modelUrl });
       const normalizedModelJson = await loadNormalizedModel3Json(modelUrl);
-      const textureLoadingConfigured = configureLive2DTextureLoading();
-      const unloadedTextureCandidates = await unloadCachedModelTextures(modelUrl, normalizedModelJson);
-      reportModelDebug("A", "modelController.ts:load", "cached model textures invalidated before load", {
-        modelUrl,
-        textureLoadingConfigured,
-        unloadedTextureCandidates,
-      });
-      reportModelDebug("A", "modelController.ts:load", "model3 json normalized", {
-        modelUrl,
-        hitAreaCount: normalizedModelJson.HitAreas?.length ?? 0,
-        hasMotions: !!normalizedModelJson.FileReferences?.Motions,
-        textureCount: normalizedModelJson.FileReferences?.Textures?.length ?? 0,
-      });
+      configureLive2DTextureLoading();
+      await unloadCachedModelTextures(modelUrl, normalizedModelJson);
       const loaded = await L2DModel.from(normalizedModelJson, { autoHitTest: false, autoFocus: false, autoUpdate: false, ticker: live2dScene.app.ticker });
-      reportModelDebug("D", "modelController.ts:load", "Live2DModel.from resolved", {
-        modelUrl,
-        width: loaded.width,
-        height: loaded.height,
-        hasInternalModel: !!loaded.internalModel,
-      });
 
       model = loaded as Live2DModel;
       const currentModel = model;
-      const configuredTextures = configureTextureQuality(currentModel);
+      configureTextureQuality(currentModel);
       (currentModel as unknown as { setRenderer?: (renderer: unknown) => void }).setRenderer?.(live2dScene.app.renderer);
-      const transparentCanvasPatched = patchTransparentCanvasDraw(currentModel);
-      reportModelDebug("A", "modelController.ts:load", "transparent canvas draw guard applied", {
-        modelUrl,
-        transparentCanvasPatched,
-      });
+      patchTransparentCanvasDraw(currentModel, live2dScene);
       currentModel.anchor.set(0.5, 0.5);
-      // 交互由外层 React/DOM 拖动按钮负责；禁用 Pixi hitTest，避免 Pixi v8 递归 Live2D 内部对象树时报
+      // 交互由外层 React/DOM 拖动按钮负责；禁用 Pixi hitTest，避免 Pixi v8 递归 Live2D 内部对象树时抛
       // `currentTarget.isInteractive is not a function`（Live2D 内部节点并非完整 Pixi v8 Container）。
       disablePixiHitTesting(live2dScene.stage);
       disablePixiHitTesting(live2dScene.backgroundLayer);
@@ -687,52 +556,17 @@ export function createLive2DModelController(
       disablePixiHitTesting(live2dScene.characterLayer);
       disablePixiHitTesting(currentModel);
 
-      const placement = fitModelToViewport(currentModel);
-      const resolutionScale = live2dScene.app.renderer.resolution || 1;
+      const placement = computeBaseScale(currentModel);
+      // 先以 baseScale 建立初始布局，避免 load 完成前的首帧以原始画布尺寸（miku 2976×4175）巨大展开；
+      // 随后 React 侧 setScale(config.scale) 再按滑块比例线性叠加。
+      currentModel.scale.set(placement.baseScale, placement.baseScale);
+      centerModel(currentModel);
 
       releaseSceneResize?.();
       releaseSceneResize = live2dScene.onResize(() => {
         if (model !== currentModel) return;
-        const nextPlacement = fitModelToViewport(currentModel);
-        reportModelDebug("D", "modelController.ts:onSceneResize", "model placement recomputed after viewport resize", nextPlacement);
-      });
-
-      reportModelDebug("D", "modelController.ts:load", "model placement computed", {
-        modelUrl,
-        ...placement,
-        resolutionScale,
-        physicalDisplayWidth: placement.displayWidth * resolutionScale,
-        physicalDisplayHeight: placement.displayHeight * resolutionScale,
-        sourceSize: getModelSourceSize(currentModel),
-        effectiveScaleX: placement.baseScale,
-        effectiveScaleY: placement.baseScale,
-        x: currentModel.x,
-        y: currentModel.y,
-        visible: currentModel.visible,
-        alpha: currentModel.alpha,
-      });
-
-      reportModelDebug("CROP", "modelController.ts:load", "model bounds after layout", {
-        bounds: (() => {
-          const bounds = currentModel.getBounds();
-          return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
-        })(),
-        position: { x: currentModel.position.x, y: currentModel.position.y },
-        scale: { x: currentModel.scale.x, y: currentModel.scale.y },
-        pivot: { x: currentModel.pivot.x, y: currentModel.pivot.y },
-        anchor: { x: currentModel.anchor?.x ?? null, y: currentModel.anchor?.y ?? null },
-        rendererScreen: { width: live2dScene.app.screen.width, height: live2dScene.app.screen.height },
-        rendererResolution: live2dScene.app.renderer.resolution,
-      });
-
-      reportModelDebug("Q", "modelController.ts:load", "render quality configuration applied", {
-        modelUrl,
-        configuredTextures,
-        canvas: getCanvasScaleSnapshot(live2dScene),
-        sourceSize: getModelSourceSize(currentModel),
-        modelScale: { x: currentModel.scale.x, y: currentModel.scale.y },
-        textureQuality: getTextureQualitySnapshot(currentModel),
-        gl: getGlQualitySnapshot(live2dScene),
+        // 缩放只由 setScale 按滑块线性驱动；视口变化仅保持居中，避免“适配视口”与滑块互相覆盖导致 Y 轴跳动。
+        centerModel(currentModel);
       });
 
       if (characterLayer) {
@@ -740,20 +574,10 @@ export function createLive2DModelController(
       }
       ensureModelVisible(currentModel, live2dScene);
       live2dScene.app.render();
-      requestAnimationFrame(() => {
-        reportModelDebug("A", "modelController.ts:load", "canvas pixel sample after first model render", {
-          modelUrl,
-          canvasPixels: sampleCanvasPixels(live2dScene),
-          rendererBackgroundAlpha: live2dScene.app.renderer.background.alpha,
-          stageChildren: live2dScene.stage.children.length,
-          characterChildren: live2dScene.characterLayer.children.length,
-        });
-      });
 
       if (currentModel.internalModel) {
         const core = getCoreModelParameterApi(currentModel);
         if (core) {
-          // runtime-core 会话运行时：异步加载模型专属 Profile + 自动接入 LLM 规划器
           const engine = await SoullinkLocalEngineAdapter.create(core, modelUrl, {
             onReply: options.onReply,
           });
@@ -767,12 +591,7 @@ export function createLive2DModelController(
         mouthHandler = applyMouthValue;
         currentModel.internalModel.on("beforeModelUpdate", mouthHandler);
         if (isAquariusModel(modelUrl)) {
-          const patched = patchAquariusCopyrightTextureDraw(currentModel, () => aquariusCopyrightHidden && model === currentModel);
-          reportModelDebug("W", "modelController.ts:load", "Aquarius copyright texture draw patched", {
-            modelUrl,
-            patched,
-            textureIndex: AQUARIUS_COPYRIGHT_TEXTURE_INDEX,
-          });
+          patchAquariusCopyrightTextureDraw(currentModel, () => aquariusCopyrightHidden && model === currentModel);
           aquariusCopyrightHandler = () => {
             if (aquariusCopyrightHidden && model === currentModel) {
               applyAquariusCopyrightNoticeHidden(currentModel);
@@ -782,12 +601,7 @@ export function createLive2DModelController(
         }
 
         if (isMikuModel(modelUrl)) {
-          const hidden = hideMikuWatermark(core);
-          reportModelDebug("W", "modelController.ts:load", "Miku watermark param hidden on load", {
-            modelUrl,
-            paramId: MIKU_WATERMARK_PARAM_ID,
-            hidden,
-          });
+          hideMikuWatermark(core);
           mikuWatermarkHandler = () => {
             if (model === currentModel) {
               hideMikuWatermark(getCoreModelParameterApi(currentModel));
@@ -863,7 +677,7 @@ export function createLive2DModelController(
 
     setScale(scale: number) {
       if (model) {
-        model.scale.set(baseScale * scale);
+        applyModelScale(model, scale);
       }
     },
 
@@ -932,3 +746,5 @@ export function createLive2DModelController(
     },
   };
 }
+
+

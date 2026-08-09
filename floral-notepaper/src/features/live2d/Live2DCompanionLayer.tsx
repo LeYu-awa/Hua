@@ -35,21 +35,6 @@ const LIVE2D_CHAT_STORAGE_KEY = "live2d_companion_chat_messages";
 const LIVE2D_CHAT_POSITION_STORAGE_KEY = "live2d_companion_chat_position";
 const LIVE2D_CHAT_CONTEXT_LIMIT = 10;
 
-const reportLive2DDebug = (hypothesisId: string, location: string, msg: string, data?: unknown) => {
-  fetch("http://127.0.0.1:7778/event", {
-    method: "POST",
-    body: JSON.stringify({
-      sessionId: "live2d-scale-bug",
-      runId: "post-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data,
-      ts: Date.now(),
-    }),
-  }).catch(() => undefined);
-};
-
 type Live2DModel3Json = {
   FileReferences?: {
     Moc?: string;
@@ -213,98 +198,6 @@ function resolveScaleUpdate(current: CompanionConfig, direction: number) {
   };
 }
 
-function getElementDebugSnapshot(element: Element | null) {
-  if (!element) return null;
-  const rect = element.getBoundingClientRect();
-  const style = window.getComputedStyle(element);
-  return {
-    tagName: element.tagName,
-    className: typeof element.className === "string" ? element.className : null,
-    rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-    client: element instanceof HTMLElement ? { width: element.clientWidth, height: element.clientHeight } : null,
-    css: {
-      width: style.width,
-      height: style.height,
-      maxWidth: style.maxWidth,
-      maxHeight: style.maxHeight,
-      overflow: style.overflow,
-      overflowX: style.overflowX,
-      overflowY: style.overflowY,
-      position: style.position,
-      transform: style.transform,
-      transformOrigin: style.transformOrigin,
-      willChange: style.willChange,
-      contain: style.contain,
-      isolation: style.isolation,
-    },
-  };
-}
-
-type PixiDebugObject = {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  alpha?: number;
-  visible?: boolean;
-  renderable?: boolean;
-  scale?: { x?: number; y?: number };
-  position?: { x?: number; y?: number };
-  pivot?: { x?: number; y?: number };
-  getBounds?: () => { x: number; y: number; width: number; height: number };
-};
-
-function getPixiDebugSnapshot(value: unknown) {
-  const object = value as PixiDebugObject | null;
-  if (!object) return null;
-  let bounds: { x: number; y: number; width: number; height: number } | null = null;
-  try {
-    const nextBounds = object.getBounds?.();
-    bounds = nextBounds ? { x: nextBounds.x, y: nextBounds.y, width: nextBounds.width, height: nextBounds.height } : null;
-  } catch {
-    bounds = null;
-  }
-  return {
-    x: object.x ?? object.position?.x ?? null,
-    y: object.y ?? object.position?.y ?? null,
-    width: object.width ?? null,
-    height: object.height ?? null,
-    scale: { x: object.scale?.x ?? null, y: object.scale?.y ?? null },
-    pivot: { x: object.pivot?.x ?? null, y: object.pivot?.y ?? null },
-    visible: object.visible ?? null,
-    renderable: object.renderable ?? null,
-    alpha: object.alpha ?? null,
-    bounds,
-  };
-}
-
-function getLayerCropDebugSnapshot(container: HTMLElement | null, canvas: HTMLCanvasElement | null, scene: Live2DScene | null, scale: number) {
-  const card = canvas?.closest(".live2d-companion-card") ?? null;
-  const gl = canvas ? canvas.getContext("webgl2") || canvas.getContext("webgl") : null;
-  const model = scene?.characterLayer.children[0] ?? null;
-  return {
-    scale,
-    viewport: { width: window.innerWidth, height: window.innerHeight, devicePixelRatio: window.devicePixelRatio || 1 },
-    layer: getElementDebugSnapshot(container),
-    card: getElementDebugSnapshot(card),
-    canvas: getElementDebugSnapshot(canvas),
-    parentChain: [container, card, canvas?.parentElement, canvas]
-      .filter((element, index, list): element is Element => Boolean(element) && list.indexOf(element) === index)
-      .map((element) => getElementDebugSnapshot(element)),
-    canvasPixels: canvas ? { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight } : null,
-    renderer: scene
-      ? {
-          resolution: scene.app.renderer.resolution,
-          screen: { width: scene.app.screen.width, height: scene.app.screen.height },
-          canvasPixels: { width: scene.app.canvas.width, height: scene.app.canvas.height },
-          characterLayer: getPixiDebugSnapshot(scene.characterLayer),
-          model: getPixiDebugSnapshot(model),
-        }
-      : null,
-    gl: gl ? { viewport: Array.from(gl.getParameter(gl.VIEWPORT) as Int32Array), contextAttributes: gl.getContextAttributes?.() ?? null } : null,
-  };
-}
-
 function resolveLive2DAssetPath(modelPath: string, assetPath: string) {
   const modelUrl = new URL(modelPath, window.location.origin);
   return new URL(assetPath, modelUrl).pathname;
@@ -370,14 +263,6 @@ async function validateLive2DModelAssets(modelPath: string) {
 
   const assets = [refs.Moc, ...refs.Textures, refs.Physics, refs.DisplayInfo].filter(Boolean) as string[];
   const resolvedAssets = assets.map((asset) => resolveLive2DAssetPath(modelPath, asset));
-  reportLive2DDebug("A", "Live2DCompanionLayer.tsx:validateLive2DModelAssets", "validating model asset references", {
-    modelPath,
-    moc: refs.Moc,
-    textureCount: refs.Textures.length,
-    physics: refs.Physics ?? null,
-    displayInfo: refs.DisplayInfo ?? null,
-    resolvedAssets,
-  });
   await Promise.all(resolvedAssets.map((asset) => assertFetchOk(asset)));
 }
 
@@ -466,23 +351,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
   }, [chatDots, chatLoading]);
 
   useEffect(() => {
-    reportLive2DDebug("D", "Live2DCompanionLayer.tsx:mount", "Live2D layer mounted", {
-      enabled: configRef.current.enabled,
-      visible: configRef.current.visible,
-      renderer: configRef.current.renderer,
-      skinId: configRef.current.skinId,
-      modelPath: configRef.current.modelPath,
-      surface,
-    });
-
     const unsub = subscribeCompanionConfig((next) => {
-      reportLive2DDebug("D", "Live2DCompanionLayer.tsx:subscribeCompanionConfig", "companion config changed", {
-        enabled: next.enabled,
-        visible: next.visible,
-        renderer: next.renderer,
-        skinId: next.skinId,
-        modelPath: next.modelPath,
-      });
       configRef.current = next;
       setConfig(next);
     });
@@ -636,17 +505,10 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
     if (controller.model && loadedModelPathRef.current === currentConfig.modelPath) return;
 
     loadingModelRef.current = true;
-    reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "loadCurrentModel enter", {
-      modelPath: currentConfig.modelPath,
-      renderer: currentConfig.renderer,
-      skinId: currentConfig.skinId,
-      loadedModelPath: loadedModelPathRef.current,
-    });
     try {
       setModelLoaded(false);
       setLoadError(null);
       await validateLive2DModelAssets(currentConfig.modelPath);
-      reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model assets validated", { modelPath: currentConfig.modelPath });
 
       // 统一走项目自研 Pixi v8 渲染器，避免低版本 MOC3 被误分流到 SDK renderer。
       const backend = await pickLive2DRenderBackend(currentConfig.modelPath);
@@ -655,7 +517,6 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
         const next = await buildController(backend);
         controllerRef.current = next;
         backendRef.current = backend;
-        reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "render backend switched", { backend });
       }
 
       const active = controllerRef.current;
@@ -666,14 +527,8 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
       active.setMouseFollowStrength(currentConfig.sensitivity.mouseFollowStrength ?? 0.75);
       active.setScale(currentConfig.scale);
       setModelLoaded(true);
-      reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model load completed", { modelPath: currentConfig.modelPath });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      reportLive2DDebug("D", "Live2DCompanionLayer.tsx:loadCurrentModel", "model load failed", {
-        modelPath: currentConfig.modelPath,
-        message: msg,
-        stack: err instanceof Error ? err.stack : null,
-      });
       console.error("[Live2D] Model load failed:", err);
       setLoadError(msg);
     } finally {
@@ -682,23 +537,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
   }, [surface, buildController]);
 
   useEffect(() => {
-    reportLive2DDebug("D", "Live2DCompanionLayer.tsx:initEffect", "init effect evaluated", {
-      enabled: config.enabled,
-      visible: config.visible,
-      renderer: config.renderer,
-      skinId: config.skinId,
-      modelPath: config.modelPath,
-    });
-
     if (!config.enabled || !config.visible || config.renderer !== "live2d" || !isSurfaceActive) {
-      reportLive2DDebug("D", "Live2DCompanionLayer.tsx:initEffect", "init skipped by companion config", {
-        enabled: config.enabled,
-        visible: config.visible,
-        renderer: config.renderer,
-        mode: config.mode,
-        surface,
-        isSurfaceActive,
-      });
       return;
     }
 
@@ -726,16 +565,6 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
       const layoutReady = await waitForCanvasLayout(canvas);
       if (cancelled) return;
       if (!layoutReady) {
-        reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "canvas layout not ready", {
-          isConnected: canvas.isConnected,
-          parentConnected: canvas.parentElement?.isConnected ?? false,
-          parentClientWidth: canvas.parentElement?.clientWidth ?? null,
-          parentClientHeight: canvas.parentElement?.clientHeight ?? null,
-          rect: (() => {
-            const rect = canvas.getBoundingClientRect();
-            return { width: rect.width, height: rect.height };
-          })(),
-        });
         // 布局失败不永久停摆：3 秒后自动重试，直到窗口尺寸就绪
         if (retryTimerRef.current === null) {
           setLoadError("Live2D canvas layout not ready");
@@ -750,33 +579,8 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
         return;
       }
 
-      reportLive2DDebug("B", "Live2DCompanionLayer.tsx:init", "canvas resolved before init", {
-        canvasWidth: canvas.width,
-        canvasHeight: canvas.height,
-        clientWidth: canvas.clientWidth,
-        clientHeight: canvas.clientHeight,
-        boundingRect: (() => {
-          const rect = canvas.getBoundingClientRect();
-          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-        })(),
-        canvasBackground: window.getComputedStyle(canvas).backgroundColor,
-        parentBackground: canvas.parentElement ? window.getComputedStyle(canvas.parentElement).backgroundColor : null,
-        layerBackground: canvas.closest(".live2d-companion-layer") ? window.getComputedStyle(canvas.closest(".live2d-companion-layer") as Element).backgroundColor : null,
-        cardBackground: canvas.closest(".live2d-companion-card") ? window.getComputedStyle(canvas.closest(".live2d-companion-card") as Element).backgroundColor : null,
-        live2dCanvasCount: document.querySelectorAll("canvas.live2d-canvas").length,
-        allCanvasCount: document.querySelectorAll("canvas").length,
-        parentTag: canvas.parentElement?.tagName ?? null,
-        parentClientWidth: canvas.parentElement?.clientWidth ?? null,
-        parentClientHeight: canvas.parentElement?.clientHeight ?? null,
-      });
-
       try {
-        reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "picking Live2D render backend", { modelPath: configRef.current.modelPath });
         const backend = await pickLive2DRenderBackend(configRef.current.modelPath);
-        reportLive2DDebug("C", "Live2DCompanionLayer.tsx:init", "render backend resolved", {
-          backend,
-          hasCubismCore: !!(window as unknown as Record<string, unknown>).Live2DCubismCore,
-        });
         if (cancelled) return;
 
         controller = await buildController(backend);
@@ -827,14 +631,7 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
       configRef.current = next;
       latestPositionRef.current = next.position;
       setConfig(next);
-      sceneRef.current?.setQualityScale(next.scale);
-      reportLive2DDebug("S", "Live2DCompanionLayer.tsx:scaleShortcut", "keyboard scale shortcut applied", {
-        direction,
-        scale: next.scale,
-        position: next.position,
-        key: event.key,
-        code: event.code,
-      });
+      sceneRef.current?.setQualityScale(1);
     };
 
     window.addEventListener("keydown", handleKeyDown, true);
@@ -842,9 +639,8 @@ export function Live2DCompanionLayer({ conversationId, surface = "embedded", pro
   }, [isSurfaceActive]);
 
   useEffect(() => {
-    sceneRef.current?.setQualityScale(clampScale(config.scale));
+    sceneRef.current?.setQualityScale(1);
     controllerRef.current?.setScale(config.scale);
-    reportLive2DDebug("CROP", "Live2DCompanionLayer.tsx:scaleEffect", "layer scale snapshot", getLayerCropDebugSnapshot(layerRef.current, canvasRef.current, sceneRef.current, config.scale));
   }, [config.scale]);
 
   useEffect(() => {
