@@ -10,6 +10,8 @@ export interface CanvasNode {
   text: string;
   /** 来源：用户创建 / AI 推荐 / 共笔生成 */
   source?: "user" | "agent" | "cowrite";
+  /** z 序（越大越靠前），P1 图层分层 */
+  zIndex?: number;
 }
 
 export interface CanvasEdge {
@@ -20,10 +22,18 @@ export interface CanvasEdge {
   style: "solid" | "dashed";
 }
 
+export interface CanvasGroup {
+  id: string;
+  title: string;
+  nodeIds: string[];
+}
+
 export interface CanvasDocument {
   id: string;
   noteId?: string;
   coWriteSessionId?: string;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  /** 分组（P1 图层分组） */
+  groups?: CanvasGroup[];
 }

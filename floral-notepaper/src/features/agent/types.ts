@@ -128,3 +128,86 @@ export type AgentUICommand =
       title: string;
       summary: string;
     };
+
+// ── 主编排任务（Phase B：Rust 侧 orchestrator 全量状态镜像） ────────────────
+
+export type AgentTaskStatus =
+  | "Planned"
+  | "Running"
+  | "AwaitingConfirm"
+  | "Done"
+  | "Failed"
+  | "Cancelled";
+
+export type AgentStepStatus = "Pending" | "Running" | "Done" | "Failed" | "Cancelled";
+
+export type AgentStepKind = "Tool" | "Llm" | "Confirm" | "Output";
+
+export interface AgentStep {
+  stepId: string;
+  kind: AgentStepKind;
+  tool?: string | null;
+  input: Record<string, unknown>;
+  output?: unknown | null;
+  status: AgentStepStatus;
+  requiredConfirm: boolean;
+  confirmed: boolean;
+}
+
+export interface AgentStepLog {
+  stepId: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface AgentTask {
+  taskId: string;
+  goal: string;
+  plan: AgentStep[];
+  status: AgentTaskStatus;
+  context?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  logs: AgentStepLog[];
+}
+
+/** 产品 Agent 技能（orchestrator 技能注册表 SKILLS 的一行） */
+export interface AgentSkill {
+  name: string;
+  description: string;
+}
+
+/** 单步进度事件（agent.step）负载 */
+export interface AgentStepEvent {
+  taskId: string;
+  stepId: string;
+  tool?: string | null;
+  status: AgentStepStatus;
+  message: string;
+}
+
+/** 待确认步骤事件（agent.awaiting_confirm）负载 */
+export interface AgentAwaitingConfirmEvent {
+  taskId: string;
+  stepId: string;
+  tool?: string | null;
+  input: Record<string, unknown>;
+}
+
+/** 导出事件（agent.export）负载：markdown 带 path，png/pdf 带完整内容由前端接管渲染 */
+export interface AgentExportEvent {
+  kind: "note";
+  format: "markdown" | "png" | "pdf";
+  title?: string;
+  content?: string;
+  path?: string;
+}
+
+/** RAG 检索命中块 */
+export interface AgentRetrievedChunk {
+  chunkId: string;
+  sourceId: string;
+  text: string;
+  position: number;
+  score: number;
+}

@@ -32,8 +32,17 @@ uuid = { version = "1", features = ["v4", "serde"] }
 tauri-plugin-clipboard-manager = "2"
 trash = "5"
 reqwest = { version = "0.12", features = ["json"] }
+# 向量检索：SQLite 扩展，嵌入现有 rusqlite（event_store 同库模式）
+sqlite-vec = "0.1"
+# MCP 工具协议化：官方 Rust SDK（模型上下文协议），stdio 服务器暴露 orchestrator 工具
+rmcp = { version = "0.16", features = ["server", "macros", "schemars", "transport-io"] }
+tokio = { version = "1", features = ["rt-multi-thread", "io-std", "macros", "sync"] }
+schemars = { version = "0.8", features = ["derive"] }
 
 # macOS-only: used to toggle NSWindow.documentEdited (the unsaved dot in the red
 # traffic-light button). Already present transitively via Tauri.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+
+[dev-dependencies]
+serde_json = "1"

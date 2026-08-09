@@ -10,6 +10,16 @@ vi.mock("../features/canvas/api", () => ({
   saveCanvasDocument: (doc: unknown) => mockSave(doc),
 }));
 
+const { mockRecordEvent } = vi.hoisted(() => ({
+  mockRecordEvent: vi.fn().mockResolvedValue({}),
+}));
+vi.mock("../features/agent/api", () => ({
+  recordAgentEvent: (event: unknown) => mockRecordEvent(event),
+  // P1-2/P1-3 新增订阅（CanvasPage effect 挂载即订阅；测试中直接返回空 unlisten）
+  onAgentTask: () => Promise.resolve(() => undefined),
+  onAgentExport: () => Promise.resolve(() => undefined),
+}));
+
 import { CanvasPage } from "./CanvasPage";
 
 const PROVIDERS: ProviderConfig[] = [
@@ -95,7 +105,15 @@ function createCanvasContextMock(canvas: HTMLCanvasElement): Partial<CanvasRende
 
 function renderCanvas() {
   return render(
-    <CanvasPage documentId="canvas-demo" noteId="demo" providers={PROVIDERS} agentEnabled initialDocument={DOC} />,
+    <CanvasPage
+      documentId="canvas-demo"
+      noteId="demo"
+      providers={PROVIDERS}
+      agentEnabled
+      initialDocument={DOC}
+      conversationId="demo"
+      userId="u1"
+    />,
   );
 }
 
@@ -121,6 +139,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   mockSave.mockClear();
+  mockRecordEvent.mockClear();
 });
 
 afterEach(cleanup);
@@ -153,6 +172,111 @@ describe("CanvasPage — SVG 画布接线", () => {
     await waitFor(() => expect(mockSave).toHaveBeenCalled());
     const savedDoc = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
     expect(savedDoc.nodes.length).toBe(DOC.nodes.length);
+  });
+
+  describe("CanvasPage — P0 缩放平移 / 撤销重做 / 自动保存 / 埋点", () => {
+    const nodeGroupCount = (container: HTMLElement) =>
+      container.querySelectorAll('g[transform]:not([transform*="scale"])').length;
+
+    it("缩放：放大/缩小/复位按钮更新百分比指示", async () => {
+      const { container } = renderCanvas();
+      await waitFor(() => expect(screen.getByText("100%")).toBeTruthy());
+
+      fireEvent.click(screen.getByTitle("放大 (Ctrl+=)"));
+      expect(screen.getByText("115%")).toBeTruthy();
+      // 内容层应携带缩放变换
+      expect(container.querySelector('g[transform*="scale"]')).toBeTruthy();
+
+      fireEvent.click(screen.getByTitle("缩小 (Ctrl+-)"));
+      expect(screen.getByText("100%")).toBeTruthy();
+
+      fireEvent.click(screen.getByTitle("放大 (Ctrl+=)"));
+      fireEvent.click(screen.getByTitle("复位到 100% (Ctrl+0)"));
+      expect(screen.getByText("100%")).toBeTruthy();
+    });
+
+    it("撤销/重做：新增节点入栈后可撤销回退、重做恢复", async () => {
+      const { container } = renderCanvas();
+      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      const initial = nodeGroupCount(container);
+
+      fireEvent.click(screen.getByText("文本")); // 新增节点
+      expect(nodeGroupCount(container)).toBe(initial + 1);
+
+      fireEvent.click(screen.getByTitle("撤销 (Ctrl+Z)"));
+      expect(nodeGroupCount(container)).toBe(initial);
+
+      fireEvent.click(screen.getByTitle("重做 (Ctrl+Shift+Z)"));
+      expect(nodeGroupCount(container)).toBe(initial + 1);
+    });
+
+    it("撤销：删除节点可撤销恢复", async () => {
+      const { container } = renderCanvas();
+      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      const initial = nodeGroupCount(container);
+
+      // 选中节点（selectedNodeId 在 mousedown 阶段设置）
+      fireEvent.mouseDown(screen.getByText("用户需要实时同步"));
+      fireEvent.click(screen.getByText("删除"));
+      expect(nodeGroupCount(container)).toBe(initial - 1);
+
+      fireEvent.click(screen.getByTitle("撤销 (Ctrl+Z)"));
+      expect(nodeGroupCount(container)).toBe(initial);
+    });
+
+    it("自动保存：用户改动后 debounce 触发一次保存", async () => {
+      renderCanvas();
+      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByText("文本")); // 用户改动
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+        expect(mockSave).toHaveBeenCalled();
+        const savedDoc = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
+        expect(savedDoc.nodes.length).toBe(DOC.nodes.length + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("埋点：新增节点/连线/删除分别上报画布事件", async () => {
+      renderCanvas();
+      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+
+      fireEvent.click(screen.getByText("文本")); // canvas_shape_added
+      expect(mockRecordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: "canvas_shape_added", conversationId: "demo", userId: "u1" }),
+      );
+
+      // 连线：先选中源节点、进入连线模式再点目标节点 → canvas_binding_added
+      fireEvent.mouseDown(screen.getByText("用户需要实时同步"));
+      fireEvent.click(screen.getByText("连线"));
+      fireEvent.click(screen.getByText("成本估算"));
+      expect(mockRecordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: "canvas_binding_added" }),
+      );
+
+      // 删除：选中节点再删除 → canvas_shape_removed
+      fireEvent.mouseDown(screen.getByText("架构选型"));
+      fireEvent.click(screen.getByText("删除"));
+      expect(mockRecordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: "canvas_shape_removed" }),
+      );
+    });
+
+    it("缩放状态为内部视图状态：不污染文档（保存内容仍为节点快照）", async () => {
+      renderCanvas();
+      await waitFor(() => expect(screen.getByText("100%")).toBeTruthy());
+      fireEvent.click(screen.getByTitle("放大 (Ctrl+=)"));
+      expect(screen.getByText("115%")).toBeTruthy();
+
+      fireEvent.click(screen.getByText("保存"));
+      await waitFor(() => expect(mockSave).toHaveBeenCalled());
+      const savedDoc = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
+      expect(savedDoc.nodes.length).toBe(DOC.nodes.length);
+    });
   });
 });
 

@@ -7,6 +7,14 @@ use locales::Locale;
 use services::agent::{
     self, AgentAnalysisResult, AgentCanvasNode, AgentCollaborationSegment, AgentEvent,
     AgentEventInput, AgentReplayMarker, AgentReviewReport, AgentSuggestion,
+    llm_provider::agent_embed_text,
+    orchestrator::{agent_skill_list, agent_task_confirm, agent_task_create_and_run, agent_task_run},
+    rag::{agent_rag_delete_source, agent_rag_index, agent_rag_retrieve},
+    task_store::{
+        agent_task_create, agent_task_delete, agent_task_get, agent_task_list,
+        agent_task_update_status, AgentTaskStore,
+    },
+    vector_store::VectorStore,
 };
 use services::assistant_tools::{
     self, AssistantAgentConfig, AssistantToolLog, AssistantToolRequest, AssistantToolResponse,
@@ -542,6 +550,18 @@ fn assistant_agent_config_save(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // MCP 模式：`floral-notepaper --mcp` 直接以 stdio 运行 MCP 服务器，跳过 Tauri 初始化
+    if crate::services::agent::mcp_server::is_mcp_mode() {
+        eprintln!("[mcp] 以 MCP stdio 服务器模式启动");
+        let code = match crate::services::agent::mcp_server::run_stdio() {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("[mcp] 服务器异常退出: {e}");
+                1
+            }
+        };
+        std::process::exit(code);
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -562,7 +582,11 @@ pub fn run() {
                 app.manage(CanvasStore::new(base.clone()));
                 app.manage(DiaryStore::new(base.clone()));
                 app.manage(EmbeddingCacheStore::new(base.clone()));
-                app.manage(ProfileStore::new(base));
+                app.manage(ProfileStore::new(base.clone()));
+                let agent_dir = base.join("agent");
+                let _ = std::fs::create_dir_all(&agent_dir);
+                app.manage(VectorStore::new(agent_dir.join("agent-vectors.sqlite")));
+                app.manage(AgentTaskStore::new(agent_dir.join("agent-tasks.sqlite")));
             }
             desktop::setup_desktop(app)?;
             Ok(())
@@ -653,7 +677,20 @@ pub fn run() {
             profile_save_baseline,
             profile_list_historical_docs,
             profile_add_historical_doc,
-            profile_clear
+            profile_clear,
+            agent_task_create,
+            agent_task_get,
+            agent_task_list,
+            agent_task_update_status,
+            agent_task_delete,
+            agent_task_create_and_run,
+            agent_task_run,
+            agent_task_confirm,
+            agent_skill_list,
+            agent_embed_text,
+            agent_rag_index,
+            agent_rag_retrieve,
+            agent_rag_delete_source
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

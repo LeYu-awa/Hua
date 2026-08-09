@@ -28,6 +28,10 @@ vi.mock("../tts", () => ({
   shouldAutoSpeak: () => false,
   speakText: vi.fn(async () => {}),
   stopSpeech: vi.fn(),
+  isSpeechPlaying: vi.fn(() => false),
+  subscribeSpeechState: vi.fn(() => () => {}),
+  subscribeMouthValue: vi.fn(() => () => {}),
+  unlockSpeechPlayback: vi.fn(async () => {}),
 }));
 
 vi.mock("../settings/stats", () => ({

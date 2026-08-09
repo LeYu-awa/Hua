@@ -88,6 +88,9 @@ pub struct AppConfig {
     pub agent_nudge_threshold_ms: u32,
     #[serde(default = "default_agent_data_retention_days")]
     pub agent_data_retention_days: u32,
+    /// 自托管 SearXNG 地址（web.search 工具用）
+    #[serde(default)]
+    pub searxng_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -811,6 +814,7 @@ impl NoteStore {
             open_at_cursor: default_open_at_cursor(),
             providers: vec![],
             default_models: BTreeMap::new(),
+            searxng_url: String::new(),
             agent_enabled: default_agent_enabled(),
             agent_nudge_threshold_ms: default_agent_nudge_threshold_ms(),
             agent_data_retention_days: default_agent_data_retention_days(),
@@ -1345,6 +1349,7 @@ mod tests {
             open_at_cursor: true,
             providers: Vec::new(),
             default_models: Default::default(),
+            searxng_url: String::new(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,

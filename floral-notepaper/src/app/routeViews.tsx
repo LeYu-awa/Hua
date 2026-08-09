@@ -75,6 +75,8 @@ export function renderMainView({
         noteId={currentNoteId}
         providers={providers}
         agentEnabled={Boolean(settingsConfig?.agentEnabled)}
+        conversationId={currentNoteId || "draft"}
+        userId={userId ?? undefined}
       />
     );
   }

@@ -12,9 +12,17 @@ pub mod event_store;
 pub mod insight_router;
 pub mod live2d_signal_queue;
 pub mod llm_orchestrator;
+pub mod llm_provider;
+pub mod mcp_server;
+pub mod orchestrator;
+pub mod output_bus;
 pub mod profile_store;
+pub mod rag;
 pub mod replay_marker;
 pub mod rule_engine;
+pub mod task_store;
+pub mod vector_store;
+pub mod web_search;
 
 use super::notes::{default_store, AppError};
 

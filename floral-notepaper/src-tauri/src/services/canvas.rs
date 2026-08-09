@@ -17,6 +17,9 @@ pub struct CanvasNode {
     pub text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// z 序（越大越靠前）；旧数据无此字段时默认 0
+    #[serde(default)]
+    pub z_index: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -26,6 +29,16 @@ pub struct CanvasEdge {
     pub from_node_id: String,
     pub to_node_id: String,
     pub style: String,
+}
+
+/// 画布分组（P1：图层分组）。旧数据无 groups 时为空。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasGroup {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub node_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -38,6 +51,8 @@ pub struct CanvasDocument {
     pub co_write_session_id: Option<String>,
     pub nodes: Vec<CanvasNode>,
     pub edges: Vec<CanvasEdge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<CanvasGroup>,
 }
 
 pub struct CanvasStore {
@@ -177,20 +192,44 @@ mod tests {
             "id": "canvas-note1",
             "noteId": "note1",
             "nodes": [
-                {"id":"a","type":"text","x":0,"y":0,"width":200,"height":80,"text":"节点A"},
+                {"id":"a","type":"text","x":0,"y":0,"width":200,"height":80,"text":"节点A","zIndex":1},
                 {"id":"b","type":"card","x":700,"y":0,"width":240,"height":120,"text":"沉淀内容\n\n— 来自聊天","source":"agent"}
             ],
             "edges": [
                 {"id":"e1","fromNodeId":"a","toNodeId":"b","style":"dashed"}
+            ],
+            "groups": [
+                {"id":"g1","title":"起步","nodeIds":["a","b"]}
             ]
         }"#;
         let doc: CanvasDocument =
             serde_json::from_str(frontend_json).expect("前端形状的 JSON 必须能被 Rust 反序列化");
         assert_eq!(doc.nodes.len(), 2);
         assert_eq!(doc.nodes[0].node_type, "text");
+        assert_eq!(doc.nodes[0].z_index, 1);
         assert_eq!(doc.nodes[1].node_type, "card");
         assert_eq!(doc.nodes[1].source.as_deref(), Some("agent"));
+        assert_eq!(doc.nodes[1].z_index, 0, "缺省 zIndex 应为 0");
         assert_eq!(doc.edges[0].style, "dashed");
+        assert_eq!(doc.groups.len(), 1);
+        assert_eq!(doc.groups[0].title, "起步");
+        assert_eq!(doc.groups[0].node_ids, vec!["a", "b"]);
+    }
+
+    /// P1-1 契约测试：旧数据（无 zIndex/groups 字段）反序列化不失败，缺省值正确。
+    #[test]
+    fn deserializes_legacy_payload_without_p1_fields() {
+        let legacy_json = r#"{
+            "id": "canvas-old",
+            "nodes": [
+                {"id":"a","type":"text","x":0,"y":0,"width":200,"height":80,"text":"老节点"}
+            ],
+            "edges": []
+        }"#;
+        let doc: CanvasDocument =
+            serde_json::from_str(legacy_json).expect("旧数据必须仍能反序列化");
+        assert_eq!(doc.nodes[0].z_index, 0);
+        assert!(doc.groups.is_empty());
     }
 
     /// 场景一：接受隐含连接 → 写入 dashed 连线 → 落盘 → 重新读取仍在。
@@ -211,6 +250,7 @@ mod tests {
                     height: 80.0,
                     text: "A".into(),
                     source: None,
+                    z_index: 0,
                 },
                 CanvasNode {
                     id: "b".into(),
@@ -221,9 +261,11 @@ mod tests {
                     height: 80.0,
                     text: "B".into(),
                     source: None,
+                    z_index: 0,
                 },
             ],
             edges: vec![],
+            groups: vec![],
         };
         store.save(doc.clone()).unwrap();
 
@@ -255,6 +297,7 @@ mod tests {
                 co_write_session_id: None,
                 nodes: vec![],
                 edges: vec![],
+                groups: vec![],
             })
             .unwrap();
 
@@ -268,6 +311,7 @@ mod tests {
             height: 120.0,
             text: "决定先做实时同步 MVP\n\n— 来自聊天".into(),
             source: Some("agent".into()),
+            z_index: 0,
         });
         store.save(doc).unwrap();
 

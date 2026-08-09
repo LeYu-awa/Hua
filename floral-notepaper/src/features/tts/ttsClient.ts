@@ -121,6 +121,48 @@ async function synthesizeOpenAI(
   return { url: URL.createObjectURL(blob) };
 }
 
+/** 阿里云百炼 CosyVoice 非实时合成：POST /services/audio/tts/SpeechSynthesizer，可传复刻音色 ID */
+async function synthesizeDashScope(
+  text: string,
+  config: TTSConfig,
+  emotion?: string,
+): Promise<TtsResult> {
+  const baseUrl = (config.apiUrl || "https://dashscope.aliyuncs.com/api/v1").replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/services/audio/tts/SpeechSynthesizer`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model.trim() || "cosyvoice-v2",
+      input: {
+        text,
+        voice: (config.voice ?? "").trim() || "longxiaochun",
+        format: "wav",
+        sample_rate: 24000,
+        volume: Math.max(0, Math.min(100, Math.round((config.volume || 1) * 100))),
+        rate: speedForEmotion(config.defaultSpeed, emotion),
+      },
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.text().catch(() => "");
+    throw new Error(`阿里云 CosyVoice 合成失败 (${response.status}): ${err}`);
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const json = (await response.json()) as {
+      output?: { audio?: { url?: string } };
+    };
+    const url = json?.output?.audio?.url;
+    if (!url) throw new Error("阿里云 CosyVoice 响应中缺少音频 URL");
+    return { url };
+  }
+  const blob = await response.blob();
+  return { url: URL.createObjectURL(blob) };
+}
+
 /** 浏览器语音合成（Edge / 系统语音），按 voice 名称匹配，缺省选中文女声 */
 async function synthesizeEdge(
   text: string,
@@ -181,6 +223,8 @@ export async function synthesizeWithConfig(
       return synthesizeVits(text, config);
     case "openai":
       return synthesizeOpenAI(text, config, ctx.emotion);
+    case "dashscope":
+      return synthesizeDashScope(text, config, ctx.emotion);
     case "edge":
       return synthesizeEdge(text, config);
     default:

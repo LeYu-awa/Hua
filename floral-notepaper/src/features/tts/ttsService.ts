@@ -255,9 +255,11 @@ async function speakTextNow(
       currentUrl = result.url;
       currentAudio = audio;
       const started = waitForAudioStart(audio);
-      // 口型联动：有 AudioContext 时走 Web Audio 链路（createMediaElementSource
-      // 会把声音改路由到 AnalyserNode → ctx.destination，仅影响口型分析，音量等不受影响）
-      if (unlockedAudioContext) {
+      // 口型联动：仅对本地 blob/objectURL 生效（Web Audio 可分析其音量）。
+      // 云端 TTS 直出的远程 http(s) URL 若接入 Web Audio，跨域媒体会被静音路由，
+      // 因此这类音频直接播放（不启口型），保证能听到声音。
+      const isRemoteUrl = /^https?:\/\//i.test(result.url);
+      if (unlockedAudioContext && !isRemoteUrl) {
         startMouthDriver(audio, unlockedAudioContext);
       }
       await audio.play();

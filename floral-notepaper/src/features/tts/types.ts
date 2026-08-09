@@ -11,7 +11,8 @@ export type TTSEngineKey =
   | "gpt-sovits"
   | "vits"
   | "edge"
-  | "openai";
+  | "openai"
+  | "dashscope";
 
 export interface TTSConfig {
   /** 引擎标识（对应 TTSEngineKey） */
@@ -51,6 +52,7 @@ export const TTS_ENGINE_OPTIONS: Array<{ key: TTSEngineKey; label: string }> = [
   { key: "vits", label: "VITS (本地)" },
   { key: "edge", label: "Edge TTS (云端)" },
   { key: "openai", label: "OpenAI 兼容 / VibeVoice (本地)" },
+  { key: "dashscope", label: "阿里云 CosyVoice (云端)" },
 ];
 
 export const OPENAI_TTS_VOICES = [

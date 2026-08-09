@@ -29,6 +29,7 @@
   --color-shadow: rgba(0, 0, 0, 0.04);
   --color-shadow-deep: rgba(0, 0, 0, 0.08);
   --color-danger-bg: #fef2f2;
+  --color-danger: #dc2626;
 
   --font-display:
     "HarmonyOS Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
@@ -121,6 +122,7 @@
   --color-shadow: rgba(0, 0, 0, 0.2);
   --color-shadow-deep: rgba(0, 0, 0, 0.4);
   --color-danger-bg: rgba(220, 38, 38, 0.15);
+  --color-danger: #f87171;
   --ui-accent: var(--color-bamboo);
   --ui-accent-hover: var(--color-bamboo-light);
   --ui-accent-active: var(--color-bamboo);
@@ -912,6 +914,33 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
   border-color: transparent;
   opacity: 0.52;
   transform: none;
+}
+
+/* 缩放百分比指示（可点击复位到 100%） */
+.canvas-zoom-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius-control);
+  border: 1px solid transparent;
+  color: var(--ui-control-muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: var(--ui-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--ui-duration-fast) var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.canvas-zoom-indicator:hover {
+  color: var(--ui-control-text);
+  background: var(--color-paper-deep);
 }
 
 .canvas-floating-panel {

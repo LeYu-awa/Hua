@@ -2324,6 +2324,7 @@ mod tests {
             toggle_visibility_shortcut: "Ctrl+Shift+K".into(),
             providers: Vec::new(),
             default_models: Default::default(),
+            searxng_url: String::new(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,
@@ -2395,6 +2396,7 @@ mod tests {
             toggle_visibility_shortcut: String::new(),
             providers: Vec::new(),
             default_models: Default::default(),
+            searxng_url: String::new(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,
@@ -2432,6 +2434,7 @@ mod tests {
             toggle_visibility_shortcut: "Ctrl+Shift+H".into(),
             providers: Vec::new(),
             default_models: Default::default(),
+            searxng_url: String::new(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,
@@ -2482,9 +2485,10 @@ mod tests {
             dynamic_window_visual_options("tile-note-1"),
             DynamicWindowVisualOptions { transparent: true }
         );
+        // 主窗口（画布/笔记工作区）为不透明背景，仅便签/磁贴表面走透明
         assert_eq!(
             dynamic_window_visual_options("main"),
-            DynamicWindowVisualOptions { transparent: true }
+            DynamicWindowVisualOptions { transparent: false }
         );
     }
 

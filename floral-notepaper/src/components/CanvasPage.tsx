@@ -9,6 +9,15 @@ import {
 import { useCanvasAgent } from "../features/agent/useCanvasAgent";
 import type { ImplicitConnection } from "../features/agent/connectionRecommendations";
 import type { ProviderConfig } from "../features/settings/types";
+import { onAgentExport, onAgentTask, recordAgentEvent } from "../features/agent/api";
+import type { AgentEventType } from "../features/agent/types";
+import { TaskProgressPanel } from "../features/agent/TaskProgressPanel";
+import {
+  buildCanvasSvg,
+  downloadBlob,
+  renderNoteToPngBlob,
+  svgToPngBlob,
+} from "../features/canvas/canvasExport";
 
 interface CanvasPageProps {
   documentId: string;
@@ -18,6 +27,9 @@ interface CanvasPageProps {
   agentEnabled?: boolean;
   initialDocument?: CanvasDocument;
   onSave?: (doc: CanvasDocument) => void;
+  /** 操作埋点上下文（可选）：缺省时画布操作不产生 agent 事件（可降级） */
+  conversationId?: string;
+  userId?: string;
 }
 
 const NODE_DEFAULTS: Record<CanvasNodeType, { width: number; height: number; label: string }> = {
@@ -85,6 +97,45 @@ function SaveIcon() {
   );
 }
 
+function UndoIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M5.5 4.2 3.2 6.5l2.3 2.3" />
+      <path d="M3.4 6.5h6.6a3 3 0 0 1 0 6H6.8" />
+    </CanvasActionIcon>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="m10.5 4.2 2.3 2.3-2.3 2.3" />
+      <path d="M12.6 6.5H6a3 3 0 0 0 0 6h2.2" />
+    </CanvasActionIcon>
+  );
+}
+
+function ZoomInIcon() {
+  return (
+    <CanvasActionIcon>
+      <circle cx="6.8" cy="6.8" r="3.8" />
+      <path d="M9.6 9.6 13 13" />
+      <path d="M6.8 5.2v3.2" />
+      <path d="M5.2 6.8h3.2" />
+    </CanvasActionIcon>
+  );
+}
+
+function ZoomOutIcon() {
+  return (
+    <CanvasActionIcon>
+      <circle cx="6.8" cy="6.8" r="3.8" />
+      <path d="M9.6 9.6 13 13" />
+      <path d="M5.2 6.8h3.2" />
+    </CanvasActionIcon>
+  );
+}
+
 function SparkIcon() {
   return (
     <CanvasActionIcon>
@@ -127,6 +178,16 @@ function DiscussionIcon() {
   );
 }
 
+function DownloadIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M8 2.8v6.4" />
+      <path d="m5.6 6.6 2.4 2.4 2.4-2.4" />
+      <path d="M3.4 11.6v.6a1 1 0 0 0 1 1h7.2a1 1 0 0 0 1-1v-.6" />
+    </CanvasActionIcon>
+  );
+}
+
 function CloseIcon() {
   return (
     <CanvasActionIcon>
@@ -147,6 +208,8 @@ export function CanvasPage({
   agentEnabled = false,
   initialDocument,
   onSave,
+  conversationId,
+  userId,
 }: CanvasPageProps) {
   const { t } = useTranslation();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -172,6 +235,54 @@ export function CanvasPage({
   const [linkSourceNodeId, setLinkSourceNodeId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
+  // ── P1-2/P1-3 前端入口：节点扩写任务 + PNG 导出 ───────────────────────────
+  const [exportingPng, setExportingPng] = useState(false);
+  const [enhanceGoal, setEnhanceGoal] = useState<string | null>(null);
+  const [enhanceVersion, setEnhanceVersion] = useState(0);
+
+  // ── P0 画布导航：缩放/平移（世界坐标 = (屏幕坐标 - pan) / scale） ──────────
+  const MIN_SCALE = 0.25;
+  const MAX_SCALE = 3;
+  const [viewState, setViewState] = useState({ scale: 1, panX: 0, panY: 0 });
+  const [panState, setPanState] = useState<{
+    startClientX: number;
+    startClientY: number;
+    startPanX: number;
+    startPanY: number;
+  } | null>(null);
+
+  const toScreen = useCallback(
+    (x: number, y: number) => ({
+      x: x * viewState.scale + viewState.panX,
+      y: y * viewState.scale + viewState.panY,
+    }),
+    [viewState],
+  );
+  const toWorld = useCallback(
+    (clientX: number, clientY: number) => {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return { x: 0, y: 0 };
+      return {
+        x: (clientX - rect.left - viewState.panX) / viewState.scale,
+        y: (clientY - rect.top - viewState.panY) / viewState.scale,
+      };
+    },
+    [viewState],
+  );
+
+  // ── P0 撤销/重做（≥50 步快照栈；ref 持有数据，state 只渲染可用态） ────────
+  const MAX_HISTORY = 50;
+  const undoStackRef = useRef<CanvasDocument[]>([]);
+  const redoStackRef = useRef<CanvasDocument[]>([]);
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
+  /** 拖拽开始时画布快照：拖拽过程不入栈，松手后整段拖拽合并为一步 */
+  const dragStartSnapshotRef = useRef<CanvasDocument | null>(null);
+
+  // ── P0 自动保存：脏标记，仅用户改动后才 debounce 保存 ─────────────────────
+  const dirtyRef = useRef(false);
+  const docRef = useRef(doc);
+  docRef.current = doc;
+
   // Agent 智能覆盖层（场景一：隐含连接 / 场景二：语义空白区 / 场景三：共识分歧）
   const agent = useCanvasAgent(providers, agentEnabled);
   const nodeById = useCallback(
@@ -181,10 +292,147 @@ export function CanvasPage({
   const providersRef = useRef(providers);
   providersRef.current = providers;
 
+  // 统一文档提交入口：入撤销栈、清重做栈、打脏标记（自动保存依据）
+  const commitDoc = useCallback((updater: (prev: CanvasDocument) => CanvasDocument) => {
+    const prev = docRef.current;
+    const next = updater(prev);
+    if (next === prev) return;
+    undoStackRef.current = [...undoStackRef.current.slice(-(MAX_HISTORY - 1)), prev];
+    redoStackRef.current = [];
+    docRef.current = next;
+    dirtyRef.current = true;
+    setDoc(next);
+    setHistoryState({ canUndo: true, canRedo: false });
+    setSaveStatus("idle");
+  }, []);
+
+  const undo = useCallback(() => {
+    const prev = undoStackRef.current[undoStackRef.current.length - 1];
+    if (!prev) return;
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    redoStackRef.current = [...redoStackRef.current, docRef.current];
+    docRef.current = prev;
+    dirtyRef.current = true;
+    setDoc(prev);
+    setSaveStatus("idle");
+    setHistoryState({ canUndo: undoStackRef.current.length > 0, canRedo: true });
+  }, []);
+
+  const redo = useCallback(() => {
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    if (!next) return;
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    undoStackRef.current = [...undoStackRef.current, docRef.current];
+    docRef.current = next;
+    dirtyRef.current = true;
+    setDoc(next);
+    setSaveStatus("idle");
+    setHistoryState({ canUndo: true, canRedo: redoStackRef.current.length > 0 });
+  }, []);
+
+  // 缩放：以锚点（屏幕坐标，默认画布左上角）为不动点
+  const zoomBy = useCallback((factor: number, anchor?: { x: number; y: number }) => {
+    setViewState((vs) => {
+      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, vs.scale * factor));
+      const ratio = scale / vs.scale;
+      const a = anchor ?? { x: 0, y: 0 };
+      return {
+        scale,
+        panX: a.x - (a.x - vs.panX) * ratio,
+        panY: a.y - (a.y - vs.panY) * ratio,
+      };
+    });
+  }, []);
+  const zoomReset = useCallback(() => {
+    setViewState({ scale: 1, panX: 0, panY: 0 });
+  }, []);
+
+  // ── P1-2：AI 扩写入口（goal 编码节点 id + 原文，Rust enhance 链路写回） ────
+  const handleEnhance = useCallback(() => {
+    if (!selectedNodeId) return;
+    const node = docRef.current.nodes.find((n) => n.id === selectedNodeId);
+    if (!node) return;
+    setEnhanceGoal(`扩写节点 ${node.id} 的内容：${node.text}`);
+    setEnhanceVersion((v) => v + 1);
+  }, [selectedNodeId]);
+
+  // ── P1-3：画布导出 PNG（自包含 SVG → 2x 光栅化 → 下载） ───────────────────
+  const handleExportPng = useCallback(async () => {
+    if (exportingPng) return;
+    setExportingPng(true);
+    try {
+      const svg = buildCanvasSvg(docRef.current);
+      const blob = await svgToPngBlob(svg);
+      downloadBlob(blob, `canvas-${documentId}.png`);
+    } catch (error) {
+      console.error("Canvas PNG export failed", error);
+    } finally {
+      setExportingPng(false);
+    }
+  }, [documentId, exportingPng]);
+
+  // 扩写任务写回完成（agent.task → Done）后重载画布，同步磁盘上的新内容
+  useEffect(() => {
+    if (!enhanceGoal) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    onAgentTask((task) => {
+      if (disposed || task.goal !== enhanceGoal || task.status !== "Done") return;
+      getCanvasDocument(documentId)
+        .then((loaded) => {
+          if (disposed) return;
+          undoStackRef.current = [];
+          redoStackRef.current = [];
+          dragStartSnapshotRef.current = null;
+          dirtyRef.current = false;
+          docRef.current = loaded;
+          setDoc(loaded);
+          setHistoryState({ canUndo: false, canRedo: false });
+        })
+        .catch(() => {});
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [enhanceGoal, documentId]);
+
+  // note.export 的 png/pdf 分支由前端接管渲染（agent.export 事件 → PNG 下载）
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    onAgentExport((event) => {
+      if (disposed || event.kind !== "note") return;
+      if (event.format !== "png" && event.format !== "pdf") return;
+      renderNoteToPngBlob(event.title ?? "", event.content ?? "")
+        .then((blob) => downloadBlob(blob, `${event.title ?? "note"}.png`))
+        .catch((error) => console.error("Note PNG export failed", error));
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  // ── P0 操作埋点（可降级：缺 conversationId/userId 时静默跳过） ─────────────
+  const trackCanvasEvent = useCallback(
+    (eventType: AgentEventType, payload: Record<string, unknown>) => {
+      if (!conversationId || !userId) return;
+      recordAgentEvent({ conversationId, userId, eventType, payload }).catch((error) => {
+        console.warn("Canvas event tracking failed", error);
+      });
+    },
+    [conversationId, userId],
+  );
+
   // 接受一条隐含连接建议：写入一条 dashed 连线（可追溯到来源两节点），并从建议列表移除
   const acceptConnection = useCallback(
     (c: ImplicitConnection) => {
-      setDoc((prev) => {
+      commitDoc((prev) => {
         const exists = prev.edges.some(
           (e) =>
             (e.fromNodeId === c.sourceId && e.toNodeId === c.targetId) ||
@@ -200,8 +448,14 @@ export function CanvasPage({
         };
       });
       agent.dismissConnection(c.sourceId, c.targetId);
+      trackCanvasEvent("canvas_binding_added", {
+        fromNodeId: c.sourceId,
+        toNodeId: c.targetId,
+        style: "dashed",
+        source: "agent",
+      });
     },
-    [agent],
+    [agent, commitDoc, trackCanvasEvent],
   );
 
   // 语义空白区：为某个缺失视角生成半透明占位节点（source=agent）
@@ -217,9 +471,14 @@ export function CanvasPage({
         text: perspective,
         source: "agent",
       };
-      setDoc((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
+      commitDoc((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
+      trackCanvasEvent("canvas_shape_added", {
+        nodeId: newNode.id,
+        type: newNode.type,
+        source: "agent",
+      });
     },
-    [],
+    [commitDoc, trackCanvasEvent],
   );
 
   useEffect(() => {
@@ -228,16 +487,31 @@ export function CanvasPage({
     getCanvasDocument(documentId)
       .then((loaded) => {
         if (cancelled) return;
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        dragStartSnapshotRef.current = null;
+        dirtyRef.current = false;
+        docRef.current = loaded;
         setDoc(loaded);
+        setHistoryState({ canUndo: false, canRedo: false });
+        setSaveStatus("idle");
       })
       .catch(() => {
         if (cancelled) return;
-        setDoc({
+        const fallback: CanvasDocument = {
           id: documentId,
           noteId,
           nodes: initialDocument?.nodes ?? [],
           edges: initialDocument?.edges ?? [],
-        });
+        };
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        dragStartSnapshotRef.current = null;
+        dirtyRef.current = false;
+        docRef.current = fallback;
+        setDoc(fallback);
+        setHistoryState({ canUndo: false, canRedo: false });
+        setSaveStatus("idle");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -259,48 +533,57 @@ export function CanvasPage({
         height: defaults.height,
         text: text || defaults.label,
       };
-      setDoc((prev) => ({
+      commitDoc((prev) => ({
         ...prev,
         nodes: [...prev.nodes, newNode],
       }));
       setEditingNodeId(newNode.id);
-      setSaveStatus("idle");
+      trackCanvasEvent("canvas_shape_added", { nodeId: newNode.id, type });
     },
-    [],
+    [commitDoc, trackCanvasEvent],
   );
 
-  const updateNodeText = useCallback((nodeId: string, text: string) => {
-    setDoc((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text } : n)),
-    }));
-    setSaveStatus("idle");
-  }, []);
-
-  const updateNodePosition = useCallback((nodeId: string, x: number, y: number) => {
-    setDoc((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)),
-    }));
-    setSaveStatus("idle");
-  }, []);
-
-  const createEdge = useCallback((fromNodeId: string, toNodeId: string, style: "solid" | "dashed" = "solid") => {
-    if (fromNodeId === toNodeId) return;
-    setDoc((prev) => {
-      const exists = prev.edges.some(
-        (e) =>
-          (e.fromNodeId === fromNodeId && e.toNodeId === toNodeId) ||
-          (e.fromNodeId === toNodeId && e.toNodeId === fromNodeId),
-      );
-      if (exists) return prev;
-      return {
+  const updateNodeText = useCallback(
+    (nodeId: string, text: string) => {
+      commitDoc((prev) => ({
         ...prev,
-        edges: [...prev.edges, { id: generateId(), fromNodeId, toNodeId, style }],
-      };
-    });
+        nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text } : n)),
+      }));
+    },
+    [commitDoc],
+  );
+
+  // 拖拽期间的节点位置更新：直接更新不入撤销栈（松手时整体合并为一步）
+  const updateNodePosition = useCallback((nodeId: string, x: number, y: number) => {
+    const next = {
+      ...docRef.current,
+      nodes: docRef.current.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)),
+    };
+    docRef.current = next;
+    dirtyRef.current = true;
+    setDoc(next);
     setSaveStatus("idle");
   }, []);
+
+  const createEdge = useCallback(
+    (fromNodeId: string, toNodeId: string, style: "solid" | "dashed" = "solid") => {
+      if (fromNodeId === toNodeId) return;
+      commitDoc((prev) => {
+        const exists = prev.edges.some(
+          (e) =>
+            (e.fromNodeId === fromNodeId && e.toNodeId === toNodeId) ||
+            (e.fromNodeId === toNodeId && e.toNodeId === fromNodeId),
+        );
+        if (exists) return prev;
+        return {
+          ...prev,
+          edges: [...prev.edges, { id: generateId(), fromNodeId, toNodeId, style }],
+        };
+      });
+      trackCanvasEvent("canvas_binding_added", { fromNodeId, toNodeId, style });
+    },
+    [commitDoc, trackCanvasEvent],
+  );
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
@@ -311,63 +594,171 @@ export function CanvasPage({
     [createEdge, linkSourceNodeId],
   );
 
-  const deleteNode = useCallback((nodeId: string) => {
-    setDoc((prev) => ({
-      ...prev,
-      nodes: prev.nodes.filter((n) => n.id !== nodeId),
-      edges: prev.edges.filter((e) => e.fromNodeId !== nodeId && e.toNodeId !== nodeId),
-    }));
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
-    setLinkSourceNodeId((current) => (current === nodeId ? null : current));
-    setSaveStatus("idle");
-  }, []);
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      commitDoc((prev) => ({
+        ...prev,
+        nodes: prev.nodes.filter((n) => n.id !== nodeId),
+        edges: prev.edges.filter((e) => e.fromNodeId !== nodeId && e.toNodeId !== nodeId),
+      }));
+      setSelectedNodeId(null);
+      setEditingNodeId(null);
+      setLinkSourceNodeId((current) => (current === nodeId ? null : current));
+      trackCanvasEvent("canvas_shape_removed", { nodeId });
+    },
+    [commitDoc, trackCanvasEvent],
+  );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, nodeId: string) => {
       e.stopPropagation();
       if (editingNodeId === nodeId) return;
+      // 阻止浏览器默认行为：拖拽节点时禁止触发文本选区（消除选中蓝）
+      e.preventDefault();
       setSelectedNodeId(nodeId);
-      const node = doc.nodes.find((n) => n.id === nodeId);
-      if (!node || !svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
+      const node = docRef.current.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const world = toWorld(e.clientX, e.clientY);
+      // 拖拽起点快照：整段拖拽在松手时合并为一步撤销
+      dragStartSnapshotRef.current = docRef.current;
+      // 拖拽期全局禁止选中（覆盖 foreignObject 内的 HTML 文本节点）
+      document.body.style.userSelect = "none";
       setDragState({
         nodeId,
         startX: node.x,
         startY: node.y,
-        offsetX: e.clientX - rect.left - node.x,
-        offsetY: e.clientY - rect.top - node.y,
+        offsetX: world.x - node.x,
+        offsetY: world.y - node.y,
       });
     },
-    [doc.nodes, editingNodeId],
+    [editingNodeId, toWorld],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!dragState || !svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left - dragState.offsetX;
-      const y = e.clientY - rect.top - dragState.offsetY;
-      updateNodePosition(dragState.nodeId, x, y);
+      if (dragState) {
+        const world = toWorld(e.clientX, e.clientY);
+        updateNodePosition(dragState.nodeId, world.x - dragState.offsetX, world.y - dragState.offsetY);
+      } else if (panState) {
+        // 空白处拖拽 → 平移画布
+        setViewState((vs) => ({
+          ...vs,
+          panX: panState.startPanX + (e.clientX - panState.startClientX),
+          panY: panState.startPanY + (e.clientY - panState.startClientY),
+        }));
+      }
     },
-    [dragState, updateNodePosition],
+    [dragState, panState, toWorld, updateNodePosition],
   );
 
   const handleMouseUp = useCallback(() => {
+    // 拖拽结束：把起点快照压入撤销栈（若确有移动）
+    if (dragState && dragStartSnapshotRef.current) {
+      const start = dragStartSnapshotRef.current;
+      dragStartSnapshotRef.current = null;
+      if (start !== docRef.current) {
+        undoStackRef.current = [...undoStackRef.current.slice(-(MAX_HISTORY - 1)), start];
+        redoStackRef.current = [];
+        setHistoryState({ canUndo: true, canRedo: false });
+      }
+    }
+    document.body.style.userSelect = "";
     setDragState(null);
-  }, []);
+    setPanState(null);
+  }, [dragState]);
+
+  // 空白背景按下：开始平移
+  const handleBackgroundMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      setSelectedNodeId(null);
+      setEditingNodeId(null);
+      setLinkSourceNodeId(null);
+      document.body.style.userSelect = "none";
+      setPanState({
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startPanX: viewState.panX,
+        startPanY: viewState.panY,
+      });
+    },
+    [viewState.panX, viewState.panY],
+  );
+
+  // 滚轮：Ctrl/Cmd+滚轮以鼠标为锚点缩放；普通滚轮平移画布（对齐主流白板习惯）
+  // 注意依赖 loading：组件首帧渲染 loading 态（无 SVG），SVG 挂载后才 attach 监听
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (loading || !svg) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      if (e.ctrlKey || e.metaKey) {
+        const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, anchor);
+      } else {
+        setViewState((vs) => ({
+          ...vs,
+          panX: vs.panX - e.deltaX,
+          panY: vs.panY - e.deltaY,
+        }));
+      }
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, [zoomBy, loading]);
+
+  // 快捷键：Ctrl/Cmd+Z 撤销、+Shift 或 Ctrl/Cmd+Y 重做；Ctrl+=/-/0 缩放
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      } else if (mod && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+      } else if (mod && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        zoomBy(1.15);
+      } else if (mod && e.key === "-") {
+        e.preventDefault();
+        zoomBy(1 / 1.15);
+      } else if (mod && e.key === "0") {
+        e.preventDefault();
+        zoomReset();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo, zoomBy, zoomReset]);
 
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
     try {
-      const saved = await saveCanvasDocument(doc);
+      const saved = await saveCanvasDocument(docRef.current);
       onSave?.(saved);
+      dirtyRef.current = false;
       setSaveStatus("saved");
       window.setTimeout(() => setSaveStatus("idle"), 1800);
+      trackCanvasEvent("canvas_shape_updated", { action: "save" });
     } catch {
       setSaveStatus("error");
     }
-  }, [doc, onSave]);
+  }, [onSave, trackCanvasEvent]);
+
+  // P0 自动保存：用户改动后 debounce 800ms 触发一次保存
+  useEffect(() => {
+    if (loading || !dirtyRef.current) return;
+    const timer = window.setTimeout(() => {
+      void handleSave();
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [doc, loading, handleSave]);
 
   const handleArchiveSuggestions = useCallback(async () => {
     if (doc.nodes.length < 2 || providersRef.current.length === 0) return;
@@ -383,13 +774,16 @@ export function CanvasPage({
     }
   }, [doc.nodes]);
 
-  const applyArchiveTag = useCallback((nodeId: string, tag: string) => {
-    setDoc((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text: `${tag}: ${n.text}` } : n)),
-    }));
-    setSaveStatus("idle");
-  }, []);
+  const applyArchiveTag = useCallback(
+    (nodeId: string, tag: string) => {
+      commitDoc((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text: `${tag}: ${n.text}` } : n)),
+      }));
+      trackCanvasEvent("canvas_shape_updated", { nodeId, action: "archive_tag", tag });
+    },
+    [commitDoc, trackCanvasEvent],
+  );
 
   if (loading) {
     return (
@@ -402,7 +796,7 @@ export function CanvasPage({
   }
 
   return (
-    <div className="canvas-home-surface flex-1 flex flex-col min-h-0 relative overflow-hidden">
+    <div className="canvas-home-surface flex-1 flex flex-col min-h-0 relative overflow-hidden select-none">
       {/* 工具栏 */}
       <div className="canvas-toolbar-pro absolute top-4 left-4 z-10 flex items-center gap-2">
         <button
@@ -447,6 +841,62 @@ export function CanvasPage({
           {saveStatus === "saving"
             ? t("common.saving", { defaultValue: "保存中…" })
             : t("common.save", { defaultValue: "保存" })}
+        </button>
+        <div className="canvas-toolbar-divider" />
+        <button
+          type="button"
+          onClick={undo}
+          disabled={!historyState.canUndo}
+          className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.undo", { defaultValue: "撤销 (Ctrl+Z)" })}
+        >
+          <UndoIcon />
+        </button>
+        <button
+          type="button"
+          onClick={redo}
+          disabled={!historyState.canRedo}
+          className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.redo", { defaultValue: "重做 (Ctrl+Shift+Z)" })}
+        >
+          <RedoIcon />
+        </button>
+        <div className="canvas-toolbar-divider" />
+        <button
+          type="button"
+          onClick={() => zoomBy(1 / 1.15)}
+          className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.zoomOut", { defaultValue: "缩小 (Ctrl+-)" })}
+        >
+          <ZoomOutIcon />
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleExportPng()}
+          disabled={exportingPng || doc.nodes.length === 0}
+          className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.exportPng", { defaultValue: "导出画布为 PNG 图片" })}
+        >
+          <DownloadIcon />
+          {exportingPng
+            ? t("canvas.exporting", { defaultValue: "导出中…" })
+            : t("canvas.exportPng", { defaultValue: "导出 PNG" })}
+        </button>
+        <button
+          type="button"
+          onClick={zoomReset}
+          className="canvas-zoom-indicator"
+          title={t("canvas.zoomReset", { defaultValue: "复位到 100% (Ctrl+0)" })}
+        >
+          {Math.round(viewState.scale * 100)}%
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomBy(1.15)}
+          className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.zoomIn", { defaultValue: "放大 (Ctrl+=)" })}
+        >
+          <ZoomInIcon />
         </button>
         <button
           type="button"
@@ -511,6 +961,17 @@ export function CanvasPage({
 
       {selectedNodeId && (
         <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          {agentEnabled && providers.length > 0 && (
+            <button
+              type="button"
+              onClick={handleEnhance}
+              className="canvas-control-button canvas-button-ai"
+              title={t("canvas.enhanceNodeTip", { defaultValue: "让 AI 扩写该节点内容并写回画布" })}
+            >
+              <SparkIcon />
+              {t("canvas.enhanceNode", { defaultValue: "AI 扩写" })}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setLinkSourceNodeId(selectedNodeId)}
@@ -528,6 +989,25 @@ export function CanvasPage({
           >
             {t("common.delete", { defaultValue: "删除" })}
           </button>
+        </div>
+      )}
+
+      {enhanceGoal && (
+        <div className="absolute bottom-4 left-4 z-30 w-[320px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="canvas-panel-title">
+              {t("canvas.enhancePanel", { defaultValue: "节点扩写" })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEnhanceGoal(null)}
+              className="canvas-icon-button canvas-button-ghost"
+              aria-label={t("common.close", { defaultValue: "关闭" })}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <TaskProgressPanel key={enhanceVersion} goal={enhanceGoal} />
         </div>
       )}
 
@@ -583,13 +1063,15 @@ export function CanvasPage({
         const from = nodeById(c.sourceId);
         const to = nodeById(c.targetId);
         if (!from || !to) return null;
-        const midX = (from.x + from.width / 2 + to.x + to.width / 2) / 2;
-        const midY = (from.y + from.height / 2 + to.y + to.height / 2) / 2;
+        const mid = toScreen(
+          (from.x + from.width / 2 + to.x + to.width / 2) / 2,
+          (from.y + from.height / 2 + to.y + to.height / 2) / 2,
+        );
         return (
           <div
             key={`bubble-${c.sourceId}-${c.targetId}`}
             className="absolute z-20 w-[210px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-2.5 animate-fade-in"
-            style={{ left: midX, top: midY }}
+            style={{ left: mid.x, top: mid.y }}
           >
             <div className="text-[11px] text-ink-soft leading-relaxed">{c.message}</div>
             <div className="mt-1 text-[9px] text-ink-ghost/70">
@@ -616,14 +1098,16 @@ export function CanvasPage({
       })}
 
       {/* 场景二：语义空白区提示（浮框 + 待补充视角，可生成占位节点）*/}
-      {agent.gap && (
-        <div
-          className="absolute z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-3 animate-fade-in"
-          style={{
-            left: Math.max(16, Math.min(agent.gap.areaHint.x, 640)),
-            top: Math.max(72, Math.min(agent.gap.areaHint.y, 420)),
-          }}
-        >
+      {agent.gap && (() => {
+        const gapScreen = toScreen(agent.gap.areaHint.x, agent.gap.areaHint.y);
+        return (
+          <div
+            className="absolute z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-3 animate-fade-in"
+            style={{
+              left: Math.max(16, Math.min(gapScreen.x, 640)),
+              top: Math.max(72, Math.min(gapScreen.y, 420)),
+            }}
+          >
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <span className="canvas-panel-text">{agent.gap.message}</span>
             <button
@@ -647,8 +1131,9 @@ export function CanvasPage({
               </button>
             ))}
           </div>
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* 场景三：共识/分歧面板（分组标识 + 桥梁方案）*/}
       {agent.discussion && (
@@ -716,9 +1201,15 @@ export function CanvasPage({
           setLinkSourceNodeId(null);
         }}
       >
-        <rect width="100%" height="100%" fill="transparent" />
+        {/* 固定事件层：整屏透明，点击空白开始平移 */}
+        <rect
+          width="100%"
+          height="100%"
+          fill="transparent"
+          onMouseDown={handleBackgroundMouseDown}
+        />
 
-        {/* 网格背景 */}
+        {/* 网格背景（定义保留在变换外；引用它的 rect 置于变换组内，格子随平移/缩放） */}
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
           <path
             d="M 40 0 L 0 0 0 40"
@@ -727,8 +1218,14 @@ export function CanvasPage({
             strokeWidth="0.5"
           />
         </pattern>
-        <rect width="100%" height="100%" fill="url(#grid)" />
 
+        <g transform={`translate(${viewState.panX}, ${viewState.panY}) scale(${viewState.scale})`}>
+          {/* 超大网格矩形：锚定在远点，覆盖任意平移/缩放后的可见区域 */}
+          <rect x={-5000} y={-5000} width={10000} height={10000} fill="url(#grid)" />
+        </g>
+
+        {/* 内容层：连线/建议/节点随缩放平移变换 */}
+        <g transform={`translate(${viewState.panX}, ${viewState.panY}) scale(${viewState.scale})`}>
         {/* 连线 */}
         {doc.edges.map((edge) => {
           const from = doc.nodes.find((n) => n.id === edge.fromNodeId);
@@ -771,8 +1268,8 @@ export function CanvasPage({
           );
         })}
 
-        {/* 节点 */}
-        {doc.nodes.map((node) => (
+        {/* 节点（按 zIndex 升序渲染，越靠后越在上层） */}
+        {[...doc.nodes].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)).map((node) => (
           <g
             key={node.id}
             transform={`translate(${node.x}, ${node.y})`}
@@ -811,7 +1308,7 @@ export function CanvasPage({
                         setEditingNodeId(null);
                       }
                     }}
-                    className="w-full h-full resize-none bg-transparent text-[13px] text-ink-soft leading-relaxed outline-none"
+                    className="w-full h-full resize-none bg-transparent text-[13px] text-ink-soft leading-relaxed outline-none select-text"
                   />
                 ) : (
                   <div
@@ -829,6 +1326,7 @@ export function CanvasPage({
             </foreignObject>
           </g>
         ))}
+        </g>
       </svg>
     </div>
   );

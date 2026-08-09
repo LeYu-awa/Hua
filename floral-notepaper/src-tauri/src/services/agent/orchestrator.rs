@@ -1,0 +1,1925 @@
+//! 主编排：Planner + Executor + Observer（Phase B-F 落地版）
+//!
+//! - Planner：规则兜底（无 LLM 可跑，确定性、可测）+ LLM 规划（`plan_with_llm`，失败回退规则）。
+//!   组合目标识别：检索 / 总结 / 画布成文 / 调研，分别展开成固定流水线。
+//! - Executor：按 StepKind 分发。Tool（原子/组合工具）、Llm（记忆注入 + 生成）、
+//!   Confirm（暂停等确认）、Output（输出总线：Live2D / 语音 / UI）。
+//! - Observer：步骤失败重试 1 次 → 仍失败置 Failed；写操作步骤走 AwaitingConfirm 人工确认。
+//! - 进度事件：每步开始/完成 emit `agent.step`，任务状态变更 emit `agent.task`，
+//!   待确认 emit `agent.awaiting_confirm`，产出走 `agent.live2d` / `agent.speech` / `agent.ui`。
+//!   AppHandle 可选（测试传 None，纯逻辑可单测）。
+
+use crate::services::agent::llm_provider::{resolve_endpoint, HttpLlmProvider};
+use crate::services::agent::output_bus;
+use crate::services::agent::rag;
+use crate::services::agent::task_store::{
+    AgentTaskStore, Step, StepKind, StepStatus, Task, TaskStatus,
+};
+use crate::services::agent::vector_store::VectorStore;
+use crate::services::agent::web_search::searxng_search;
+use crate::services::canvas::{CanvasDocument, CanvasNode, CanvasStore};
+use crate::services::notes::{default_store, AppError, Note, NoteMetadata, NoteStore, SaveNoteRequest};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use tauri::{AppHandle, Emitter};
+
+/// 目标文本里常见的前缀（动词/祈使），规划时剥掉，剩下的是搜索词
+const LEADING_PREFIXES: &[&str] = &[
+    "请帮我", "帮我找找", "帮我找一下", "帮我搜索", "帮我查一下", "查找一下", "搜索一下",
+    "检索一下", "找一下", "帮我找", "请查找", "请搜索", "请检索", "查找", "搜索", "检索",
+    "找找", "帮我", "请", "找",
+];
+
+/// 目标文本里常见的后缀（名词收尾），规划时剥掉
+const TRAILING_SUFFIXES: &[&str] = &[
+    "相关的笔记", "相关笔记", "的笔记", "相关内容", "的内容", "相关资料",
+];
+
+/// 搜索时忽略的填充词（避免"关于""相关"这类虚词命中一堆无关笔记）
+const SEARCH_STOPWORDS: &[&str] = &[
+    "关于", "相关", "一下", "一些", "这个", "那个", "内容", "笔记",
+];
+
+/// 组合目标关键词
+const CANVAS_WORDS: &[&str] = &["画布", "脑图", "思维导图", "canvas", "节点"];
+const SUMMARIZE_WORDS: &[&str] = &["总结", "摘要", "汇总", "提炼", "概括"];
+const WRITE_WORDS: &[&str] = &["写", "成文", "整理", "文章", "笔记", "总结"];
+const RESEARCH_WORDS: &[&str] = &["调研", "查资料", "了解", "研究"];
+const EXPORT_WORDS: &[&str] = &["导出", "生成文件", "输出文件", "export", "保存为"];
+const ORGANIZE_WORDS: &[&str] = &["排版", "重排", "自动排列", "整理画布", "布局", "organize", "排列"];
+const ENHANCE_WORDS: &[&str] = &["扩写", "展开", "补充细节", "丰富", "深化", "enhance", "详细一点"];
+
+// ── 查询抽取与原子工具 ────────────────────────────────────────────────────────
+
+/// 从用户目标里抽搜索词：剥常见前缀/后缀，留下核心（"帮我找一下关于 RAG 的笔记" → "RAG"）
+pub fn extract_query(goal: &str) -> String {
+    let mut q = goal.trim();
+    for prefix in LEADING_PREFIXES {
+        if let Some(rest) = q.strip_prefix(prefix) {
+            q = rest.trim();
+            break;
+        }
+    }
+    let mut out = q.to_string();
+    for suffix in TRAILING_SUFFIXES {
+        if out.ends_with(suffix) {
+            out.truncate(out.len() - suffix.len());
+            out = out.trim().to_string();
+            break;
+        }
+    }
+    for word in ["关于", "相关"] {
+        if out.strip_prefix(word).is_some() {
+            out = out[word.len()..].trim().to_string();
+            break;
+        }
+    }
+    out
+}
+
+/// 把查询拆成搜索词：空白/标点切分，去停用词，至少 2 字符（大小写不敏感）
+pub fn query_terms(query: &str) -> Vec<String> {
+    query
+        .split(|c: char| {
+            c.is_whitespace()
+                || c.is_ascii_punctuation()
+                || "，。；、·的了".contains(c)
+        })
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .filter(|t| !SEARCH_STOPWORDS.contains(t))
+        .filter(|t| t.chars().count() >= 2)
+        .map(|t| t.to_lowercase())
+        .collect()
+}
+
+/// 原子工具 note.search：对笔记元数据（标题/预览/分类）做关键词匹配（AND 语义）
+pub fn note_search(
+    store: &NoteStore,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<NoteMetadata>, AppError> {
+    let terms = query_terms(query);
+    if terms.is_empty() {
+        return Ok(Vec::new());
+    }
+    let all = store.list_notes()?;
+    let hits = all
+        .into_iter()
+        .filter(|note| {
+            let hay = format!("{} {} {}", note.title, note.preview, note.category).to_lowercase();
+            terms.iter().all(|term| hay.contains(term))
+        })
+        .take(limit.max(1))
+        .collect();
+    Ok(hits)
+}
+
+/// 原子工具 note.read：按 id 读笔记全文
+pub fn note_read(store: &NoteStore, id: &str) -> Result<Note, AppError> {
+    store.read_note(id)
+}
+
+fn has_any(text: &str, words: &[&str]) -> bool {
+    let lower = text.to_lowercase();
+    words.iter().any(|w| lower.contains(w))
+}
+
+fn step(
+    step_id: &str,
+    kind: StepKind,
+    tool: Option<&str>,
+    input: Value,
+    required_confirm: bool,
+) -> Step {
+    Step {
+        step_id: step_id.into(),
+        kind,
+        tool: tool.map(str::to_string),
+        input,
+        output: None,
+        status: StepStatus::Pending,
+        required_confirm,
+        confirmed: false,
+    }
+}
+
+fn tool_step(step_id: &str, tool: &str, input: Value) -> Step {
+    step(step_id, StepKind::Tool, Some(tool), input, false)
+}
+
+fn tool_step_confirm(step_id: &str, tool: &str, input: Value) -> Step {
+    step(step_id, StepKind::Tool, Some(tool), input, true)
+}
+
+fn llm_step(step_id: &str, input: Value) -> Step {
+    step(step_id, StepKind::Llm, None, input, false)
+}
+
+// ── Planner：技能注册表（Skill = 目标检测 + 流水线展开） ─────────────────────
+
+/// 技能定义：`matches` 判断用户目标是否命中本技能，`plan` 把目标展开成步骤流水线。
+/// 产品 Agent 技能与 orchestrator 工具注册表同源：注册新技能 = 新流水线 + 可选新工具分支。
+#[derive(Clone)]
+pub struct Skill {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub matches: fn(&str) -> bool,
+    pub plan: fn(&str) -> Vec<Step>,
+}
+
+/// 技能流水线：检索 → 读第一条命中
+fn search_plan(goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("s1", "note.search", json!({ "query": extract_query(goal), "limit": 5 })),
+        tool_step("s2", "note.read", json!({ "id": "top" })),
+    ]
+}
+
+/// 技能流水线：检索 → 读 → LLM 摘要 → 落库（确认）
+fn summarize_plan(goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("s1", "note.search", json!({ "query": extract_query(goal), "limit": 5 })),
+        tool_step("s2", "note.read", json!({ "id": "top" })),
+        llm_step(
+            "s3",
+            json!({
+                "promptTemplate": "用 3-5 条要点总结下面这篇笔记：\n{previousOutput}"
+            }),
+        ),
+        tool_step_confirm(
+            "s4",
+            "note.create",
+            json!({ "title": "笔记摘要", "category": "AI 生成" }),
+        ),
+    ]
+}
+
+/// 技能流水线：画布成文
+fn canvas_writeup_plan(_goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("c1", "canvas.read", json!({ "canvasId": "first" })),
+        llm_step(
+            "c2",
+            json!({
+                "promptTemplate": "根据下面的画布内容写一篇结构清晰的笔记（保留要点、可展开成段落）：\n{previousOutput}"
+            }),
+        ),
+        tool_step_confirm(
+            "c3",
+            "note.create",
+            json!({ "title": "画布整理成文", "category": "AI 生成" }),
+        ),
+    ]
+}
+
+/// 技能流水线：联网调研
+fn research_plan(goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("r1", "web.search", json!({ "query": extract_query(goal), "limit": 5 })),
+        llm_step(
+            "r2",
+            json!({
+                "promptTemplate": "把下面的搜索结果整理成一篇 200 字以内的调研摘要：\n{previousOutput}"
+            }),
+        ),
+        tool_step_confirm(
+            "r3",
+            "note.create",
+            json!({ "title": "调研摘要", "category": "AI 生成" }),
+        ),
+    ]
+}
+
+/// 技能流水线：导出笔记为文件（确认）
+fn export_plan(goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("e1", "note.search", json!({ "query": extract_query(goal), "limit": 5 })),
+        tool_step("e2", "note.read", json!({ "id": "top" })),
+        tool_step_confirm("e3", "note.export", json!({ "format": "markdown" })),
+    ]
+}
+
+/// 技能流水线：画布节点自动排版（确认）
+fn organize_plan(_goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("o1", "canvas.read", json!({ "canvasId": "first" })),
+        tool_step_confirm("o2", "canvas.organize", json!({ "canvasId": "first" })),
+    ]
+}
+
+/// 从扩写目标里抽节点 id（"扩写节点 node-123 的内容：原文" → "node-123"）。
+/// 前端扩写入口按此格式生成 goal；解析不到时返回 None（走追加新节点兜底）。
+pub fn extract_node_id(goal: &str) -> Option<String> {
+    let marker = "节点";
+    let rest = goal.find(marker).map(|i| &goal[i + marker.len()..]).unwrap_or("");
+    rest.split(|c: char| c.is_whitespace() || c == '：' || c == ':' || c == '，' || c == ',')
+        .find(|token| !token.is_empty())
+        .map(str::to_string)
+}
+
+/// 从扩写目标里抽节点原文（"…的内容：<原文>" 冒号之后的部分）
+pub fn extract_node_text(goal: &str) -> Option<String> {
+    for sep in ["的内容：", "的内容:", "：", ":"] {
+        if let Some((_, text)) = goal.split_once(sep) {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// 技能流水线：画布节点扩写/润色（读画布 → LLM 扩写 → 确认 → 写回保存）
+/// 目标格式（前端扩写入口生成）："扩写节点 <nodeId> 的内容：<原文>"
+fn enhance_plan(goal: &str) -> Vec<Step> {
+    let node_id = extract_node_id(goal).unwrap_or_default();
+    let node_text =
+        extract_node_text(goal).unwrap_or_else(|| goal.trim().to_string());
+    vec![
+        tool_step("h1", "canvas.read", json!({ "canvasId": "first" })),
+        llm_step(
+            "h2",
+            json!({
+                "prompt": format!(
+                    "请扩写/润色下面的画布节点内容，保持原有要点，补充细节、使表达更完整；直接输出扩写后的内容，不要解释：\n\n{node_text}"
+                )
+            }),
+        ),
+        tool_step_confirm(
+            "h3",
+            "canvas.save",
+            json!({ "canvasId": "first", "nodeId": node_id }),
+        ),
+    ]
+}
+
+/// 全部技能（顺序即优先级，首个 matches 命中的生效；note.search 兜底）
+static SKILLS: &[Skill] = &[
+    Skill {
+        name: "canvas.node.enhance",
+        description: "扩写/润色画布节点内容（LLM 扩写后写回保存）",
+        matches: |g| has_any(g, ENHANCE_WORDS),
+        plan: enhance_plan,
+    },
+    Skill {
+        name: "canvas.writeup",
+        description: "把画布内容整理成一篇笔记",
+        matches: |g| has_any(g, CANVAS_WORDS) && has_any(g, WRITE_WORDS),
+        plan: canvas_writeup_plan,
+    },
+    Skill {
+        name: "note.summarize",
+        description: "检索并总结相关笔记",
+        matches: |g| has_any(g, SUMMARIZE_WORDS),
+        plan: summarize_plan,
+    },
+    Skill {
+        name: "research",
+        description: "联网调研并生成摘要",
+        matches: |g| has_any(g, RESEARCH_WORDS),
+        plan: research_plan,
+    },
+    Skill {
+        name: "note.export",
+        description: "把笔记导出为文件（Markdown，后续可接 Excel/PDF 模板）",
+        matches: |g| has_any(g, EXPORT_WORDS),
+        plan: export_plan,
+    },
+    Skill {
+        name: "canvas.organize",
+        description: "画布节点自动排版（网格排列，消除重叠）",
+        matches: |g| has_any(g, ORGANIZE_WORDS),
+        plan: organize_plan,
+    },
+    Skill {
+        name: "note.search",
+        description: "检索本地笔记",
+        matches: |_| true,
+        plan: search_plan,
+    },
+];
+
+/// 全部技能副本（供外部枚举/序列化）
+pub fn skill_registry() -> Vec<Skill> {
+    SKILLS.to_vec()
+}
+
+/// 命中技能：按注册顺序找第一个匹配；note.search 永远兜底
+pub fn match_skill(goal: &str) -> &'static Skill {
+    SKILLS
+        .iter()
+        .find(|skill| (skill.matches)(goal))
+        .expect("note.search 兜底技能必然命中")
+}
+
+/// 规则兜底 Planner：按技能注册表展开固定流水线（无 LLM 可跑，确定性、可测）
+pub fn plan_for_goal(goal: &str) -> Vec<Step> {
+    let skill = match_skill(goal);
+    (skill.plan)(goal)
+}
+
+/// 工具注册表描述（供 LLM 规划器选择）
+pub fn tool_registry_json() -> Value {
+    json!([
+        {"name":"note.search","description":"按关键词搜索本地笔记，返回标题/分类/摘要列表","input":{"query":"string","limit":"int 默认5"}},
+        {"name":"note.read","description":"读取笔记全文","input":{"id":"笔记id，或 \"top\" 表示读上一步搜索的第一条"}},
+        {"name":"note.create","description":"新建笔记（写操作，需确认）","input":{"title":"string","content":"string","category":"string 可选"}},
+        {"name":"canvas.read","description":"读取画布文档（节点+连线）","input":{"canvasId":"string 或 \"first\""}},
+        {"name":"canvas.node.create","description":"在画布创建文本节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","content":"string"}},
+        {"name":"canvas.save","description":"把上一步 LLM 生成内容写回画布：nodeId 命中则更新该节点文本，否则追加 agent 节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","nodeId":"string 可选"}},
+        {"name":"web.search","description":"通过本地 SearXNG 搜索互联网（需确认）","input":{"query":"string","limit":"int 默认5"}},
+        {"name":"llm.generate","description":"用 LLM 生成或改写文本","input":{"prompt":"string"}},
+    ])
+}
+
+/// 解析 LLM 规划的 JSON 文本 → Steps（容错去掉 ```json 围栏）
+pub fn parse_llm_plan(text: &str) -> Result<Vec<Step>, AppError> {
+    let mut cleaned = text.trim().to_string();
+    if let Some(start) = cleaned.find('{') {
+        if let Some(end) = cleaned.rfind('}') {
+            cleaned = cleaned[start..=end].to_string();
+        }
+    }
+    let value: Value = serde_json::from_str(&cleaned)
+        .map_err(|e| AppError::new("llmPlanParse", format!("LLM 规划不是合法 JSON：{e}")))?;
+    let steps = value
+        .get("steps")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AppError::new("llmPlanParse", "LLM 规划缺少 steps 数组"))?;
+    if steps.is_empty() {
+        return Err(AppError::new("llmPlanParse", "LLM 规划 steps 为空"));
+    }
+    let mut out = Vec::with_capacity(steps.len());
+    for (i, item) in steps.iter().enumerate() {
+        let kind = match item.get("kind").and_then(Value::as_str).unwrap_or("Tool") {
+            "Tool" => StepKind::Tool,
+            "Llm" => StepKind::Llm,
+            "Confirm" => StepKind::Confirm,
+            "Output" => StepKind::Output,
+            other => {
+                return Err(AppError::new(
+                    "llmPlanParse",
+                    format!("LLM 规划含未知步骤类型：{other}"),
+                ))
+            }
+        };
+        out.push(Step {
+            step_id: format!("l{}", i + 1),
+            kind,
+            tool: item.get("tool").and_then(Value::as_str).map(str::to_string),
+            input: item.get("input").cloned().unwrap_or_else(|| json!({})),
+            output: None,
+            status: StepStatus::Pending,
+            required_confirm: item
+                .get("requiredConfirm")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            confirmed: false,
+        });
+    }
+    Ok(out)
+}
+
+/// LLM 规划（Phase C）：让模型按工具注册表生成 Steps；失败由调用方回退规则规划
+pub async fn plan_with_llm(
+    provider: &HttpLlmProvider,
+    goal: &str,
+) -> Result<Vec<Step>, AppError> {
+    let system = format!(
+        "你是任务规划器。把用户目标分解为工具调用步骤。只能使用以下工具，不要发明新工具：\n{}\n\
+         输出严格 JSON（不要任何其他文字）：{{\"steps\":[{{\"kind\":\"Tool\",\"tool\":\"工具名\",\"input\":{{}},\"requiredConfirm\":false}}]}}\n\
+         kind 只能是 Tool / Llm（用工具 llm.generate 做文本生成）/ Confirm / Output。\n\
+         写操作工具（note.create、canvas.node.create、web.search）的 requiredConfirm 必须为 true。",
+        tool_registry_json()
+    );
+    let user = format!("用户目标：{goal}");
+    let text = provider.complete_prompt(&system, &user, 1024).await?;
+    parse_llm_plan(&text)
+}
+
+// ── Executor + Observer ───────────────────────────────────────────────────────
+
+/// 执行器 + 观察者：跑完 Task.plan 的待执行步骤，持久化并广播进度事件
+pub struct TaskRunner<'a> {
+    tasks: &'a AgentTaskStore,
+    notes: NoteStore,
+    llm: Option<HttpLlmProvider>,
+    vectors: Option<&'a VectorStore>,
+    canvas: Option<&'a CanvasStore>,
+    /// None 用于测试（不 emit）
+    app: Option<&'a AppHandle>,
+}
+
+impl<'a> TaskRunner<'a> {
+    pub fn new(
+        tasks: &'a AgentTaskStore,
+        notes: NoteStore,
+        llm: Option<HttpLlmProvider>,
+        vectors: Option<&'a VectorStore>,
+        canvas: Option<&'a CanvasStore>,
+        app: Option<&'a AppHandle>,
+    ) -> Self {
+        Self {
+            tasks,
+            notes,
+            llm,
+            vectors,
+            canvas,
+            app,
+        }
+    }
+
+    /// 执行任务。允许从 Planned / AwaitingConfirm（确认后恢复）启动；
+    /// 遇到待确认步骤 → 状态置 AwaitingConfirm 并暂停返回，等 agent_task_confirm 恢复。
+    pub async fn run(&self, task: &mut Task) -> Result<(), AppError> {
+        if !matches!(task.status, TaskStatus::Planned | TaskStatus::AwaitingConfirm) {
+            return Err(AppError::new(
+                "taskNotRunnable",
+                format!("任务处于 {:?}，无法从该状态启动执行", task.status),
+            ));
+        }
+        if task.plan.is_empty() {
+            task.plan = plan_for_goal(&task.goal);
+        }
+        self.transition(task, TaskStatus::Running)?;
+
+        let mut last_hits: Vec<NoteMetadata> = Vec::new();
+        let mut outputs: HashMap<String, Value> = HashMap::new();
+        // Resume 恢复：把已完成的步骤输出装回上下文，供后续步骤
+        // （note.read "top" 哨兵、note.export 取上一步笔记）使用
+        for step in &task.plan {
+            if step.status != StepStatus::Done {
+                continue;
+            }
+            if let Some(output) = &step.output {
+                outputs.insert(step.step_id.clone(), output.clone());
+                if step.tool.as_deref() == Some("note.search") {
+                    if let Ok(hits) = serde_json::from_value::<Vec<NoteMetadata>>(output.clone()) {
+                        last_hits = hits;
+                    }
+                }
+            }
+        }
+
+        for index in 0..task.plan.len() {
+            let step_id = task.plan[index].step_id.clone();
+            if matches!(
+                task.plan[index].status,
+                StepStatus::Done | StepStatus::Cancelled | StepStatus::Failed
+            ) {
+                continue;
+            }
+            // 待确认步骤 → 暂停
+            if task.plan[index].required_confirm && !task.plan[index].confirmed {
+                self.log(task, &step_id, "等待用户确认")?;
+                self.transition(task, TaskStatus::AwaitingConfirm)?;
+                if let Some(app) = self.app {
+                    let _ = app.emit(
+                        "agent.awaiting_confirm",
+                        json!({
+                            "taskId": task.task_id,
+                            "stepId": step_id,
+                            "tool": task.plan[index].tool,
+                            "input": task.plan[index].input,
+                        }),
+                    );
+                }
+                return Ok(());
+            }
+
+            self.log(task, &step_id, "开始执行")?;
+            let mut outcome = self
+                .execute_step(&task.plan[index], &task.task_id, &outputs)
+                .await;
+            // Observer：失败重试 1 次（幂等工具，重试语义安全）
+            if outcome.is_err() {
+                outcome = self
+                    .execute_step(&task.plan[index], &task.task_id, &outputs)
+                    .await;
+            }
+
+            let tool_name = task.plan[index].tool.clone();
+            match outcome {
+                Ok(output) => {
+                    if tool_name.as_deref() == Some("note.search") {
+                        last_hits = serde_json::from_value(output.clone()).unwrap_or_default();
+                    }
+                    outputs.insert(step_id.clone(), output.clone());
+                    task.plan[index].output = Some(output);
+                    task.plan[index].status = StepStatus::Done;
+                    self.log(task, &step_id, "完成")?;
+                }
+                Err(error) => {
+                    task.plan[index].status = StepStatus::Failed;
+                    self.log(task, &step_id, &format!("执行失败：{}", error.message))?;
+                }
+            }
+            self.tasks.update(task)?;
+            self.emit_step(task, index);
+        }
+
+        // 汇总：写回 context，落最终状态，输出总线广播
+        let failed = task
+            .plan
+            .iter()
+            .any(|step| step.status == StepStatus::Failed);
+        let summary = self.build_summary(task, &last_hits);
+        task.context = Some(json!({
+            "summary": summary,
+            "hitCount": last_hits.len(),
+        }));
+        self.transition(task, if failed { TaskStatus::Failed } else { TaskStatus::Done })?;
+        // Phase E：输出总线（语音播报 + Live2D 反馈 + UI 事件）
+        if failed {
+            output_bus::live2d(self.app, &task.task_id, "alert", 100, &summary);
+            output_bus::ui(
+                self.app,
+                &task.task_id,
+                json!({ "kind": "taskFailed", "summary": summary }),
+            );
+        } else {
+            output_bus::speech(self.app, &task.task_id, &summary);
+            output_bus::live2d(self.app, &task.task_id, "complete", 80, &summary);
+            output_bus::ui(
+                self.app,
+                &task.task_id,
+                json!({ "kind": "taskDone", "summary": summary }),
+            );
+        }
+        Ok(())
+    }
+
+    /// 按 StepKind 分发执行
+    async fn execute_step(
+        &self,
+        step: &Step,
+        task_id: &str,
+        outputs: &HashMap<String, Value>,
+    ) -> Result<Value, AppError> {
+        match step.kind {
+            StepKind::Tool => self.execute_tool(step, outputs).await,
+            StepKind::Llm => self.execute_llm(step, outputs).await,
+            StepKind::Confirm => Err(AppError::new(
+                "confirmStep",
+                "Confirm 步骤不能直接执行，需要用户确认",
+            )),
+            StepKind::Output => self.execute_output(step, task_id),
+        }
+    }
+
+    /// Tool 步骤 → Rust 工具函数（原子 + 组合 + 产出型）
+    async fn execute_tool(
+        &self,
+        step: &Step,
+        outputs: &HashMap<String, Value>,
+    ) -> Result<Value, AppError> {
+        match step.tool.as_deref() {
+            Some("note.search") => {
+                let query = step
+                    .input
+                    .get("query")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let limit = step
+                    .input
+                    .get("limit")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(5) as usize;
+                let hits = note_search(&self.notes, query, limit)?;
+                serde_json::to_value(&hits)
+                    .map_err(|e| AppError::new("serializeSearch", format!("序列化检索结果失败：{e}")))
+            }
+            Some("note.read") => {
+                let id = match step.input.get("id").and_then(Value::as_str) {
+                    Some("top") => last_search_hit(outputs, &step.step_id)?,
+                    Some(id) => id.to_string(),
+                    None => return Err(AppError::new("missingInput", "note.read 缺少输入参数 id")),
+                };
+                let note = note_read(&self.notes, &id)?;
+                serde_json::to_value(&note)
+                    .map_err(|e| AppError::new("serializeRead", format!("序列化笔记失败：{e}")))
+            }
+            Some("note.create") => {
+                let title = step.input.get("title").and_then(Value::as_str).unwrap_or("");
+                let content = step
+                    .input
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let category = step
+                    .input
+                    .get("category")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let note = self.notes.create_note(SaveNoteRequest {
+                    title: title.to_string(),
+                    content: content.to_string(),
+                    category: category.to_string(),
+                })?;
+                if let Some(app) = self.app {
+                    let _ = app.emit("notes-changed", ());
+                }
+                serde_json::to_value(&note)
+                    .map_err(|e| AppError::new("serializeNote", format!("序列化笔记失败：{e}")))
+            }
+            Some("canvas.read") => {
+                let canvas = self
+                    .canvas
+                    .ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let id = step
+                    .input
+                    .get("canvasId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("first");
+                let doc = if id == "first" {
+                    canvas
+                        .list()?
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| AppError::new("canvasEmpty", "没有可读取的画布"))?
+                } else {
+                    canvas.get(id)?
+                };
+                serde_json::to_value(&doc)
+                    .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
+            }
+            Some("canvas.node.create") => {
+                let canvas = self
+                    .canvas
+                    .ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let content = step
+                    .input
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::new("missingInput", "canvas.node.create 缺少 content"))?;
+                let id = step
+                    .input
+                    .get("canvasId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("first");
+                let mut doc = if id == "first" {
+                    canvas.list()?.into_iter().next().unwrap_or_else(|| CanvasDocument {
+                        id: format!("canvas-{}", chrono::Utc::now().timestamp_millis()),
+                        note_id: None,
+                        co_write_session_id: None,
+                        nodes: Vec::new(),
+                        edges: Vec::new(),
+                        groups: Vec::new(),
+                    })
+                } else {
+                    canvas.get(id)?
+                };
+                let node = CanvasNode {
+                    id: format!("node-{}", chrono::Utc::now().timestamp_millis()),
+                    node_type: "text".to_string(),
+                    x: 0.0,
+                    y: 0.0,
+                    width: 240.0,
+                    height: 80.0,
+                    text: content.to_string(),
+                    source: Some("agent".to_string()),
+                    z_index: 0,
+                };
+                doc.nodes.push(node.clone());
+                canvas.save(doc)?;
+                serde_json::to_value(&node)
+                    .map_err(|e| AppError::new("serializeCanvas", format!("序列化节点失败：{e}")))
+            }
+            Some("web.search") => {
+                let query = step
+                    .input
+                    .get("query")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let limit = step
+                    .input
+                    .get("limit")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(5) as usize;
+                let config = default_store()?.load_config()?;
+                let results = searxng_search(&config.searxng_url, query, limit).await?;
+                serde_json::to_value(&results)
+                    .map_err(|e| AppError::new("serializeSearch", format!("序列化搜索结果失败：{e}")))
+            }
+            Some("note.export") => {
+                // 产物型工具：把上一步 note.read 读到的笔记导出。
+                // markdown → Rust 直接落盘；png/pdf → 前端接管渲染（Rust 不落盘，
+                // 把内容随 agent.export 事件交给前端生成图片并保存，保证所见即所得）。
+                let format = step
+                    .input
+                    .get("format")
+                    .and_then(Value::as_str)
+                    .unwrap_or("markdown");
+                if !matches!(format, "markdown" | "png" | "pdf") {
+                    return Err(AppError::new(
+                        "unsupportedExportFormat",
+                        format!("暂不支持的导出格式：{format}"),
+                    ));
+                }
+                let note = last_read_note(outputs)?;
+                let title = note["title"].as_str().unwrap_or("未命名笔记");
+                let content = note["content"].as_str().unwrap_or_default();
+                if format == "markdown" {
+                    let export_dir = self.notes.base_dir().join("exports");
+                    std::fs::create_dir_all(&export_dir).map_err(|e| {
+                        AppError::new("exportWrite", format!("创建导出目录失败：{e}"))
+                    })?;
+                    let path = export_dir.join(format!("{}.md", sanitize_filename(title)));
+                    std::fs::write(&path, format!("# {title}\n\n{content}\n")).map_err(|e| {
+                        AppError::new("exportWrite", format!("写入导出文件失败：{e}"))
+                    })?;
+                    if let Some(app) = self.app {
+                        let _ = app.emit(
+                            "agent.export",
+                            json!({
+                                "kind": "note",
+                                "path": path.to_string_lossy(),
+                                "format": format,
+                                "title": title,
+                            }),
+                        );
+                    }
+                    Ok(json!({
+                        "path": path.to_string_lossy(),
+                        "format": format,
+                        "title": title,
+                    }))
+                } else {
+                    // PNG/PDF：前端接管渲染，事件携带完整内容（保真由前端渲染 + 单测兜底）
+                    if let Some(app) = self.app {
+                        let _ = app.emit(
+                            "agent.export",
+                            json!({
+                                "kind": "note",
+                                "format": format,
+                                "title": title,
+                                "content": content,
+                            }),
+                        );
+                    }
+                    Ok(json!({
+                        "format": format,
+                        "title": title,
+                        "exportedBy": "frontend",
+                    }))
+                }
+            }
+            Some("canvas.organize") => {
+                // 产出型工具：画布节点网格排版（每行 3 个、间距 40px），消除重叠
+                let canvas = self
+                    .canvas
+                    .ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let id = step
+                    .input
+                    .get("canvasId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("first");
+                let mut doc = if id == "first" {
+                    canvas
+                        .list()?
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| AppError::new("canvasEmpty", "没有可整理的画布"))?
+                } else {
+                    canvas.get(id)?
+                };                let mut x = 40.0f64;
+                let mut y = 40.0f64;
+                let mut col = 0usize;
+                let mut row_height = 0.0f64;
+                for node in doc.nodes.iter_mut() {
+                    node.x = x;
+                    node.y = y;
+                    x += node.width + 40.0;
+                    row_height = row_height.max(node.height);
+                    col += 1;
+                    if col >= 3 {
+                        x = 40.0;
+                        y += row_height + 40.0;
+                        col = 0;
+                        row_height = 0.0;
+                    }
+                }
+                canvas.save(doc.clone())?;
+                serde_json::to_value(&doc)
+                    .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
+            }
+            Some("canvas.save") => {
+                // 产出型工具：把上一步 LLM 输出写回画布（扩写/润色链路收尾）。
+                // input.nodeId 命中 → 更新该节点文本；否则追加新 agent 文本节点。
+                let canvas = self
+                    .canvas
+                    .ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let id = step
+                    .input
+                    .get("canvasId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("first");
+                let node_id = step.input.get("nodeId").and_then(Value::as_str);
+                let content = last_llm_output_text(outputs).ok_or_else(|| {
+                    AppError::new(
+                        "noLlmOutput",
+                        "canvas.save 需要前置 LLM 步骤的生成结果（扩写/润色）",
+                    )
+                })?;
+                let doc = canvas_write_back(&canvas, id, node_id, &content)?;
+                if let Some(app) = self.app {
+                    let _ = app.emit("canvas-changed", ());
+                }
+                serde_json::to_value(&doc)
+                    .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
+            }
+            Some("llm.generate") => self.execute_llm(step, outputs).await,
+            Some(other) => Err(AppError::new(
+                "unknownTool",
+                format!("未知工具：{other}"),
+            )),
+            None => Err(AppError::new("missingTool", "Tool 步骤缺少工具名")),
+        }
+    }
+
+    /// Llm 步骤（Phase C）：记忆注入（Phase F）+ LLM 生成
+    async fn execute_llm(
+        &self,
+        step: &Step,
+        outputs: &HashMap<String, Value>,
+    ) -> Result<Value, AppError> {
+        let provider = self.llm.as_ref().ok_or_else(|| {
+            AppError::new(
+                "noLlmProvider",
+                "未配置可用的 LLM 供应商（设置 → AI 集成）",
+            )
+        })?;
+        let mut prompt = match step.input.get("prompt").and_then(Value::as_str) {
+            Some(p) => p.to_string(),
+            None => {
+                let template = step
+                    .input
+                    .get("promptTemplate")
+                    .and_then(Value::as_str)
+                    .unwrap_or("请根据以下材料完成：\n{previousOutput}");
+                let previous = outputs
+                    .values()
+                    .last()
+                    .map(output_text)
+                    .unwrap_or_default();
+                template.replace("{previousOutput}", &previous)
+            }
+        };
+        // Phase F：RAG 记忆注入（input.retrieve 触发语义检索）
+        if let Some(query) = step.input.get("retrieve").and_then(Value::as_str) {
+            if !query.trim().is_empty() {
+                let context = self.retrieve_context(query, 5).await?;
+                if !context.is_empty() {
+                    prompt = format!("相关笔记资料：\n{context}\n\n任务：\n{prompt}");
+                }
+            }
+        }
+        output_bus::live2d(self.app, "task-llm", "thinking", 40, "思考中…");
+        let text = provider
+            .complete_prompt(
+                "你是花箴里的 AI 助手。回答要准确、简洁、贴合用户的本地笔记与画布内容，不要编造。",
+                &prompt,
+                2048,
+            )
+            .await?;
+        Ok(json!({ "text": text }))
+    }
+
+    /// Phase F：从向量库检索相关块拼成上下文
+    async fn retrieve_context(&self, query: &str, top_k: usize) -> Result<String, AppError> {
+        let Some(vectors) = self.vectors else { return Ok(String::new()) };
+        let config = default_store()?.load_config()?;
+        let endpoint = resolve_endpoint(&config)?;
+        let provider = crate::services::agent::llm_provider::HttpEmbeddingProvider::new(endpoint)?;
+        let model = provider.model().to_string();
+        let chunks = rag::retrieve(vectors, &model, query, top_k, |text| provider.embed(text))
+            .await?;
+        Ok(rag::build_context(&chunks, 1500))
+    }
+
+    /// Output 步骤（Phase E）：分发到输出总线
+    fn execute_output(&self, step: &Step, task_id: &str) -> Result<Value, AppError> {
+        let text = step.input.get("text").and_then(Value::as_str).unwrap_or_default();
+        match step.input.get("action").and_then(Value::as_str) {
+            Some("speech") => output_bus::speech(self.app, task_id, text),
+            Some("live2d") => {
+                let action = step
+                    .input
+                    .get("actionName")
+                    .and_then(Value::as_str)
+                    .unwrap_or("speak");
+                let priority = step
+                    .input
+                    .get("priority")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(50);
+                output_bus::live2d(self.app, task_id, action, priority, text);
+            }
+            Some("ui") => {
+                output_bus::ui(self.app, task_id, step.input.clone());
+            }
+            Some(other) => {
+                return Err(AppError::new(
+                    "unknownOutputAction",
+                    format!("未知输出动作：{other}"),
+                ))
+            }
+            None => output_bus::ui(self.app, task_id, step.input.clone()),
+        }
+        Ok(json!({ "ok": true }))
+    }
+
+    /// 状态机转移 + 持久化 + 广播任务状态
+    fn transition(&self, task: &mut Task, status: TaskStatus) -> Result<(), AppError> {
+        task.status = status;
+        self.tasks.update(task)?;
+        self.emit_task(task);
+        Ok(())
+    }
+
+    /// 追加步骤日志（供 UI 进度面板）
+    fn log(&self, task: &mut Task, step_id: &str, message: &str) -> Result<(), AppError> {
+        task.logs.push(crate::services::agent::task_store::StepLog {
+            step_id: step_id.to_string(),
+            message: message.to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        });
+        Ok(())
+    }
+
+    /// emit agent.step：单步进度（开始/完成/失败）
+    fn emit_step(&self, task: &Task, index: usize) {
+        let Some(app) = self.app else { return };
+        let step = &task.plan[index];
+        let message = task
+            .logs
+            .iter()
+            .rev()
+            .find(|log| log.step_id == step.step_id)
+            .map(|log| log.message.clone())
+            .unwrap_or_default();
+        let _ = app.emit(
+            "agent.step",
+            json!({
+                "taskId": task.task_id,
+                "stepId": step.step_id,
+                "tool": step.tool,
+                "status": step.status,
+                "message": message,
+            }),
+        );
+    }
+
+    /// emit agent.task：任务全量状态（状态机变更后广播，前端镜像展示）
+    fn emit_task(&self, task: &Task) {
+        if let Some(app) = self.app {
+            let _ = app.emit("agent.task", task);
+        }
+    }
+
+    /// 汇总执行结果，写进 context.summary
+    fn build_summary(&self, task: &Task, last_hits: &[NoteMetadata]) -> String {
+        let read_title = task
+            .plan
+            .iter()
+            .find(|step| step.tool.as_deref() == Some("note.read"))
+            .and_then(|step| {
+                step.output
+                    .as_ref()
+                    .and_then(|out| out.get("title"))
+                    .and_then(Value::as_str)
+            })
+            .map(str::to_string);
+        let generated = task
+            .plan
+            .iter()
+            .find(|step| matches!(step.kind, StepKind::Llm))
+            .and_then(|step| step.output.as_ref())
+            .and_then(|out| out.get("text"))
+            .and_then(Value::as_str)
+            .map(|s| s.chars().take(40).collect::<String>());
+        match (generated, read_title) {
+            (Some(g), Some(t)) => format!("已找到 {} 条相关笔记，读取《{t}》，生成：{g}…", last_hits.len()),
+            (Some(g), None) => format!("已找到 {} 条相关笔记，生成：{g}…", last_hits.len()),
+            (None, Some(t)) => format!("已找到 {} 条相关笔记，读取了《{t}》。", last_hits.len()),
+            (None, None) => "未找到相关笔记。".to_string(),
+        }
+    }
+}
+
+/// 从 outputs 里找最近一次 note.read 读到的笔记（Note JSON 含 title + content）
+fn last_read_note(outputs: &HashMap<String, Value>) -> Result<Value, AppError> {
+    let mut found: Vec<Value> = outputs
+        .iter()
+        .filter(|(_, value)| value.get("title").is_some() && value.get("content").is_some())
+        .map(|(_, value)| value.clone())
+        .collect();
+    found
+        .pop()
+        .ok_or_else(|| AppError::new("noNoteRead", "导出前需要先读取笔记（note.read）"))
+}
+
+/// 文件名清洗：去掉 Windows 非法字符，空名回退"导出"
+fn sanitize_filename(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .filter(|c| !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0'))
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        "导出".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// 从 outputs 里找最近一次 note.search 命中的第一条 id（供 "top" 哨兵）
+fn last_search_hit(outputs: &HashMap<String, Value>, current_step: &str) -> Result<String, AppError> {
+    outputs
+        .iter()
+        .filter(|(id, _)| id.as_str() != current_step)
+        .filter_map(|(_, value)| value.as_array())
+        .flatten()
+        .next()
+        .and_then(|first| first.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| AppError::new("noteSearchEmpty", "检索没有命中，无法读取笔记"))
+}
+
+/// 把步骤输出转成喂给 LLM 的文本
+fn output_text(value: &Value) -> String {
+    if let Some(t) = value.get("text").and_then(Value::as_str) {
+        return t.to_string();
+    }
+    if let Some(c) = value.get("content").and_then(Value::as_str) {
+        return c.to_string();
+    }
+    value.to_string()
+}
+
+/// 从 outputs 里取最近一次 LLM 生成文本（扩写/润色链路中只有 LLM 步骤产出 {text}）
+fn last_llm_output_text(outputs: &HashMap<String, Value>) -> Option<String> {
+    outputs
+        .values()
+        .find_map(|v| v.get("text").and_then(Value::as_str))
+        .map(str::to_string)
+}
+
+/// 把 LLM 生成内容写回画布（canvas.save 工具核心）：
+/// - node_id 命中 → 更新该节点文本并标记 source=agent
+/// - 未提供/未命中 → 追加一个 agent 文本节点（兜底）
+/// 返回写回后的完整画布文档。
+pub fn canvas_write_back(
+    canvas: &CanvasStore,
+    canvas_id: &str,
+    node_id: Option<&str>,
+    content: &str,
+) -> Result<CanvasDocument, AppError> {
+    let mut doc = if canvas_id == "first" {
+        canvas
+            .list()?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::new("canvasEmpty", "没有可写入的画布"))?
+    } else {
+        canvas.get(canvas_id)?
+    };
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::new("emptyLlmOutput", "LLM 生成内容为空，未写回画布"));
+    }
+    if let Some(node_id) = node_id {
+        let hit = doc
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == node_id)
+            .ok_or_else(|| AppError::new("nodeNotFound", format!("画布中不存在节点：{node_id}")))?;
+        hit.text = trimmed.to_string();
+        hit.source = Some("agent".to_string());
+    } else {
+        doc.nodes.push(CanvasNode {
+            id: format!("node-{}", chrono::Utc::now().timestamp_millis()),
+            node_type: "text".to_string(),
+            x: 0.0,
+            y: 0.0,
+            width: 240.0,
+            height: 80.0,
+            text: trimmed.to_string(),
+            source: Some("agent".to_string()),
+            z_index: 0,
+        });
+    }
+    canvas.save(doc.clone())?;
+    Ok(doc)
+}
+
+// ── IPC ───────────────────────────────────────────────────────────────────────
+
+/// 构造生产环境 runner（LLM 可选：配置缺失时规则规划兜底）
+fn production_runner<'a>(
+    app: &'a AppHandle,
+    store: &'a AgentTaskStore,
+    vectors: &'a VectorStore,
+    canvas: &'a CanvasStore,
+) -> Result<TaskRunner<'a>, AppError> {
+    let notes = default_store()?;
+    let llm = resolve_endpoint(&notes.load_config()?)
+        .ok()
+        .map(HttpLlmProvider::new);
+    Ok(TaskRunner::new(
+        store,
+        notes,
+        llm,
+        Some(vectors),
+        Some(canvas),
+        Some(app),
+    ))
+}
+
+/// IPC：创建并运行任务（最小闭环入口：TS 发目标 → Rust 规划执行 → 面板看进度）
+#[tauri::command]
+pub async fn agent_task_create_and_run(
+    app: AppHandle,
+    store: tauri::State<'_, AgentTaskStore>,
+    vectors: tauri::State<'_, VectorStore>,
+    canvas: tauri::State<'_, CanvasStore>,
+    goal: String,
+) -> Result<Task, AppError> {
+    let mut task = Task::new(
+        format!("task-{}", chrono::Utc::now().timestamp_millis()),
+        goal,
+    );
+    store.create(&task)?;
+    let runner = production_runner(&app, &store, &vectors, &canvas)?;
+    runner.run(&mut task).await?;
+    Ok(task)
+}
+
+/// IPC：运行已存在的任务（agent_task_create 创建后触发执行）
+#[tauri::command]
+pub async fn agent_task_run(
+    app: AppHandle,
+    store: tauri::State<'_, AgentTaskStore>,
+    vectors: tauri::State<'_, VectorStore>,
+    canvas: tauri::State<'_, CanvasStore>,
+    task_id: String,
+) -> Result<Task, AppError> {
+    let mut task = store
+        .get(&task_id)?
+        .ok_or_else(|| AppError::new("taskNotFound", format!("任务 {task_id} 不存在")))?;
+    let runner = production_runner(&app, &store, &vectors, &canvas)?;
+    runner.run(&mut task).await?;
+    Ok(task)
+}
+
+/// IPC：确认/拒绝待确认步骤。ok=true → 标记确认并恢复执行；ok=false → 取消该步骤与任务
+#[tauri::command]
+pub async fn agent_task_confirm(
+    app: AppHandle,
+    store: tauri::State<'_, AgentTaskStore>,
+    vectors: tauri::State<'_, VectorStore>,
+    canvas: tauri::State<'_, CanvasStore>,
+    task_id: String,
+    step_id: String,
+    ok: bool,
+) -> Result<Task, AppError> {
+    let mut task = store
+        .get(&task_id)?
+        .ok_or_else(|| AppError::new("taskNotFound", format!("任务 {task_id} 不存在")))?;
+    let step = task
+        .plan
+        .iter_mut()
+        .find(|step| step.step_id == step_id)
+        .ok_or_else(|| AppError::new("stepNotFound", format!("步骤 {step_id} 不存在")))?;
+    step.confirmed = true;
+    if !ok {
+        step.status = StepStatus::Cancelled;
+        task.status = TaskStatus::Cancelled;
+        store.update(&task)?;
+        return Ok(task);
+    }
+    store.update(&task)?;
+    let runner = production_runner(&app, &store, &vectors, &canvas)?;
+    runner.run(&mut task).await?;
+    Ok(task)
+}
+
+/// IPC：列出全部产品 Agent 技能（名字 + 描述，供对话侧技能选择/技能面板展示）
+#[tauri::command]
+pub fn agent_skill_list() -> Vec<serde_json::Value> {
+    skill_registry()
+        .into_iter()
+        .map(|skill| {
+            json!({
+                "name": skill.name,
+                "description": skill.description,
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::agent::task_store::AgentTaskStore;
+    use crate::services::notes::SaveNoteRequest;
+    use std::path::PathBuf;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "floral_orchestrator_test_{}_{}",
+            std::process::id(),
+            name
+        ))
+    }
+
+    fn notes_store(name: &str) -> NoteStore {
+        let dir = temp_dir(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        NoteStore::new(dir)
+    }
+
+    fn seed_note(store: &NoteStore, title: &str, content: &str, category: &str) -> String {
+        store
+            .create_note(SaveNoteRequest {
+                title: title.into(),
+                content: content.into(),
+                category: category.into(),
+            })
+            .unwrap()
+            .id
+    }
+
+    fn task_store(name: &str) -> AgentTaskStore {
+        let path = temp_dir(name).join("tasks.sqlite");
+        let _ = std::fs::remove_dir_all(temp_dir(name));
+        AgentTaskStore::new(&path)
+    }
+
+    fn runner<'a>(
+        tasks: &'a AgentTaskStore,
+        notes: &NoteStore,
+    ) -> TaskRunner<'a> {
+        TaskRunner::new(tasks, notes.clone(), None, None, None, None)
+    }
+
+    #[test]
+    fn extract_query_strips_prefixes_and_suffixes() {
+        assert_eq!(extract_query("帮我找一下关于 RAG 的笔记"), "RAG");
+        assert_eq!(extract_query("查找夏天的记忆"), "夏天的记忆");
+        assert_eq!(extract_query("检索 向量检索 相关笔记"), "向量检索");
+        assert_eq!(extract_query("帮我搜索 gsap 相关内容"), "gsap");
+        assert_eq!(extract_query(""), "");
+    }
+
+    #[test]
+    fn query_terms_filters_stopwords_and_short_tokens() {
+        assert_eq!(query_terms("RAG 向量"), vec!["rag", "向量"]);
+        assert_eq!(query_terms("关于 RAG 的笔记"), vec!["rag"]);
+        assert_eq!(query_terms("a"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn plan_for_goal_builds_search_then_read_pipeline() {
+        let plan = plan_for_goal("帮我找一下关于 Live2D 的笔记");
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].tool.as_deref(), Some("note.search"));
+        assert_eq!(plan[0].input["query"], "Live2D");
+        assert_eq!(plan[1].tool.as_deref(), Some("note.read"));
+        assert_eq!(plan[1].input["id"], "top");
+        assert!(plan.iter().all(|step| step.status == StepStatus::Pending));
+    }
+
+    #[test]
+    fn plan_for_goal_expands_summarize_pipeline() {
+        let plan = plan_for_goal("总结一下关于 RAG 的笔记");
+        assert_eq!(plan.len(), 4);
+        assert_eq!(plan[0].tool.as_deref(), Some("note.search"));
+        assert_eq!(plan[1].tool.as_deref(), Some("note.read"));
+        assert!(plan[2].kind == StepKind::Llm);
+        assert_eq!(plan[3].tool.as_deref(), Some("note.create"));
+        assert!(plan[3].required_confirm);
+    }
+
+    #[test]
+    fn plan_for_goal_expands_canvas_write_pipeline() {
+        let plan = plan_for_goal("把画布整理成文章");
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("canvas.read"));
+        assert!(plan[1].kind == StepKind::Llm);
+        assert_eq!(plan[2].tool.as_deref(), Some("note.create"));
+        assert!(plan[2].required_confirm);
+    }
+
+    #[test]
+    fn parses_llm_plan_json() {
+        let text = r#"{
+            "steps": [
+                {"kind":"Tool","tool":"note.search","input":{"query":"RAG","limit":3}},
+                {"kind":"Llm","tool":"llm.generate","input":{"prompt":"总结"}},
+                {"kind":"Tool","tool":"note.create","input":{"title":"t"},"requiredConfirm":true}
+            ]
+        }"#;
+        let plan = parse_llm_plan(text).unwrap();
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("note.search"));
+        assert_eq!(plan[0].input["query"], "RAG");
+        assert!(plan[1].kind == StepKind::Llm);
+        assert!(plan[2].required_confirm);
+    }
+
+    #[test]
+    fn parse_llm_plan_strips_code_fence() {
+        let text = "```json\n{\"steps\":[{\"kind\":\"Tool\",\"tool\":\"note.search\",\"input\":{\"query\":\"x\"}}]}\n```";
+        let plan = parse_llm_plan(text).unwrap();
+        assert_eq!(plan.len(), 1);
+    }
+
+    #[test]
+    fn parse_llm_plan_rejects_garbage() {
+        assert!(parse_llm_plan("不是 JSON").is_err());
+    }
+
+    #[test]
+    fn note_search_matches_title_and_preview() {
+        let store = notes_store("search");
+        seed_note(&store, "RAG 落地记录", "今天把向量检索跑通了。", "技术");
+        seed_note(&store, "买菜清单", "鸡蛋、西红柿。", "生活");
+        seed_note(&store, "SQLite 笔记", "关于 vector 扩展的用法。", "技术");
+
+        let hits = note_search(&store, "向量", 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].title, "RAG 落地记录");
+
+        let empty = note_search(&store, "不存在的词", 10).unwrap();
+        assert!(empty.is_empty());
+        let _ = std::fs::remove_dir_all(temp_dir("search"));
+    }
+
+    #[test]
+    fn runner_executes_closed_loop_to_done() {
+        let store = notes_store("loop_notes");
+        let id = seed_note(
+            &store,
+            "RAG 落地记录",
+            "今天把 sqlite-vec 检索跑通了，余弦 top-k 正常。",
+            "技术",
+        );
+        let tasks = task_store("loop_tasks");
+        let mut task = Task::new("t-loop", "帮我找一下关于 RAG 的笔记");
+        tasks.create(&task).unwrap();
+
+        let result = tauri::async_runtime::block_on(runner(&tasks, &store).run(&mut task));
+        result.unwrap();
+
+        assert_eq!(task.status, TaskStatus::Done);
+        assert_eq!(task.plan.len(), 2);
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        assert_eq!(task.plan[1].status, StepStatus::Done);
+        assert_eq!(task.plan[0].output.as_ref().unwrap()[0]["title"], "RAG 落地记录");
+        assert_eq!(task.plan[1].output.as_ref().unwrap()["id"], id);
+        assert!(task.logs.iter().any(|log| log.step_id == "s1" && log.message == "开始执行"));
+        assert!(task.logs.iter().any(|log| log.step_id == "s2" && log.message == "完成"));
+        let summary = task.context.as_ref().unwrap()["summary"].as_str().unwrap();
+        assert!(summary.contains("RAG 落地记录"));
+
+        let persisted = tasks.get("t-loop").unwrap().unwrap();
+        assert_eq!(persisted.status, TaskStatus::Done);
+        let _ = std::fs::remove_dir_all(temp_dir("loop_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("loop_tasks"));
+    }
+
+    #[test]
+    fn runner_fails_when_no_hits() {
+        let store = notes_store("nohit_notes");
+        let tasks = task_store("nohit_tasks");
+        let mut task = Task::new("t-nohit", "查找绝对不存在的东西");
+        tasks.create(&task).unwrap();
+
+        tauri::async_runtime::block_on(runner(&tasks, &store).run(&mut task)).unwrap();
+
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        assert_eq!(task.plan[1].status, StepStatus::Failed);
+        assert!(task.context.as_ref().unwrap()["summary"]
+            .as_str()
+            .unwrap()
+            .contains("未找到"));
+        let _ = std::fs::remove_dir_all(temp_dir("nohit_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("nohit_tasks"));
+    }
+
+    #[test]
+    fn runner_rejects_finished_task() {
+        let store = notes_store("rerun_notes");
+        let tasks = task_store("rerun_tasks");
+        let mut task = Task::new("t-rerun", "搜索");
+        task.status = TaskStatus::Done;
+        tasks.create(&task).unwrap();
+
+        let err =
+            tauri::async_runtime::block_on(runner(&tasks, &store).run(&mut task)).unwrap_err();
+        assert_eq!(err.code, "taskNotRunnable");
+        let _ = std::fs::remove_dir_all(temp_dir("rerun_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("rerun_tasks"));
+    }
+
+    #[test]
+    fn runner_pauses_on_confirm_then_resumes() {
+        let store = notes_store("confirm_notes");
+        seed_note(&store, "RAG 落地记录", "今天把向量检索跑通了。", "技术");
+        let tasks = task_store("confirm_tasks");
+        // 手工构造一个带确认步骤的任务（总结流水线：read 无 llm → 用 create 确认步骤测试）
+        let mut task = Task::new("t-confirm", "总结关于 RAG 的笔记");
+        tasks.create(&task).unwrap();
+
+        // 无 LLM provider → llm 步骤失败 → 但确认步骤会先触发暂停（在 llm 失败之后）
+        // 因此直接把 plan 换成 search → read → create(confirm) 的简化版验证暂停语义
+        task.plan = vec![
+            tool_step("s1", "note.search", json!({"query": "RAG", "limit": 5})),
+            tool_step("s2", "note.read", json!({"id": "top"})),
+            tool_step_confirm("s3", "note.create", json!({"title": "确认测试"})),
+        ];
+        tasks.update(&task).unwrap();
+
+        // 第一轮：执行到 s3 前暂停
+        tauri::async_runtime::block_on(runner(&tasks, &store).run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        assert_eq!(task.plan[1].status, StepStatus::Done);
+        assert_eq!(task.plan[2].status, StepStatus::Pending);
+
+        // 模拟 agent_task_confirm：确认 s3 → 恢复执行到 Done
+        task.plan[2].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(runner(&tasks, &store).run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+        assert_eq!(task.plan[2].status, StepStatus::Done);
+        // note.create 真的建了笔记
+        let notes = store.list_notes().unwrap();
+        assert_eq!(notes.len(), 2);
+
+        let _ = std::fs::remove_dir_all(temp_dir("confirm_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("confirm_tasks"));
+    }
+
+    #[test]
+    fn runner_creates_canvas_node() {
+        let dir = temp_dir("canvas");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir);
+        let tasks = task_store("canvas_tasks");
+        let notes = notes_store("canvas_notes");
+
+        let mut task = Task::new("t-canvas", "测试");
+        task.plan = vec![tool_step_confirm(
+            "k1",
+            "canvas.node.create",
+            json!({"canvasId": "first", "content": "画布节点内容"}),
+        )];
+        tasks.create(&task).unwrap();
+
+        let test_runner = TaskRunner::new(&tasks, notes.clone(), None, None, Some(&canvas), None);
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+
+        // 无确认 → 暂停
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        task.plan[0].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+
+        assert_eq!(task.status, TaskStatus::Done);
+        let docs = canvas.list().unwrap();
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].nodes.len(), 1);
+        assert_eq!(docs[0].nodes[0].text, "画布节点内容");
+        assert_eq!(docs[0].nodes[0].source.as_deref(), Some("agent"));
+
+        let _ = std::fs::remove_dir_all(temp_dir("canvas"));
+        let _ = std::fs::remove_dir_all(temp_dir("canvas_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("canvas_notes"));
+    }
+
+    #[test]
+    fn last_search_hit_resolves_top_id() {
+        let mut outputs = HashMap::new();
+        outputs.insert(
+            "s1".to_string(),
+            json!([{"id": "n1", "title": "a"}, {"id": "n2", "title": "b"}]),
+        );
+        assert_eq!(last_search_hit(&outputs, "s2").unwrap(), "n1");
+        assert!(last_search_hit(&HashMap::new(), "s2").is_err());
+    }
+
+    // ── 技能注册表 ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn skill_registry_has_unique_names_and_descriptions() {
+        let skills = skill_registry();
+        assert_eq!(skills.len(), 7);
+        let mut names: Vec<&str> = skills.iter().map(|s| s.name).collect();
+        names.sort_unstable();
+        let mut uniq = names.clone();
+        uniq.dedup();
+        assert_eq!(names, uniq, "技能名必须唯一");
+        for s in &skills {
+            assert!(!s.description.is_empty(), "技能 {} 缺描述", s.name);
+        }
+    }
+
+    #[test]
+    fn match_skill_dispatches_by_goal_keywords() {
+        assert_eq!(match_skill("把画布整理成文章").name, "canvas.writeup");
+        assert_eq!(match_skill("总结一下 RAG 的笔记").name, "note.summarize");
+        assert_eq!(match_skill("帮我调研一下 Tauri 2").name, "research");
+        assert_eq!(match_skill("把这篇文章导出").name, "note.export");
+        assert_eq!(match_skill("把画布自动排版").name, "canvas.organize");
+        assert_eq!(match_skill("扩写一下这个节点").name, "canvas.node.enhance");
+        assert_eq!(match_skill("随便找点东西").name, "note.search");
+    }
+
+    #[test]
+    fn plan_for_goal_expands_export_pipeline() {
+        let plan = plan_for_goal("把这篇笔记导出成文件");
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("note.search"));
+        assert_eq!(plan[1].tool.as_deref(), Some("note.read"));
+        assert_eq!(plan[2].tool.as_deref(), Some("note.export"));
+        assert!(plan[2].required_confirm);
+    }
+
+    #[test]
+    fn plan_for_goal_expands_organize_pipeline() {
+        let plan = plan_for_goal("把画布自动排版");
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].tool.as_deref(), Some("canvas.read"));
+        assert_eq!(plan[1].tool.as_deref(), Some("canvas.organize"));
+        assert!(plan[1].required_confirm);
+    }
+
+    // ── 新产品技能端到端 ────────────────────────────────────────────────────
+
+    #[test]
+    fn runner_exports_note_to_markdown_file() {
+        let store = notes_store("export_notes");
+        seed_note(&store, "导出测试", "这是要导出的内容。", "技术");
+        let tasks = task_store("export_tasks");
+        let mut task = Task::new("t-export", "把这篇笔记导出");
+        tasks.create(&task).unwrap();
+        task.plan = vec![
+            tool_step("e1", "note.search", json!({"query": "导出测试", "limit": 5})),
+            tool_step("e2", "note.read", json!({"id": "top"})),
+            tool_step_confirm("e3", "note.export", json!({"format": "markdown"})),
+        ];
+        tasks.update(&task).unwrap();
+
+        let r = runner(&tasks, &store);
+        tauri::async_runtime::block_on(r.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        assert_eq!(task.plan[1].status, StepStatus::Done);
+
+        task.plan[2].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(r.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        let out = task.plan[2].output.as_ref().unwrap();
+        let path = out["path"].as_str().unwrap();
+        assert!(path.ends_with("导出测试.md"), "导出路径应为 导出测试.md，实际: {path}");
+        let content = std::fs::read_to_string(path).unwrap();
+        assert!(content.contains("# 导出测试"));
+        assert!(content.contains("这是要导出的内容"));
+
+        let _ = std::fs::remove_dir_all(temp_dir("export_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("export_tasks"));
+    }
+
+    #[test]
+    fn runner_organizes_canvas_nodes_grid() {
+        let dir = temp_dir("organize");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir.clone());
+        let doc = CanvasDocument {
+            id: "canvas-1".into(),
+            note_id: None,
+            co_write_session_id: None,
+            nodes: vec![
+                CanvasNode { id: "n1".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "a".into(), source: None, z_index: 0 },
+                CanvasNode { id: "n2".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "b".into(), source: None, z_index: 0 },
+                CanvasNode { id: "n3".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "c".into(), source: None, z_index: 0 },
+                CanvasNode { id: "n4".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "d".into(), source: None, z_index: 0 },
+            ],
+            edges: vec![],
+            groups: vec![],
+        };
+        canvas.save(doc).unwrap();
+
+        let tasks = task_store("organize_tasks");
+        let notes = notes_store("organize_notes");
+        let mut task = Task::new("t-organize", "整理画布");
+        task.plan = vec![
+            tool_step("o1", "canvas.read", json!({"canvasId": "first"})),
+            tool_step_confirm("o2", "canvas.organize", json!({"canvasId": "first"})),
+        ];
+        tasks.create(&task).unwrap();
+        let test_runner = TaskRunner::new(&tasks, notes.clone(), None, None, Some(&canvas), None);
+
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+
+        task.plan[1].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        let saved = canvas.get("canvas-1").unwrap();
+        assert_eq!(saved.nodes.len(), 4);
+        // 网格：每行 3 个 → n1(40,40) n2(280,40) n3(520,40) n4 换行(40,160)
+        assert_eq!((saved.nodes[0].x, saved.nodes[0].y), (40.0, 40.0));
+        assert_eq!((saved.nodes[1].x, saved.nodes[1].y), (280.0, 40.0));
+        assert_eq!((saved.nodes[2].x, saved.nodes[2].y), (520.0, 40.0));
+        assert_eq!((saved.nodes[3].x, saved.nodes[3].y), (40.0, 160.0));
+        // 节点间不再重叠
+        for i in 0..saved.nodes.len() {
+            for j in (i + 1)..saved.nodes.len() {
+                let a = &saved.nodes[i];
+                let b = &saved.nodes[j];
+                let overlap = (a.x - b.x).abs() < a.width.min(b.width)
+                    && (a.y - b.y).abs() < a.height.min(b.height);
+                assert!(!overlap, "节点 {i}/{j} 仍然重叠");
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(temp_dir("organize_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("organize_notes"));
+    }
+
+    // ── P1-2：canvas.node.enhance 扩写链路 ───────────────────────────────────
+
+    #[test]
+    fn extract_node_id_and_text_from_enhance_goal() {
+        assert_eq!(
+            extract_node_id("扩写节点 node-123 的内容：做个决定").as_deref(),
+            Some("node-123")
+        );
+        assert_eq!(
+            extract_node_text("扩写节点 node-123 的内容：做个决定").as_deref(),
+            Some("做个决定")
+        );
+        // 无节点前缀/无原文 → 兜底
+        assert_eq!(extract_node_id("扩写一下这个节点"), None);
+        assert_eq!(extract_node_text("扩写一下这个节点"), None);
+    }
+
+    #[test]
+    fn plan_for_goal_expands_enhance_pipeline() {
+        let plan = plan_for_goal("扩写节点 n1 的内容：先做实时同步");
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("canvas.read"));
+        assert!(plan[1].kind == StepKind::Llm);
+        // h2 prompt 直接携带节点原文，LLM 无需依赖 previousOutput
+        let prompt = plan[1].input["prompt"].as_str().unwrap();
+        assert!(prompt.contains("先做实时同步"));
+        assert_eq!(plan[2].tool.as_deref(), Some("canvas.save"));
+        assert!(plan[2].required_confirm);
+        assert_eq!(plan[2].input["nodeId"], "n1");
+    }
+
+    #[test]
+    fn canvas_write_back_updates_target_node() {
+        let dir = temp_dir("writeback");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir.clone());
+        canvas
+            .save(CanvasDocument {
+                id: "canvas-wb".into(),
+                note_id: None,
+                co_write_session_id: None,
+                nodes: vec![
+                    CanvasNode {
+                        id: "n1".into(),
+                        node_type: "text".into(),
+                        x: 0.0,
+                        y: 0.0,
+                        width: 200.0,
+                        height: 80.0,
+                        text: "旧内容".into(),
+                        source: None,
+                        z_index: 0,
+                    },
+                    CanvasNode {
+                        id: "n2".into(),
+                        node_type: "text".into(),
+                        x: 300.0,
+                        y: 0.0,
+                        width: 200.0,
+                        height: 80.0,
+                        text: "不动".into(),
+                        source: None,
+                        z_index: 0,
+                    },
+                ],
+                edges: vec![],
+                groups: vec![],
+            })
+            .unwrap();
+
+        let doc = canvas_write_back(&canvas, "canvas-wb", Some("n1"), "扩写后的完整内容").unwrap();
+        assert_eq!(doc.nodes[0].text, "扩写后的完整内容");
+        assert_eq!(doc.nodes[0].source.as_deref(), Some("agent"));
+        assert_eq!(doc.nodes[1].text, "不动", "未命中节点不应被改动");
+        assert_eq!(doc.nodes.len(), 2, "命中节点应原地更新，不新增节点");
+
+        // 落盘后可重读
+        let reloaded = canvas.get("canvas-wb").unwrap();
+        assert_eq!(reloaded.nodes[0].text, "扩写后的完整内容");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn canvas_write_back_appends_node_when_no_id_or_missing() {
+        let dir = temp_dir("writeback_append");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir.clone());
+        canvas
+            .save(CanvasDocument {
+                id: "canvas-wa".into(),
+                note_id: None,
+                co_write_session_id: None,
+                nodes: vec![],
+                edges: vec![],
+                groups: vec![],
+            })
+            .unwrap();
+
+        // 无 nodeId → 追加 agent 节点
+        let doc = canvas_write_back(&canvas, "canvas-wa", None, "新增内容").unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert_eq!(doc.nodes[0].text, "新增内容");
+        assert_eq!(doc.nodes[0].source.as_deref(), Some("agent"));
+
+        // 未命中 nodeId → 报错（不静默乱写）
+        let err = canvas_write_back(&canvas, "canvas-wa", Some("ghost"), "x").unwrap_err();
+        assert_eq!(err.code, "nodeNotFound");
+
+        // 空内容 → 报错
+        let err = canvas_write_back(&canvas, "canvas-wa", None, "   ").unwrap_err();
+        assert_eq!(err.code, "emptyLlmOutput");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn runner_enhances_node_via_canvas_save_tool() {
+        let dir = temp_dir("enhance_canvas");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir.clone());
+        canvas
+            .save(CanvasDocument {
+                id: "canvas-e1".into(),
+                note_id: None,
+                co_write_session_id: None,
+                nodes: vec![CanvasNode {
+                    id: "n1".into(),
+                    node_type: "text".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    width: 200.0,
+                    height: 80.0,
+                    text: "原始节点".into(),
+                    source: None,
+                    z_index: 0,
+                }],
+                edges: vec![],
+                groups: vec![],
+            })
+            .unwrap();
+
+        let tasks = task_store("enhance_tasks");
+        let notes = notes_store("enhance_notes");
+        let mut task = Task::new("t-enhance", "扩写");
+        // 手工构造：h1 读画布 → h2 伪造 LLM 输出（避免真实 LLM）→ h3 canvas.save 写回
+        task.plan = vec![
+            tool_step("h1", "canvas.read", json!({"canvasId": "canvas-e1"})),
+            llm_step("h2", json!({"prompt": "扩写"})),
+            tool_step_confirm(
+                "h3",
+                "canvas.save",
+                json!({"canvasId": "canvas-e1", "nodeId": "n1"}),
+            ),
+        ];
+        tasks.create(&task).unwrap();
+        let test_runner = TaskRunner::new(&tasks, notes.clone(), None, None, Some(&canvas), None);
+
+        // 第一轮：无 LLM provider → h2 失败 → h3 仍会执行（状态不阻止），先到确认暂停
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        // h1 成功，h2 因无 LLM 失败（重试后仍失败），h3 待确认
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        assert_eq!(task.plan[1].status, StepStatus::Failed);
+        assert_eq!(task.plan[2].status, StepStatus::Pending);
+
+        // 模拟人工：确认 h3。由于 h2 无输出，canvas.save 报 noLlmOutput → 任务 Failed
+        task.plan[2].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Failed);
+        let node = canvas.get("canvas-e1").unwrap();
+        assert_eq!(node.nodes[0].text, "原始节点", "写回失败时节点内容不应被改动");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(temp_dir("enhance_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("enhance_notes"));
+    }
+
+    // ── P1-3：note.export 前端接管（PNG/PDF） ────────────────────────────────
+
+    #[test]
+    fn runner_exports_note_png_delegates_to_frontend() {
+        let store = notes_store("export_png_notes");
+        seed_note(&store, "导出图片", "这是要导出成图片的内容。", "技术");
+        let tasks = task_store("export_png_tasks");
+        let mut task = Task::new("t-export-png", "把这篇笔记导出成图片");
+        tasks.create(&task).unwrap();
+        task.plan = vec![
+            tool_step("e1", "note.search", json!({"query": "导出图片", "limit": 5})),
+            tool_step("e2", "note.read", json!({"id": "top"})),
+            tool_step_confirm("e3", "note.export", json!({"format": "png"})),
+        ];
+        tasks.update(&task).unwrap();
+
+        let r = runner(&tasks, &store);
+        tauri::async_runtime::block_on(r.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+
+        task.plan[2].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(r.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        // 前端接管：不落盘，输出标记 exportedBy=frontend
+        let out = task.plan[2].output.as_ref().unwrap();
+        assert_eq!(out["format"], "png");
+        assert_eq!(out["exportedBy"], "frontend");
+        assert_eq!(out["title"], "导出图片");
+        // 导出目录不应出现 png 文件
+        let export_dir = store.base_dir().join("exports");
+        if export_dir.exists() {
+            assert!(
+                std::fs::read_dir(&export_dir)
+                    .unwrap()
+                    .all(|entry| !entry.unwrap().path().extension().is_some_and(|e| e == "png")),
+                "PNG 应由前端接管渲染，Rust 不应落盘"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(temp_dir("export_png_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("export_png_tasks"));
+    }
+}

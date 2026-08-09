@@ -150,7 +150,7 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               value={config.model}
               onChange={(e) => update({ model: e.target.value })}
               className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
-              placeholder="加载权重后填写模型名（不影响合成请求，仅作标识）"
+              placeholder={config.engine === "dashscope" ? "cosyvoice-v2" : "加载权重后填写模型名（不影响合成请求，仅作标识）"}
             />
           )}
         </div>
@@ -164,6 +164,7 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               {config.engine === "vits" && "— 说话人 id（MoeTTS speaker）"}
               {config.engine === "edge" && "— 浏览器语音名，留空自动选中文女声"}
               {config.engine === "openai" && "— 标准音色名"}
+              {config.engine === "dashscope" && "— 复刻音色 ID（先上传 10-20 秒音频创建音色）或系统音色名"}
             </span>
           </label>
           {config.engine === "openai" ? (
@@ -206,11 +207,12 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             {config.engine === "vits" && "MoeTTS / VITS 服务地址（GET /tts?text=...&id=<说话人>）"}
             {config.engine === "edge" && "无需填写，使用系统内置 Edge / 中文语音"}
             {config.engine === "openai" && "OpenAI 兼容 / VibeVoice 服务地址（本地默认 POST /audio/speech）"}
+            {config.engine === "dashscope" && "阿里云百炼 base（国内 https://dashscope.aliyuncs.com/api/v1，国际 dashscope-intl）"}
           </p>
         </div>
 
-        {/* OpenAI TTS 专用 API Key */}
-        {config.engine === "openai" && (
+        {/* OpenAI / 阿里云 TTS 专用 API Key */}
+        {(config.engine === "openai" || config.engine === "dashscope") && (
           <div className="mb-5">
             <label className="block text-xs font-medium text-ink-soft mb-1.5">API Key</label>
             <input

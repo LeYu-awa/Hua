@@ -251,7 +251,10 @@ pub enum AgentOutput {
 | `services/agent/task_store.rs` | 任务持久化 |
 | `services/agent/tools/mod.rs` + `tools/*.rs` | AgentTool trait + 组合/产出型工具实现 |
 | `services/agent/output_bus.rs` | AgentOutput 分发 |
-| `services/agent/llm_provider.rs` | LlmProvider trait + IpcLlmProvider |
+| `services/agent/llm_provider.rs` | LlmProvider trait + HttpLlmProvider / HttpEmbeddingProvider |
+| `services/agent/rag.rs` + `vector_store.rs` | 分块/嵌入/余弦 top-k 检索（sqlite-vec） |
+| `services/agent/web_search.rs` | SearXNG JSON API 客户端 |
+| `services/agent/mcp_server.rs` | MCP stdio 服务器（rmcp 官方 SDK，`--mcp` 模式） |
 
 ### 10.2 新增 IPC 命令
 
@@ -275,12 +278,20 @@ agent_task_output_subscribe           → 事件流（或统一走 Tauri emit）
 
 | 阶段 | 内容 |
 |---|---|
-| Phase A | 任务协议 + `task_store` + 状态机骨架（Rust，纯数据层，可单测） |
-| Phase B | Planner（先规则兜底）+ Executor（接 2-3 个原子工具：note.search/read）+ 进度事件 → **最小闭环**：TS 发目标 → Rust 规划执行 → 面板看进度 |
-| Phase C | 混合 LLM（IpcLlmProvider 桥）→ LLM 规划 + 生成类步骤流式 |
-| Phase D | 组合型工具（模板流水线）+ 产出型工具（canvas.node.create / note.generate）+ 预览确认 |
-| Phase E | 输出总线接通 Live2D 信号 + 语音播报 + 画布可视化 |
-| Phase F | 记忆接入（embedding 检索 + profile 注入）、画布输入源、复盘/回放 |
+| Phase A | 任务协议 + `task_store` + 状态机骨架（Rust，纯数据层，可单测） ✅ |
+| Phase B | Planner（规则兜底）+ Executor（note.search/read 原子工具）+ 进度事件 + 进度面板 → **最小闭环** ✅（orchestrator.rs，102 测试通过） |
+| Phase C | 混合 LLM（IpcLlmProvider 桥）→ LLM 规划 + 生成类步骤流式 ✅（`HttpLlmProvider` + `plan_with_llm` + `parse_llm_plan` 容错，失败回退规则规划） |
+| Phase D | 组合型工具（模板流水线）+ 产出型工具（canvas.node.create / note.generate）+ 预览确认 ✅（总结/画布成文/调研流水线；写操作 requiredConfirm → AwaitingConfirm 暂停；`agent_task_confirm` + 前端确认按钮闭环） |
+| Phase E | 输出总线接通 Live2D 信号 + 语音播报 + 画布可视化 ✅（`output_bus`：`agent.live2d` / `agent.speech` / `agent.ui`，任务完成/失败自动播报） |
+| Phase F | 记忆接入（embedding 检索 + profile 注入）、画布输入源、复盘/回放 ✅（llm 步骤 `input.retrieve` 触发 RAG 检索注入；canvas.read 输入源） |
+| SearXNG | 自托管 Web 搜索落地 ✅（`web_search.rs` SearXNG JSON API + `web.search` 工具注册 + 单测） |
+| MCP | 官方 Rust SDK（rmcp 0.16）stdio 服务器 ✅（`--mcp` 启动参数；7 个工具：note_search/read/create、canvas_read/node_create、web_search、llm_generate；5 单测 + 1 子进程端到端测试） |
+| 产品技能 | 技能注册表落地 ✅（orchestrator `SKILLS` 静态注册表：canvas.writeup / note.summarize / research / **note.export** / **canvas.organize** / note.search；`agent_skill_list` IPC；`note.export` 落 Markdown + emit `agent.export` 事件、`canvas.organize` 网格排版；resume 上下文重建修复） |
+
+> 产品技能与工具同源：`SKILLS`（目标关键词命中 + 流水线展开）→ 工具注册表（LLM 规划器选择）→ `#[tool]`（MCP 暴露）。新增技能的四步链路见 `.trae/skills/floral-agent-mcp-dev/SKILL.md`。开发协作 SKILL 沉淀于 `.trae/skills/`（tauri-verify / export-fidelity / agent-mcp-dev / ui-refine）。
+
+> 混合 LLM 桥：Phase C 原计划的 IpcLlmProvider（Rust emit → TS 流式 → 回传）因前端已有完整 function-calling 循环（`requestModelAgent`/`agentLoop`，4 轮上限 + 危险工具确认），Rust 端直接采用 OpenAI 兼容 HTTP（`HttpLlmProvider`），省略双向桥。
+> MCP 工具协议化：工具以纯函数暴露于 orchestrator（工具注册表 `tool_registry_json`），再包装 rmcp 官方 SDK 为 MCP server 工具。落地细节见 `services/agent/mcp_server.rs`：`floral-notepaper --mcp` 检测到参数后**跳过 Tauri 初始化**（`lib.rs run()` 短路），直接以 stdio 传输运行 `FloralMcp` 服务器；工具入参用 `#[tool]` 宏按字段生成 JSON Schema；`#[tool_handler]` 声明 tools 能力；数据目录走 `default_store()`（支持 `FLORAL_NOTEPAPER_DATA_DIR` 覆盖，便于隔离测试）。任何 MCP 客户端（Claude Desktop、Cursor、Cline 等）配置 `command: floral-notepaper, args: ["--mcp"]` 即可接入。
 
 ## 12. 风险与注意事项
 
