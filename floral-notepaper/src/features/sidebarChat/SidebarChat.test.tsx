@@ -185,3 +185,63 @@ function SidebarChatFixture() {
     <SidebarChat open onClose={() => {}} providers={[makeProvider()]} />
   );
 }
+
+describe("SidebarChat — AI 结构化输出（ai-1/ai-2）", () => {
+  it("AI 回复渲染为四大模块结构化区块，用户问题保持气泡并置于顶部", async () => {
+    const structuredText = `## ① 操作步骤
+1. [新建 10 张内容卡片](cards:10:内容卡片) 用于收集初始想法
+
+## ② 创作规划
+- 灵感区：放置收集到的想法卡片
+
+## ③ 思考过程
+用户想快速开始头脑风暴，因此先生成卡片、再划分区域。
+
+## ④ 上下文管理
+- 用户目标：完成一次头脑风暴
+- 画布现状：2 张卡片`;
+
+    mocks.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: sseStream([structuredText]),
+      text: async () => "",
+    });
+
+    render(<SidebarChatFixture />);
+
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "帮我规划一次头脑风暴" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    // 用户气泡置顶展示（消息正文 + 任务标题均含该文本，故用 getAllByText）
+    await waitFor(() => expect(screen.getAllByText("帮我规划一次头脑风暴").length).toBeGreaterThan(0));
+
+    // 四大模块按序渲染、无缺失
+    await waitFor(() => expect(screen.getAllByText("操作步骤").length).toBeGreaterThan(0));
+    expect(screen.getByText("创作规划")).toBeTruthy();
+    expect(screen.getByText("思考过程")).toBeTruthy();
+    expect(screen.getByText("上下文管理")).toBeTruthy();
+
+    // ① 操作步骤：一键执行按钮可触发画布命令
+    expect(screen.getByText("新建 10 张内容卡片")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("一键执行")).toBeTruthy());
+  });
+
+  it("模型未按规范输出时回退为普通气泡（兼容旧会话）", async () => {
+    mocks.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: sseStream(["简单回复，", "不是结构化格式"]),
+      text: async () => "",
+    });
+
+    render(<SidebarChatFixture />);
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "你好" } });
+    fireEvent.click(screen.getByTestId("chat-send"));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("简单回复，不是结构化格式").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("操作步骤")).toBeNull();
+  });
+});

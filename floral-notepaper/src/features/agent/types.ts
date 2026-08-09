@@ -4,7 +4,8 @@ export type AgentEventType =
   | "canvas_shape_removed"
   | "canvas_binding_added"
   | "canvas_binding_removed"
-  | "chat_message_sent";
+  | "chat_message_sent"
+  | "canvas_template_applied";
 
 export interface AgentEventInput {
   conversationId: string;

@@ -6,7 +6,7 @@ import {
   onAgentStep,
   onAgentTask,
 } from "./api";
-import type { AgentStepEvent, AgentStepStatus, AgentTask } from "./types";
+import type { AgentStep, AgentStepEvent, AgentStepStatus, AgentTask } from "./types";
 
 const STEP_STATUS_ICON: Record<AgentStepStatus, string> = {
   Pending: "·",
@@ -48,6 +48,20 @@ interface TaskProgressPanelProps {
   autoRun?: boolean;
   /** 已存在的任务（从列表进入时传入，跳过创建） */
   taskId?: string;
+}
+
+const AGENT_STEP_DRAG_TYPE = "application/x-floral-agent-step";
+
+function buildStepDragPayload(task: AgentTask, step: AgentStep) {
+  return {
+    taskId: task.taskId,
+    goal: task.goal,
+    stepId: step.stepId,
+    kind: step.kind,
+    tool: step.tool ?? null,
+    status: step.status,
+    input: step.input,
+  };
 }
 
 /**
@@ -170,7 +184,18 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
       {task.plan.length > 0 && (
         <ol className="flex flex-col gap-1.5">
           {task.plan.map((step) => (
-            <li key={step.stepId} className="flex items-center gap-2">
+            <li
+              key={step.stepId}
+              draggable
+              onDragStart={(event) => {
+                const payload = buildStepDragPayload(task, step);
+                event.dataTransfer.setData(AGENT_STEP_DRAG_TYPE, JSON.stringify(payload));
+                event.dataTransfer.setData("text/plain", `${step.tool ?? step.kind} · ${task.goal}`);
+                event.dataTransfer.effectAllowed = "copy";
+              }}
+              title="拖拽到画布生成任务卡片"
+              className="flex cursor-grab items-center gap-2 rounded-lg px-1 py-0.5 transition hover:bg-bamboo-mist/40 active:cursor-grabbing"
+            >
               <span
                 className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px] ${STEP_STATUS_STYLE[step.status] ?? ""}`}
               >

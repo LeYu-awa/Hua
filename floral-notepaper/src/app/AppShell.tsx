@@ -208,6 +208,7 @@ export function AppShell() {
             open={chatOpen}
             onClose={() => setChatOpen(false)}
             providers={providers}
+            onRequestOpen={() => setChatOpen(true)}
           />
           <div className="app-main-content flex-1 flex flex-col min-w-0">
             {renderMainView({

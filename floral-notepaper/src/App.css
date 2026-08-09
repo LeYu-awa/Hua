@@ -770,6 +770,17 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* 新手引导浮层（ob-1~ob-4）：深色画布面板风格，跟随画布主题而非页面主题 */
+.canvas-onboarding-panel {
+  background: var(--canvas-panel);
+  border: 1px solid var(--canvas-border);
+  border-radius: var(--ui-radius-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--canvas-control-text);
+}
+
 .canvas-toolbar-pro {
   border-radius: var(--ui-radius-panel);
   padding: 8px;
@@ -1005,6 +1016,94 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
 
 .canvas-empty-text {
   color: color-mix(in srgb, var(--ui-control-muted) 44%, transparent);
+}
+
+/* ── 新手引导（ob-1/ob-3）：演示回放的背景网格与动作动画 ─────────────── */
+.canvas-demo-grid {
+  background-image: linear-gradient(var(--color-canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-canvas-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@keyframes demo-pan-move {
+  0% {
+    transform: translate(-40px, -20px);
+  }
+  50% {
+    transform: translate(40px, 20px);
+  }
+  100% {
+    transform: translate(-40px, -20px);
+  }
+}
+.animate-demo-pan {
+  animation: demo-pan-move 2.2s ease-in-out infinite;
+}
+
+@keyframes demo-zoom-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+.animate-demo-zoom-in {
+  animation: demo-zoom-pulse 1.4s ease-in-out infinite;
+}
+.animate-demo-zoom-out {
+  animation: demo-zoom-pulse 1.4s ease-in-out 0.2s infinite;
+}
+
+@keyframes demo-pop-in {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.animate-demo-pop {
+  animation: demo-pop-in 1.6s ease-out infinite;
+}
+
+@keyframes demo-move-drag {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0, 0);
+  }
+  60% {
+    transform: translate(42px, 26px);
+  }
+  100% {
+    transform: translate(42px, 26px);
+  }
+}
+.animate-demo-move {
+  animation: demo-move-drag 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-demo-grid,
+  .animate-demo-pan,
+  .animate-demo-zoom-in,
+  .animate-demo-zoom-out,
+  .animate-demo-pop,
+  .animate-demo-move {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

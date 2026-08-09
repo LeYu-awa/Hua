@@ -1,5 +1,7 @@
 export type CanvasNodeType = "text" | "card" | "resource" | "task";
 
+export type CanvasAgentStepStatus = "Pending" | "Running" | "Done" | "Failed" | "Cancelled";
+
 export interface CanvasNode {
   id: string;
   type: CanvasNodeType;
@@ -9,9 +11,16 @@ export interface CanvasNode {
   height: number;
   text: string;
   /** 来源：用户创建 / AI 推荐 / 共笔生成 */
-  source?: "user" | "agent" | "cowrite";
+  /** 节点来源：user=用户 / agent=AI 生成 / cowrite=协作 / zone=画布分区标记 / plan=AI 规划占位标记 */
+  source?: "user" | "agent" | "cowrite" | "zone" | "plan";
   /** z 序（越大越靠前），P1 图层分层 */
   zIndex?: number;
+  /** Agent 任务编排绑定：任务步骤拖到画布后写入，用于状态映射与参数同步 */
+  agentTaskId?: string;
+  agentStepId?: string;
+  agentStepStatus?: CanvasAgentStepStatus;
+  agentStepKind?: string;
+  agentTool?: string | null;
 }
 
 export interface CanvasEdge {

@@ -52,11 +52,20 @@ import {
   toolLabel,
   type AssistantToolPlan,
 } from "./toolPlanner";
+import {
+  onAiRequest,
+  onCanvasSnapshot,
+  requestCanvasSnapshot,
+  type CanvasSnapshot,
+} from "../canvas/canvasCommands";
+import type { StructuredReply } from "./structuredReply";
 
 export interface SidebarChatMessage {
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+  /** AI 回复的结构化解析结果（ai-2 四大模块）；未解析出结构化内容时为 undefined，按普通气泡渲染 */
+  structured?: StructuredReply | null;
 }
 
 interface SidebarChatTask {
@@ -71,6 +80,8 @@ interface SidebarChatProps {
   open: boolean;
   onClose: () => void;
   providers: ProviderConfig[];
+  /** 引导联动（ob-4）：收到 AI 请求时通知外层打开对话面板 */
+  onRequestOpen?: () => void;
 }
 
 type ModelRequestMessage = {
@@ -180,7 +191,96 @@ function formatChangeTime(value: string): string {
   });
 }
 
-export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
+const MARKDOWN_CONTENT_CLASS =
+  "text-[12.5px] leading-relaxed text-ink-soft break-words [&_h1]:text-[15px] [&_h1]:font-bold [&_h1]:text-ink [&_h1]:mb-1.5 [&_h2]:text-[14px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mb-1.5 [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:text-ink [&_h3]:mb-1 [&_p]:mb-1.5 [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:mb-0.5 [&_strong]:text-ink [&_strong]:font-semibold [&_code]:text-bamboo [&_code]:bg-bamboo-mist/50 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-ink/5 [&_pre]:text-ink-soft [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:mb-1.5 [&_a]:text-bamboo [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-bamboo/40 [&_blockquote]:pl-3 [&_blockquote]:text-ink-faint [&_hr]:border-paper-deep/30 [&_hr]:my-2";
+
+function splitAgentMessage(content: string) {
+  const flow: string[] = [];
+  const answer: string[] = [];
+
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === "**Agent 执行流程**") continue;
+
+    const quoteStatus = /^>\s*(.+)$/.exec(trimmed);
+    if (quoteStatus?.[1]) {
+      flow.push(quoteStatus[1].trim());
+      continue;
+    }
+
+    const listStatus = /^[-*]\s+(.+)$/.exec(trimmed);
+    if (listStatus?.[1] && /^(调用工具|已确认|自动执行|工具执行完成|已读取|优化稿已生成|已拒绝)/.test(listStatus[1])) {
+      flow.push(listStatus[1].trim());
+      continue;
+    }
+
+    answer.push(line);
+  }
+
+  return { flow, answer: answer.join("\n").trim() };
+}
+
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-ink-ghost">
+      <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.3s]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.15s]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce" />
+    </span>
+  );
+}
+
+function UserPromptMessage({ content }: { content: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[88%] whitespace-pre-wrap break-words text-right text-[12.5px] leading-relaxed text-ink">
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function AgentTimelineMessage({ content }: { content: string }) {
+  const { flow, answer } = splitAgentMessage(content);
+  return (
+    <div className="relative ml-1 w-full border-l border-paper-deep/30 pl-3">
+      <span className="absolute -left-[3px] top-1.5 h-1.5 w-1.5 rounded-full bg-bamboo" />
+      {flow.length > 0 && (
+        <details className="mb-2 text-[11px] text-ink-faint">
+          <summary className="w-fit cursor-pointer select-none text-bamboo hover:text-bamboo-light">
+            Thought · {flow.length} 步
+          </summary>
+          <ol className="mt-1.5 space-y-1 border-l border-paper-deep/20 pl-3">
+            {flow.map((item, index) => (
+              <li key={`${index}-${item}`} className="relative leading-relaxed">
+                <span className="absolute -left-[15px] top-1.5 h-1.5 w-1.5 rounded-full bg-paper-deep/60" />
+                {item}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+      {answer ? (
+        <div className={MARKDOWN_CONTENT_CLASS}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
+        </div>
+      ) : (
+        <TypingDots />
+      )}
+    </div>
+  );
+}
+
+function AgentTypingMessage() {
+  return (
+    <div className="relative ml-1 w-full border-l border-paper-deep/30 pl-3">
+      <span className="absolute -left-[3px] top-1.5 h-1.5 w-1.5 rounded-full bg-bamboo" />
+      <TypingDots />
+    </div>
+  );
+}
+
+export function SidebarChat({ open, onClose, providers, onRequestOpen }: SidebarChatProps) {
   const initialTasks = useMemo(() => loadChatTasks(), []);
   const [tasks, setTasks] = useState<SidebarChatTask[]>(initialTasks);
   const [activeTaskId, setActiveTaskId] = useState(initialTasks[0].id);
@@ -253,12 +353,28 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
   const [chatDragOver, setChatDragOver] = useState(false);
   const [writebackApplying, setWritebackApplying] = useState(false);
   const [writebackResolved, setWritebackResolved] = useState<"applied" | "cancelled" | null>(null);
+  /** AI 上下文模块（④）：最新画布快照（ref 供异步回调读取，无需触发渲染） */
+  const canvasSnapshotRef = useRef<CanvasSnapshot | null>(null);
+  /** 引导联动（ob-4）：待自动发送的文本（input 更新到同一值后触发 handleSend） */
+  const autoSendRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setChatPanelOpen(true);
-    }
+    requestCanvasSnapshot();
   }, [open]);
+
+  useEffect(() => {
+    return onCanvasSnapshot((snapshot) => {
+      canvasSnapshotRef.current = snapshot;
+    });
+  }, []);
+
+  useEffect(() => {
+    return onAiRequest((payload) => {
+      setInput(payload.prompt);
+      onRequestOpen?.();
+      if (payload.autoSend) autoSendRef.current = payload.prompt;
+    });
+  }, [onRequestOpen]);
 
   useEffect(() => {
     if (open && !taskPanelOpen && !chatPanelOpen) {
@@ -368,12 +484,23 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     });
   }, []);
 
+  /** AI 回复最终化：默认保留普通 Markdown 文本，不再强制解析成四模块卡片。 */
+  const finalizeAssistantMessage = useCallback(
+    (_prev: SidebarChatMessage[], text: string, createdAt: number): SidebarChatMessage => ({
+      role: "assistant",
+      content: text,
+      createdAt,
+    }),
+    [],
+  );
+
   const appendAssistantReply = useCallback(
     (reply: string) => {
-      setMessages((prev) => [...prev, { role: "assistant", content: reply, createdAt: Date.now() }]);
+      const createdAt = Date.now();
+      setMessages((prev) => [...prev, finalizeAssistantMessage(prev, reply, createdAt)]);
       speakAssistantReply(reply);
     },
-    [setMessages, speakAssistantReply],
+    [setMessages, speakAssistantReply, finalizeAssistantMessage],
   );
 
   const appendAssistantDraft = useCallback((initial = "") => {
@@ -389,11 +516,16 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     );
   }, [setMessages]);
 
-  const replaceAssistantDraft = useCallback((createdAt: number, content: string) => {
-    setMessages((prev) =>
-      prev.map((msg) => (msg.createdAt === createdAt ? { ...msg, content } : msg)),
-    );
-  }, [setMessages]);
+  const replaceAssistantDraft = useCallback(
+    (createdAt: number, content: string) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.createdAt === createdAt ? finalizeAssistantMessage(prev, content, createdAt) : msg,
+        ),
+      );
+    },
+    [setMessages, finalizeAssistantMessage],
+  );
 
   /** 取消标准 Agent 待确认轮次（拒绝），并释放挂起的 loop */
   const cancelPendingAgentRound = useCallback(() => {
@@ -662,8 +794,8 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     ],
   );
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
+  const handleSend = useCallback(async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
     if (!text || loading) return;
 
     void unlockSpeechPlayback();
@@ -711,7 +843,6 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     //    #引用笔记作为上下文注入，模型自主决定是否读取后完成任务
     setLoading(true);
     const draftId = appendAssistantDraft("");
-    let receivedDelta = false;
     try {
       const referencedNotes = extractReferencedNotes(text, noteOptions);
       const referenceContext = referencedNotes.length
@@ -729,7 +860,6 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
           requestModelAgent(messages as ModelRequestMessage[], {
             tools: buildAgentTools(),
             onDelta: (delta) => {
-              receivedDelta = true;
               appendAssistantDelta(draftId, delta);
             },
           }),
@@ -762,7 +892,8 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
         );
       }
 
-      if (!receivedDelta && result.text) {
+      if (result.text) {
+        // 始终用最终完整文本收尾：流式片段替换为完整回复并解析为四大模块结构化数据（ai-2）
         replaceAssistantDraft(draftId, result.text);
       }
       if (result.text) speakAssistantReply(result.text);
@@ -789,6 +920,14 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
     requestModelAgent,
     speakAssistantReply,
   ]);
+
+  // 引导联动（ob-4）：input 就绪后自动发送（AI 主动询问 / 「让 AI 帮我创作」）
+  useEffect(() => {
+    if (autoSendRef.current === null || input !== autoSendRef.current) return;
+    const text = autoSendRef.current;
+    autoSendRef.current = null;
+    void handleSend(text);
+  }, [input, handleSend]);
 
   const confirmPendingTool = useCallback(async () => {
     if (!pendingTool || loading) return;
@@ -1439,39 +1578,9 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
           ) : (
             messages.map((msg, i) =>
               msg.role === "user" ? (
-                <div key={`${msg.createdAt}-${i}`} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed bg-bamboo text-cloud whitespace-pre-wrap break-words">
-                    {msg.content}
-                  </div>
-                </div>
+                <UserPromptMessage key={`${msg.createdAt}-${i}`} content={msg.content} />
               ) : (
-                <div key={`${msg.createdAt}-${i}`} className="flex justify-start gap-1.5">
-                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-bamboo/15 bg-bamboo-mist/70 text-bamboo">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
-                    </svg>
-                  </div>
-                  <div className="max-w-[82%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed bg-paper-warm/80 text-ink-soft border border-paper-deep/20 [&_h1]:text-[14px] [&_h1]:font-bold [&_h1]:text-ink [&_h1]:mb-1 [&_h2]:text-[13px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mb-1 [&_h3]:text-[12.5px] [&_h3]:font-semibold [&_h3]:text-ink [&_p]:mb-1.5 [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:mb-0.5 [&_strong]:text-ink [&_strong]:font-semibold [&_code]:text-bamboo [&_code]:bg-bamboo-mist/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-paper-deep/30 [&_pre]:text-ink-soft [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:mb-1.5 [&_a]:text-bamboo [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-bamboo/40 [&_blockquote]:pl-3 [&_blockquote]:text-ink-faint [&_hr]:border-paper-deep/30 [&_hr]:my-2">
-                    {msg.content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-ink-ghost">
-                        <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.3s]" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.15s]" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce" />
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <AgentTimelineMessage key={`${msg.createdAt}-${i}`} content={msg.content} />
               ),
             )
           )}
@@ -1484,29 +1593,7 @@ export function SidebarChat({ open, onClose, providers }: SidebarChatProps) {
               onCancel={cancelChatWriteback}
             />
           )}
-          {loading && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex justify-start gap-1.5">
-              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-bamboo/15 bg-bamboo-mist/70 text-bamboo">
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
-                </svg>
-              </div>
-              <div className="bg-paper-warm/80 border border-paper-deep/20 rounded-xl px-3 py-2 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-bamboo/60 animate-bounce" />
-              </div>
-            </div>
-          )}
+          {loading && messages[messages.length - 1]?.role !== "assistant" && <AgentTypingMessage />}
         </div>
 
         <div className="shrink-0 px-3 py-2.5 border-t border-paper-deep/20">
