@@ -11,11 +11,11 @@
 
 ### 1.1 需求决策（已与用户确认）
 
-| 决策点 | 结论 |
-|---|---|
+| 决策点       | 结论                                                                        |
+| ------------ | --------------------------------------------------------------------------- |
 | 沉淀触发方式 | **半自动**：角色提议 + 用户确认（不产生垃圾条目，符合"可忽略、不打扰"原则） |
-| 日记入口 | **侧边栏新入口 + 独立日记页**（按日分组时间线） |
-| 本轮范围 | **S1 完整闭环**（不含 S2 记忆引用 / S3 周复盘 / S4 月回忆录） |
+| 日记入口     | **侧边栏新入口 + 独立日记页**（按日分组时间线）                             |
+| 本轮范围     | **S1 完整闭环**（不含 S2 记忆引用 / S3 周复盘 / S4 月回忆录）               |
 
 ### 1.2 非目标
 
@@ -33,6 +33,7 @@
 - 风险控制：提议逻辑抽为独立 hook / 组件，避免继续膨胀 77KB 的 `SidebarChat.tsx`。
 
 备选方案：
+
 - 方案 B（Rust Agent 驱动）：对话事件入 event_store → orchestrator 检测 → 提议推送。架构对齐战略但本轮工作量大、性价比低。
 - 方案 C（手动版）：只做日记页 + 手动"存为日记"按钮。最快但无陪伴感，日钩子不成立。
 
@@ -40,22 +41,22 @@
 
 ### 3.1 新增文件
 
-| 文件 | 职责 |
-|---|---|
-| `src/features/diary/diaryEvents.ts` | 事件总线（复用 `src/features/canvas/canvasCommands.ts` 的 on/emit 范式）：`dispatchOpenChatTask(taskId)` / `onOpenChatTask`、`dispatchDiaryCreated()` / `onDiaryCreated` |
-| `src/features/diary/useDiarySuggestion.ts` | 提议检测 hook：监听当前对话任务，判定触发/冷却/忽略，管理提议状态 |
-| `src/features/diary/DiarySuggestionCard.tsx` | 提议卡片：花灵口吻文案 + [存入日记] [稍后再说] [今天不提醒] + 整理中/成功状态 |
-| `src/features/diary/composeDiaryContent.ts` | 内容生成：有 LLM 供应商 → 整理成文；无/失败 → 原文摘录回退 |
-| `src/features/diary/DiaryPage.tsx` | 日记时间线页（见 §5） |
+| 文件                                         | 职责                                                                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/features/diary/diaryEvents.ts`          | 事件总线（复用 `src/features/canvas/canvasCommands.ts` 的 on/emit 范式）：`dispatchOpenChatTask(taskId)` / `onOpenChatTask`、`dispatchDiaryCreated()` / `onDiaryCreated` |
+| `src/features/diary/useDiarySuggestion.ts`   | 提议检测 hook：监听当前对话任务，判定触发/冷却/忽略，管理提议状态                                                                                                        |
+| `src/features/diary/DiarySuggestionCard.tsx` | 提议卡片：花灵口吻文案 + [存入日记] [稍后再说] [今天不提醒] + 整理中/成功状态                                                                                            |
+| `src/features/diary/composeDiaryContent.ts`  | 内容生成：有 LLM 供应商 → 整理成文；无/失败 → 原文摘录回退                                                                                                               |
+| `src/features/diary/DiaryPage.tsx`           | 日记时间线页（见 §5）                                                                                                                                                    |
 
 ### 3.2 修改文件
 
-| 文件 | 改动 |
-|---|---|
-| `src/components/AppSidebar.tsx` | `AppView` 增加 `"diary"` + 图标入口 |
-| `src/app/routeViews.tsx` | `sidebarView === "diary"` → `<DiaryPage />` |
+| 文件                                       | 改动                                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `src/components/AppSidebar.tsx`            | `AppView` 增加 `"diary"` + 图标入口                                                           |
+| `src/app/routeViews.tsx`                   | `sidebarView === "diary"` → `<DiaryPage />`                                                   |
 | `src/features/sidebarChat/SidebarChat.tsx` | 消息流末尾渲染提议卡；监听 `onOpenChatTask` 激活对应任务；沉淀成功触发 `dispatchDiaryCreated` |
-| `src/features/diary/api.ts` | 零改动（CRUD 已完备） |
+| `src/features/diary/api.ts`                | 零改动（CRUD 已完备）                                                                         |
 
 ## 4. 数据流（完整闭环）
 
@@ -101,22 +102,22 @@
 
 ## 6. 错误处理
 
-| 场景 | 行为 |
-|---|---|
-| 无 LLM 供应商 | `composeDiaryContent` 直接走原文摘录，提议卡提示"将摘录对话内容" |
-| LLM 调用失败/超时 | 静默回退原文摘录，不阻塞沉淀 |
-| `diary_create/update/delete` 失败 | toast 报错 + 保留用户输入，可重试 |
-| 对话任务被切换/清空 | 提议卡随任务切换消失，不残留状态 |
-| 对话内容全为空 | 不触发提议（触发条件已含"用户消息 ≥2 条"） |
+| 场景                              | 行为                                                             |
+| --------------------------------- | ---------------------------------------------------------------- |
+| 无 LLM 供应商                     | `composeDiaryContent` 直接走原文摘录，提议卡提示"将摘录对话内容" |
+| LLM 调用失败/超时                 | 静默回退原文摘录，不阻塞沉淀                                     |
+| `diary_create/update/delete` 失败 | toast 报错 + 保留用户输入，可重试                                |
+| 对话任务被切换/清空               | 提议卡随任务切换消失，不残留状态                                 |
+| 对话内容全为空                    | 不触发提议（触发条件已含"用户消息 ≥2 条"）                       |
 
 ## 7. 测试
 
-| 文件 | 覆盖 |
-|---|---|
-| `composeDiaryContent.test.ts` | LLM prompt 组装、摘录回退边界（空对话/超长截断） |
-| `useDiarySuggestion.test.ts` | 触发条件矩阵（消息数/当日已沉淀/冷却/忽略开关）、状态迁移 |
-| `DiaryPage.test.tsx` | 时间线渲染、编辑保存、删除确认、跳转事件派发 |
-| `SidebarChat` 集成测试 | 提议卡出现条件与确认后调用 `diary_create` |
+| 文件                          | 覆盖                                                      |
+| ----------------------------- | --------------------------------------------------------- |
+| `composeDiaryContent.test.ts` | LLM prompt 组装、摘录回退边界（空对话/超长截断）          |
+| `useDiarySuggestion.test.ts`  | 触发条件矩阵（消息数/当日已沉淀/冷却/忽略开关）、状态迁移 |
+| `DiaryPage.test.tsx`          | 时间线渲染、编辑保存、删除确认、跳转事件派发              |
+| `SidebarChat` 集成测试        | 提议卡出现条件与确认后调用 `diary_create`                 |
 
 ## 8. 后续（本轮不做）
 
