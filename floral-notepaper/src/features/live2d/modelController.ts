@@ -7,6 +7,10 @@ import type { SoullinkCoreModelApi, SoullinkLocalMood } from "./soullinkLocalEng
 import { SoullinkLocalEngineAdapter } from "./soullinkLocalEngine";
 import type { Live2DScene } from "./scene";
 
+/**
+ * Live2D 运动优先级（对应 Cubism MotionPriority）：
+ * NONE=0 不打断 / IDLE=1 待机 / NORMAL=2 普通 / FORCE=3 强制打断当前动作。
+ */
 const MotionPriority = {
   NONE: 0 as Live2DMotionPriority,
   IDLE: 1 as Live2DMotionPriority,
