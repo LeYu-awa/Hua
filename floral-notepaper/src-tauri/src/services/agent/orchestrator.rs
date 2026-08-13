@@ -750,6 +750,45 @@ impl<'a> TaskRunner<'a> {
                         log::debug!("[memory] 索引 Agent 产出笔记失败: {}", index_error.message);
                     }
                 }
+                // 成文留痕：若上游读过画布节点（组卡成文链路），把参与节点标记 drafted_by=新笔记 id
+                if let Some(canvas) = self.canvas {
+                    let node_ids: Vec<String> = outputs
+                        .values()
+                        .filter_map(|value| value.get("nodes"))
+                        .filter_map(Value::as_array)
+                        .flat_map(|nodes| {
+                            nodes
+                                .iter()
+                                .filter_map(|node| node.get("id").and_then(Value::as_str))
+                                .map(str::to_string)
+                        })
+                        .collect();
+                    if !node_ids.is_empty() {
+                        if let Ok(mut canvas_doc) = canvas.list().and_then(|mut docs| {
+                            docs.pop().ok_or_else(|| {
+                                AppError::new("canvasEmpty", "没有可写入的画布")
+                            })
+                        }) {
+                            let id_set: std::collections::HashSet<&str> =
+                                node_ids.iter().map(String::as_str).collect();
+                            // 遍历所有参与节点打标记（注意不能用 any()——会短路只处理第一个）
+                            let mut changed = false;
+                            for node in canvas_doc
+                                .nodes
+                                .iter_mut()
+                                .filter(|node| id_set.contains(node.id.as_str()))
+                            {
+                                if node.drafted_by.as_deref() != Some(note.id.as_str()) {
+                                    node.drafted_by = Some(note.id.clone());
+                                    changed = true;
+                                }
+                            }
+                            if changed {
+                                let _ = canvas.save(canvas_doc);
+                            }
+                        }
+                    }
+                }
                 if let Some(app) = self.app {
                     let _ = app.emit("notes-changed", ());
                 }
@@ -2199,5 +2238,55 @@ mod tests {
         let _ = std::fs::remove_dir_all(temp_dir("note_index_tasks"));
         let _ = std::fs::remove_dir_all(temp_dir("note_index_notes"));
         let _ = std::fs::remove_dir_all(&vec_dir);
+    }
+
+    #[test]
+    fn runner_writeup_marks_participating_nodes_drafted() {
+        let dir = temp_dir("draft_canvas");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir.clone());
+        canvas
+            .save(CanvasDocument {
+                id: "canvas-d1".into(),
+                note_id: None,
+                co_write_session_id: None,
+                nodes: vec![
+                    CanvasNode { id: "n1".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "卡片一".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                    CanvasNode { id: "n2".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "卡片二".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                    CanvasNode { id: "n3".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "无关节点".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                ],
+                edges: vec![],
+                groups: vec![],
+            })
+            .unwrap();
+        let tasks = task_store("draft_tasks");
+        let notes = notes_store("draft_notes");
+
+        // 组卡成文链路：读选中卡片 → 落成笔记（确认）
+        let mut task = Task::new("t-draft", "把画布上的 2 张卡片整理成文：初稿；卡片：n1,n2");
+        task.plan = vec![
+            tool_step("w1", "canvas.read", json!({"canvasId": "first", "nodeIds": ["n1", "n2"]})),
+            tool_step_confirm("w3", "note.create", json!({"title": "成文", "content": "成文内容"})),
+        ];
+        tasks.create(&task).unwrap();
+        let test_runner = TaskRunner::new(&tasks, notes.clone(), None, None, Some(&canvas), None);
+
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        task.plan[1].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        // 留痕：参与成文的 n1/n2 打 drafted_by（笔记 id），未参与的 n3 不动
+        let saved = canvas.get("canvas-d1").unwrap();
+        let note = notes.list_notes().unwrap()[0].clone();
+        assert_eq!(saved.nodes[0].drafted_by.as_deref(), Some(note.id.as_str()));
+        assert_eq!(saved.nodes[1].drafted_by.as_deref(), Some(note.id.as_str()));
+        assert!(saved.nodes[2].drafted_by.is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(temp_dir("draft_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("draft_notes"));
     }
 }

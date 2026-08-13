@@ -55,6 +55,7 @@ function normalizeDoc(doc: CanvasDocument): CanvasDocument {
       dueDate: node.dueDate ?? null,
       group: node.group ?? null,
       noteId: node.noteId ?? null,
+      draftedBy: node.draftedBy ?? null,
     })),
   };
 }
@@ -2686,6 +2687,22 @@ export function CanvasPage({
                               className="absolute right-0 top-0 grid h-4 w-4 place-items-center rounded bg-paper/85 text-[10px] text-bamboo hover:bg-bamboo/15 cursor-pointer"
                             >
                               ↗
+                            </button>
+                          )}
+                          {/* 成文留痕：参与组卡成文 → 点击溯源打开产出的笔记 */}
+                          {node.draftedBy && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dispatchOpenNote(node.draftedBy as string);
+                              }}
+                              title={t("canvas.draftedTip", {
+                                defaultValue: "已成文，点击查看产出的笔记",
+                              })}
+                              className="absolute right-0 top-5 rounded bg-bamboo/15 px-1 py-px text-[9px] font-medium text-bamboo hover:bg-bamboo/25 cursor-pointer"
+                            >
+                              {t("canvas.draftedBadge", { defaultValue: "成文 ✓" })}
                             </button>
                           )}
                           {/* card：标签徽章 */}

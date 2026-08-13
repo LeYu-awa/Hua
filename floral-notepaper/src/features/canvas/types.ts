@@ -33,6 +33,8 @@ export interface CanvasNode {
   dueDate?: string | null;
   /** resource 资源卡关联笔记 id（双击打开对应笔记） */
   noteId?: string | null;
+  /** 成文留痕：参与组卡成文产出的笔记 id（溯源：哪些卡片 → 哪篇文章） */
+  draftedBy?: string | null;
 }
 
 export interface CanvasEdge {

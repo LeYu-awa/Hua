@@ -38,6 +38,9 @@ pub struct CanvasNode {
     /// resource 资源卡关联笔记 id；双击可打开对应笔记；默认 None
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note_id: Option<String>,
+    /// 成文留痕：参与组卡成文的笔记 id（溯源：哪些卡片 → 哪篇文章）；默认 None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drafted_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
