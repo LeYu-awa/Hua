@@ -279,27 +279,55 @@ function SectionIcon({ type, size, color }: { type: string; size: number; color:
       );
     case "play":
       return (
-        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+        <svg
+          {...s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
           <polygon points="5 3 19 12 5 21 5 3" />
         </svg>
       );
     case "edit":
       return (
-        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+        <svg
+          {...s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
           <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
           <path d="M15 5l4 4" />
         </svg>
       );
     case "sparkle":
       return (
-        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+        <svg
+          {...s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
           <circle cx="12" cy="12" r="10" />
           <path d="M12 6v6l4 2" />
         </svg>
       );
     case "clipboard":
       return (
-        <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+        <svg
+          {...s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <line x1="16" y1="13" x2="8" y2="13" />
@@ -838,7 +866,7 @@ function providerTemplate(template: string): ProviderConfig {
       apiKey: "",
       baseUrl: "https://generativelanguage.googleapis.com",
       apiPath: "",
-      models: [{ modelId: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash" }],
+      models: [{ modelId: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", modelTypes: ["chat"] }],
     };
   if (n === "claude")
     return {
@@ -849,7 +877,7 @@ function providerTemplate(template: string): ProviderConfig {
       apiKey: "",
       baseUrl: "https://api.anthropic.com",
       apiPath: "/v1/messages",
-      models: [{ modelId: "claude-sonnet-4", displayName: "Claude Sonnet 4" }],
+      models: [{ modelId: "claude-sonnet-4", displayName: "Claude Sonnet 4", modelTypes: ["chat"] }],
     };
   if (n === "deepseek")
     return {
@@ -861,8 +889,8 @@ function providerTemplate(template: string): ProviderConfig {
       baseUrl: "https://api.deepseek.com",
       apiPath: "/v1/chat/completions",
       models: [
-        { modelId: "deepseek-v4-pro", displayName: "DeepSeek V4 Pro" },
-        { modelId: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash" },
+        { modelId: "deepseek-v4-pro", displayName: "DeepSeek V4 Pro", modelTypes: ["chat", "reason"] },
+        { modelId: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash", modelTypes: ["chat", "reason"] },
       ],
     };
   return {
@@ -873,7 +901,10 @@ function providerTemplate(template: string): ProviderConfig {
     apiKey: "",
     baseUrl: "https://api.openai.com/v1",
     apiPath: "/chat/completions",
-    models: [{ modelId: "gpt-4.1-mini", displayName: "GPT-4.1 Mini" }],
+    models: [
+      { modelId: "gpt-4.1-mini", displayName: "GPT-4.1 Mini", modelTypes: ["chat"] },
+      { modelId: "text-embedding-3-small", displayName: "text-embedding-3-small", modelTypes: ["embedding"] },
+    ],
   };
 }
 
@@ -1190,6 +1221,32 @@ function ModelRow({
           placeholder="显示名称"
           className="w-full h-7 px-2.5 rounded-lg text-[10px] font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/30"
         />
+        {/* 能力标记：勾选"嵌入"后，该模型会被用作 RAG 记忆写入/检索的 embedding 供应商 */}
+        <div className="flex flex-wrap gap-1.5">
+          {MODEL_TYPE_KEYS.map((type) => {
+            const active = (model.modelTypes ?? []).includes(type);
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => {
+                  const current = model.modelTypes ?? [];
+                  const next = active
+                    ? current.filter((t) => t !== type)
+                    : [...current, type];
+                  onUpdate({ ...model, modelTypes: next });
+                }}
+                className={`px-2 h-6 rounded-md text-[10px] border transition-colors cursor-pointer ${
+                  active
+                    ? "bg-bamboo/15 text-bamboo border-bamboo/30"
+                    : "text-ink-ghost border-paper-deep/30 hover:text-ink-soft"
+                }`}
+              >
+                {MODEL_TYPE_LABELS[type] ?? type}
+              </button>
+            );
+          })}
+        </div>
         <div className="flex gap-1.5 pt-0.5">
           <button
             onClick={() => setEditing(false)}
@@ -1212,6 +1269,18 @@ function ModelRow({
       <div>
         <div className="text-[11px] font-medium text-ink-soft truncate">{model.displayName}</div>
         <div className="text-[9px] font-mono text-ink-ghost truncate">{model.modelId}</div>
+        {(model.modelTypes ?? []).length > 0 && (
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {(model.modelTypes ?? []).map((type) => (
+              <span
+                key={type}
+                className="px-1.5 py-px rounded bg-bamboo/10 text-[8.5px] text-bamboo"
+              >
+                {MODEL_TYPE_LABELS[type] ?? type}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
