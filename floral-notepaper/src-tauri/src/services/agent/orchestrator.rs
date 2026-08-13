@@ -742,6 +742,14 @@ impl<'a> TaskRunner<'a> {
                     content: content.trim().to_string(),
                     category: category.to_string(),
                 })?;
+                // 记忆写入：Agent 产出（组卡成文等）落盘即入向量库，供后续检索引用
+                if let Some(vectors) = self.vectors {
+                    if let Err(index_error) =
+                        rag::index_source(vectors, &format!("note:{}", note.id), &content).await
+                    {
+                        log::debug!("[memory] 索引 Agent 产出笔记失败: {}", index_error.message);
+                    }
+                }
                 if let Some(app) = self.app {
                     let _ = app.emit("notes-changed", ());
                 }
@@ -2147,5 +2155,44 @@ mod tests {
         assert!(!text.contains("n3"), "空文本节点应被过滤");
         // 非画布值仍走 to_string 兜底
         assert_eq!(output_text(&json!({"a": 1})), "{\"a\":1}");
+    }
+
+    #[test]
+    fn runner_creates_note_with_vectors_indexes_best_effort() {
+        let dir = temp_dir("note_index");
+        let _ = std::fs::remove_dir_all(&dir);
+        let vec_dir = temp_dir("note_index_vec");
+        let _ = std::fs::remove_dir_all(&vec_dir);
+        let vec_store = VectorStore::new(vec_dir.join("vectors.sqlite"));
+        let tasks = task_store("note_index_tasks");
+        let notes = notes_store("note_index_notes");
+
+        let mut task = Task::new("t-index", "测试");
+        task.plan = vec![tool_step_confirm(
+            "n1",
+            "note.create",
+            json!({"title": "记忆笔记", "content": "这是一段应该被记住的内容。"}),
+        )];
+        tasks.create(&task).unwrap();
+
+        let test_runner =
+            TaskRunner::new(&tasks, notes.clone(), None, Some(&vec_store), None, None);
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+
+        task.plan[0].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        // 笔记确实落盘；索引为 best-effort（测试环境无 embedding 配置，静默失败不阻塞落盘）
+        let listed = notes.list_notes().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].title, "记忆笔记");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(temp_dir("note_index_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("note_index_notes"));
+        let _ = std::fs::remove_dir_all(&vec_dir);
     }
 }

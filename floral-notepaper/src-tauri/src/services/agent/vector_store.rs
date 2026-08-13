@@ -226,6 +226,33 @@ impl VectorStore {
         Ok(())
     }
 
+    /// 按源删除**所有模型**下的块（源删除时不依赖 embedding provider 可用）。
+    /// 笔记/日记删除时调用，避免陈旧记忆残留。
+    pub fn delete_source_all_models(&self, source_id: &str) -> Result<(), AppError> {
+        let conn = self.conn()?;
+        let rows: Vec<(i64, String, i64)> = conn
+            .prepare(
+                "SELECT id, model, dimension FROM vector_chunks WHERE source_id = ?1",
+            )
+            .map_err(|e| app_error(format!("查询失败: {e}")))?
+            .query_map(params![source_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .map_err(|e| app_error(format!("查询失败: {e}")))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| app_error(format!("查询失败: {e}")))?;
+        for (id, model, dimension) in rows {
+            let table = vec_table_name(&model, dimension as usize);
+            let _ = conn.execute(&format!("DELETE FROM {table} WHERE rowid = ?1"), params![id]);
+        }
+        conn.execute(
+            "DELETE FROM vector_chunks WHERE source_id = ?1",
+            params![source_id],
+        )
+        .map_err(|e| app_error(format!("删除源失败: {e}")))?;
+        Ok(())
+    }
+
     /// KNN 检索，按余弦相似度降序返回
     pub fn search(
         &self,
@@ -433,6 +460,36 @@ mod tests {
         assert_eq!(hits3[0].chunk_id, "a");
         let hits2 = store.search("m", &[1.0, 0.0], 1).unwrap();
         assert_eq!(hits2[0].chunk_id, "b");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn delete_source_all_models_clears_every_model() {
+        let path = temp_path("delete_all_models");
+        let _ = std::fs::remove_file(&path);
+        let store = VectorStore::new(&path);
+
+        // 同一源在两个模型下都有块（维度不同 → 不同向量表）
+        store
+            .upsert_chunk("m-a", &input("a1", "src-x", "三维内容", vec![1.0, 0.0, 0.0]))
+            .unwrap();
+        store
+            .upsert_chunk("m-b", &input("b1", "src-x", "二维内容", vec![1.0, 0.0]))
+            .unwrap();
+        store
+            .upsert_chunk("m-a", &input("a2", "src-y", "别的源", vec![0.0, 1.0, 0.0]))
+            .unwrap();
+        assert_eq!(store.count("m-a").unwrap(), 2);
+        assert_eq!(store.count("m-b").unwrap(), 1);
+
+        // 按源删除（不指定模型）→ 两个模型下的块都清掉，别的源不受影响
+        store.delete_source_all_models("src-x").unwrap();
+        assert_eq!(store.count("m-a").unwrap(), 1);
+        assert_eq!(store.count("m-b").unwrap(), 0);
+        let remaining = store.search("m-a", &[0.0, 1.0, 0.0], 5).unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].source_id, "src-y");
 
         let _ = std::fs::remove_file(&path);
     }

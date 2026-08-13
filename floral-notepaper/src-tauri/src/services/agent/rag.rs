@@ -143,6 +143,25 @@ fn embedding_provider() -> Result<HttpEmbeddingProvider, AppError> {
     HttpEmbeddingProvider::new(endpoint)
 }
 
+/// 记忆写入：把一段文本索引/重索引到向量库（先删源再索引，内容收缩不留陈旧块）。
+///
+/// 供笔记/日记/Agent 产出落盘后调用，实现"写过的就能被想起"。
+/// 未配置 embedding 供应商时返回 Err——调用方必须静默忽略，绝不阻塞主写入。
+pub async fn index_source(
+    store: &VectorStore,
+    source_id: &str,
+    text: &str,
+) -> Result<Vec<String>, AppError> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let provider = embedding_provider()?;
+    let model = provider.model().to_string();
+    let _ = store.delete_by_source(&model, source_id);
+    index_text(store, &model, source_id, trimmed, |t| provider.embed(t)).await
+}
+
 /// IPC：索引一段文本（笔记/画布节点内容）到向量库，返回 chunk_id 列表
 #[tauri::command]
 pub async fn agent_rag_index(
@@ -285,8 +304,21 @@ mod tests {
     }
 
     #[test]
-    fn build_context_respects_limit_and_format() {
-        let chunks = vec![
+    fn index_source_returns_empty_for_empty_text_without_provider() {
+        // 空文本在解析 provider 之前短路返回，无需 embedding 配置即可安全调用
+        let path = temp_path("index_empty");
+        let _ = std::fs::remove_file(&path);
+        let store = VectorStore::new(&path);
+
+        let result = tauri::async_runtime::block_on(index_source(&store, "note:x", "   "));
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn build_context_respects_limit_and_format() {        let chunks = vec![
             RetrievedChunk {
                 chunk_id: "a#0".into(),
                 source_id: "a".into(),

@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use uuid::Uuid;
 
+use super::agent::rag;
+use super::agent::vector_store::VectorStore;
 use super::notes::AppError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -322,11 +324,19 @@ fn sanitize_filename(name: &str) -> String {
 }
 
 #[tauri::command]
-pub fn diary_create(
+pub async fn diary_create(
     request: SaveDiaryEntryRequest,
-    store: tauri::State<DiaryStore>,
+    store: tauri::State<'_, DiaryStore>,
+    vectors: tauri::State<'_, VectorStore>,
 ) -> Result<DiaryEntry, AppError> {
-    store.create(request)
+    let entry = store.create(request)?;
+    // 记忆写入：日记落盘即入向量库（best-effort，失败不影响落盘）
+    if let Err(error) =
+        rag::index_source(&vectors, &format!("diary:{}", entry.id), &entry.content).await
+    {
+        log::debug!("[memory] 索引日记失败: {}", error.message);
+    }
+    Ok(entry)
 }
 
 #[tauri::command]
@@ -343,17 +353,31 @@ pub fn diary_list(
 }
 
 #[tauri::command]
-pub fn diary_update(
+pub async fn diary_update(
     id: String,
     request: SaveDiaryEntryRequest,
-    store: tauri::State<DiaryStore>,
+    store: tauri::State<'_, DiaryStore>,
+    vectors: tauri::State<'_, VectorStore>,
 ) -> Result<DiaryEntry, AppError> {
-    store.update(&id, request)
+    let entry = store.update(&id, request)?;
+    // 记忆更新：内容变更后重索引（先删源再写入）
+    if let Err(error) =
+        rag::index_source(&vectors, &format!("diary:{}", entry.id), &entry.content).await
+    {
+        log::debug!("[memory] 重索引日记失败: {}", error.message);
+    }
+    Ok(entry)
 }
 
 #[tauri::command]
-pub fn diary_delete(id: String, store: tauri::State<DiaryStore>) -> Result<(), AppError> {
-    store.delete(&id)
+pub fn diary_delete(
+    id: String,
+    store: tauri::State<DiaryStore>,
+    vectors: tauri::State<'_, VectorStore>,
+) -> Result<(), AppError> {
+    store.delete(&id)?;
+    let _ = vectors.delete_source_all_models(&format!("diary:{id}"));
+    Ok(())
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@ use services::agent::{
     AgentEventInput, AgentReplayMarker, AgentReviewReport, AgentSuggestion,
     llm_provider::agent_embed_text,
     orchestrator::{agent_skill_list, agent_task_confirm, agent_task_create_and_run, agent_task_run},
-    rag::{agent_rag_delete_source, agent_rag_index, agent_rag_retrieve},
+    rag::{agent_rag_delete_source, agent_rag_index, agent_rag_retrieve, index_source},
     task_store::{
         agent_task_create, agent_task_delete, agent_task_get, agent_task_list,
         agent_task_update_status, AgentTaskStore,
@@ -56,23 +56,50 @@ fn notes_get(id: String) -> Result<Note, AppError> {
 }
 
 #[tauri::command]
-fn notes_create(app: AppHandle, request: SaveNoteRequest) -> Result<Note, AppError> {
+async fn notes_create(
+    app: AppHandle,
+    vectors: tauri::State<'_, VectorStore>,
+    request: SaveNoteRequest,
+) -> Result<Note, AppError> {
     let note = default_store()?.create_note(request)?;
+    // 记忆写入：新笔记落盘即入向量库（best-effort，失败不影响落盘）
+    if let Err(error) =
+        index_source(&vectors, &format!("note:{}", note.id), &note.content).await
+    {
+        log::debug!("[memory] 索引新笔记失败: {}", error.message);
+    }
     let _ = app.emit("notes-changed", ());
     Ok(note)
 }
 
 #[tauri::command]
-fn notes_update(app: AppHandle, id: String, request: SaveNoteRequest) -> Result<Note, AppError> {
+async fn notes_update(
+    app: AppHandle,
+    vectors: tauri::State<'_, VectorStore>,
+    id: String,
+    request: SaveNoteRequest,
+) -> Result<Note, AppError> {
     let note = default_store()?.update_note(&id, request)?;
+    // 记忆更新：内容变更后重索引（先删源再写入，不残留陈旧块）
+    if let Err(error) =
+        index_source(&vectors, &format!("note:{}", note.id), &note.content).await
+    {
+        log::debug!("[memory] 重索引笔记失败: {}", error.message);
+    }
     let _ = app.emit("notes-changed", ());
     Ok(note)
 }
 
 #[tauri::command]
-fn notes_delete(app: AppHandle, id: String, store: tauri::State<InkStore>) -> Result<(), AppError> {
+fn notes_delete(
+    app: AppHandle,
+    id: String,
+    store: tauri::State<InkStore>,
+    vectors: tauri::State<'_, VectorStore>,
+) -> Result<(), AppError> {
     default_store()?.delete_note(&id)?;
     let _ = store.clear_note_ink(&id);
+    let _ = vectors.delete_source_all_models(&format!("note:{id}"));
     let _ = app.emit("notes-changed", ());
     Ok(())
 }

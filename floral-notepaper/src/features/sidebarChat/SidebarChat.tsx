@@ -68,6 +68,7 @@ import { hasUsableProvider } from "../diary/composeDiaryContent";
 import { DiarySuggestionCard } from "../diary/DiarySuggestionCard";
 import { onOpenChatTask } from "../diary/diaryEvents";
 import { useDiarySuggestion } from "../diary/useDiarySuggestion";
+import { recallBaseline, recallMemory } from "../agent/memoryRecall";
 import type { StructuredReply } from "./structuredReply";
 
 export interface SidebarChatMessage {
@@ -938,8 +939,18 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
             referencedNotes.map((note) => `- 「${note.title}」（id: ${note.id}）`).join("\n")
           : "";
 
+        // 记忆层闭环：召回本地历史（笔记/日记/产出）与用户画像，注入系统上下文
+        const [memoryBlock, baselineBlock] = await Promise.all([
+          recallMemory(text),
+          recallBaseline(),
+        ]);
+
         const contextMessages: ModelRequestMessage[] = [
-          { role: "system", content: SYSTEM_PROMPT + AGENT_SYSTEM_SUFFIX + referenceContext },
+          {
+            role: "system",
+            content:
+              SYSTEM_PROMPT + AGENT_SYSTEM_SUFFIX + referenceContext + memoryBlock + baselineBlock,
+          },
           ...nextMessages.slice(-contextWindow).map((m) => ({ role: m.role, content: m.content })),
         ];
 

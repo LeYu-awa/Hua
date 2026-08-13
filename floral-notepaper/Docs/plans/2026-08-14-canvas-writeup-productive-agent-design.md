@@ -42,6 +42,7 @@ goal = "整理成文：<类型>；意图：<可选描述>；卡片：<id1>,<id2>
 ```
 
 新解析函数 `parse_writeup_goal(goal) -> WriteupRequest { node_ids, kind, intent }`：
+
 - 解析失败（无"卡片："段）→ node_ids 为空 → 回退读全画布（兼容旧入口）。
 - 类型缺省 → 初稿。
 
@@ -57,6 +58,7 @@ w3: note.create   (required_confirm) { title, content: "{previousOutput}", categ
 ```
 
 类型 → 提示词模板（四套）：
+
 - 大纲：结构化要点提纲（层级标题）
 - 初稿：成段成文的完整文章
 - 总结：凝练概括
@@ -117,7 +119,36 @@ w3: note.create   (required_confirm) { title, content: "{previousOutput}", categ
 - TaskProgressPanel 预览：llm 输出渲染、编辑、payload 携带
 - CanvasPage 按钮置灰逻辑
 
-## 5. 验收口径
+## 5. 记忆层写入闭环（记忆 = 写过的能被想起）
+
+### 5.1 现状缺口
+
+RAG 检索（`agent_rag_retrieve`）与写入（`agent_rag_index`）IPC 已存在，但**没有任何自动写入**——笔记/日记/Agent 产出落盘后不进向量库，导致"写过的不能被想起"。
+
+### 5.2 记忆写入（Rust，best-effort）
+
+- `rag::index_source(store, source_id, text)`：先删源再索引（内容收缩不留陈旧块）；无 embedding 配置时返回 Err，**调用方必须静默忽略**。
+- `VectorStore::delete_source_all_models(source_id)`：按源删除所有模型下的块（删除时无需 provider）。
+- 接线点：
+  - Agent 产出：orchestrator `note.create` 工具落盘后 → `note:<id>` 索引
+  - 笔记：`notes_create` / `notes_update` → `note:<id>` 索引；`notes_delete` → 删源
+  - 日记：`diary_create` / `diary_update` → `diary:<id>` 索引；`diary_delete` → 删源
+
+### 5.3 对话记忆召回（前端，best-effort）
+
+- `memoryRecall.ts`：`recallMemory(消息)` 调 `ragRetrieve` 召回相关记忆（笔记/日记/产出）拼成上下文块；`recallBaseline()` 注入用户写作画像。
+- SidebarChat 标准 Agent 请求前 `Promise.all` 召回两者，追加进系统消息——实现"角色记得你写过/聊过什么"。
+- 无 embedding 供应商或失败 → 空串，不打扰对话。
+
+### 5.4 闭环验证
+
+```
+画布组卡成文 → note.create → 自动索引 note:<id>
+  → 下次对话 recallMemory 检索命中 → 注入上下文 → 角色引用
+  → 产出再次入记忆 → 越用越聪明
+```
+
+## 6. 验收口径
 
 - 框选 ≥2 卡片 → 类型选择 → 任务进度 → 预览（可编辑）→ 确认 → 新笔记落盘成功 → 横幅可打开笔记
 - 无 LLM 供应商时：任务明确报错提示配置（现有机制）
