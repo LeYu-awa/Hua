@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   confirmAgentTask,
   createAndRunAgentTask,
@@ -7,6 +7,8 @@ import {
   onAgentTask,
 } from "./api";
 import type { AgentStep, AgentStepEvent, AgentStepStatus, AgentTask } from "./types";
+import { dispatchOpenNote } from "../notes/openNoteEvents";
+import { isWriteupGoal } from "./writeupGoal";
 
 const STEP_STATUS_ICON: Record<AgentStepStatus, string> = {
   Pending: "·",
@@ -72,6 +74,12 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
   const [task, setTask] = useState<AgentTask | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  /** 组卡成文产出预览（可编辑标题/正文，确认时随 payload 落盘） */
+  const [previewTitle, setPreviewTitle] = useState("");
+  const [previewContent, setPreviewContent] = useState("");
+  const [previewReady, setPreviewReady] = useState(false);
+  /** 落盘成功横幅关闭态 */
+  const [doneDismissed, setDoneDismissed] = useState(false);
 
   // 从任务 plan 派生当前待确认步骤（AwaitingConfirm 状态下第一个未确认的写操作步骤）
   const confirmStep =
@@ -86,12 +94,40 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
         )
       : undefined;
 
-  const handleConfirm = async (ok: boolean) => {
+  /** 组卡成文：上游 LLM 步骤生成的正文（用于预览确认） */
+  const llmOutput = useMemo(() => {
+    if (!task) return null;
+    const llmStep = task.plan.find((step) => step.kind === "Llm" && step.output != null);
+    const text = llmStep?.output as { text?: unknown } | null;
+    return typeof text?.text === "string" && text.text.trim() ? text.text : null;
+  }, [task]);
+
+  /** 是否展示可编辑产出预览（note.create 确认 + 有 LLM 生成内容） */
+  const showWriteupPreview =
+    confirmStep?.tool === "note.create" && llmOutput !== null && !previewReady;
+
+  /** 落盘成功：note.create 步骤的输出携带新笔记 id/title */
+  const createdNote = useMemo(() => {
+    if (!task) return null;
+    const createStep = task.plan.find((step) => step.tool === "note.create" && step.output != null);
+    const out = createStep?.output as { id?: unknown; title?: unknown } | null;
+    return typeof out?.id === "string"
+      ? { id: out.id, title: typeof out.title === "string" ? out.title : "" }
+      : null;
+  }, [task]);
+
+  const isWriteupDone =
+    task?.status === "Done" && isWriteupGoal(goal) && createdNote !== null && !doneDismissed;
+
+  const handleConfirm = async (ok: boolean, payload?: { title?: string; content?: string }) => {
     if (!task || !confirmStep) return;
     setConfirming(true);
     try {
-      const next = await confirmAgentTask(task.taskId, confirmStep.stepId, ok);
+      const next = await confirmAgentTask(task.taskId, confirmStep.stepId, ok, payload);
       setTask(next);
+      if (ok && payload) {
+        setPreviewReady(true);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -190,7 +226,10 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
               onDragStart={(event) => {
                 const payload = buildStepDragPayload(task, step);
                 event.dataTransfer.setData(AGENT_STEP_DRAG_TYPE, JSON.stringify(payload));
-                event.dataTransfer.setData("text/plain", `${step.tool ?? step.kind} · ${task.goal}`);
+                event.dataTransfer.setData(
+                  "text/plain",
+                  `${step.tool ?? step.kind} · ${task.goal}`,
+                );
                 event.dataTransfer.effectAllowed = "copy";
               }}
               title="拖拽到画布生成任务卡片"
@@ -213,7 +252,51 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
       )}
 
       {/* 待确认操作：写/产出型工具在落盘前需用户确认 */}
-      {confirmStep && (
+      {confirmStep && showWriteupPreview && llmOutput !== null && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-2.5 py-2">
+          <div className="text-[11px] font-semibold text-ink">
+            成文预览（来自画布 {goal.replace(/^.*?(\d+) 张卡片.*$/, "$1") || ""} 张卡片）
+          </div>
+          <input
+            value={previewTitle || "画布整理成文"}
+            onChange={(event) => setPreviewTitle(event.target.value)}
+            placeholder="标题"
+            className="mt-2 w-full rounded-lg border border-paper-deep/20 bg-paper px-2.5 py-1.5 text-[12px] text-ink outline-none placeholder:text-ink-ghost/50 focus:border-ink-ghost/40"
+          />
+          <textarea
+            value={previewContent || llmOutput}
+            onChange={(event) => setPreviewContent(event.target.value)}
+            rows={10}
+            className="mt-2 w-full resize-y rounded-lg border border-paper-deep/20 bg-paper px-2.5 py-1.5 text-[12px] leading-relaxed text-ink outline-none placeholder:text-ink-ghost/50 focus:border-ink-ghost/40"
+          />
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              disabled={confirming}
+              onClick={() =>
+                void handleConfirm(true, {
+                  title: previewTitle || "画布整理成文",
+                  content: previewContent || llmOutput,
+                })
+              }
+              className="rounded-lg bg-bamboo px-3 py-1 text-[11px] font-medium text-paper hover:bg-bamboo/90 disabled:opacity-50"
+            >
+              {confirming ? "处理中…" : "确认落盘"}
+            </button>
+            <button
+              type="button"
+              disabled={confirming}
+              onClick={() => void handleConfirm(false)}
+              className="rounded-lg border border-paper-deep/20 px-3 py-1 text-[11px] text-ink-ghost hover:text-ink disabled:opacity-50"
+            >
+              取消任务
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 其他写操作：通用确认框 */}
+      {confirmStep && !showWriteupPreview && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-2.5 py-2">
           <div className="text-[11px] font-semibold text-ink">需要确认后继续</div>
           <div className="mt-1 break-all text-[11px] text-ink">
@@ -232,10 +315,35 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
             <button
               type="button"
               disabled={confirming}
-              onClick={() => handleConfirm(false)}
+              onClick={() => void handleConfirm(false)}
               className="rounded-lg border border-paper-deep/20 px-3 py-1 text-[11px] text-ink-ghost hover:text-ink disabled:opacity-50"
             >
               取消任务
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 组卡成文落盘成功：横幅 + 打开笔记 */}
+      {isWriteupDone && createdNote && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-bamboo/30 bg-bamboo/10 px-2.5 py-2">
+          <div className="min-w-0 truncate text-[11.5px] text-ink">
+            已生成笔记《{createdNote.title || "画布整理成文"}》
+          </div>
+          <div className="flex shrink-0 gap-1.5">
+            <button
+              type="button"
+              onClick={() => dispatchOpenNote(createdNote.id)}
+              className="rounded-lg bg-bamboo px-2.5 py-1 text-[10.5px] font-medium text-paper hover:bg-bamboo/90 cursor-pointer"
+            >
+              打开笔记
+            </button>
+            <button
+              type="button"
+              onClick={() => setDoneDismissed(true)}
+              className="rounded-lg border border-paper-deep/20 px-2 py-1 text-[10.5px] text-ink-ghost hover:text-ink cursor-pointer"
+            >
+              关闭
             </button>
           </div>
         </div>

@@ -41,7 +41,7 @@ const SEARCH_STOPWORDS: &[&str] = &[
 ];
 
 /// 组合目标关键词
-const CANVAS_WORDS: &[&str] = &["画布", "脑图", "思维导图", "canvas", "节点"];
+const CANVAS_WORDS: &[&str] = &["画布", "脑图", "思维导图", "canvas", "节点", "卡片"];
 const SUMMARIZE_WORDS: &[&str] = &["总结", "摘要", "汇总", "提炼", "概括"];
 const WRITE_WORDS: &[&str] = &["写", "成文", "整理", "文章", "笔记", "总结"];
 const RESEARCH_WORDS: &[&str] = &["调研", "查资料", "了解", "研究"];
@@ -195,22 +195,104 @@ fn summarize_plan(goal: &str) -> Vec<Step> {
     ]
 }
 
-/// 技能流水线：画布成文
-fn canvas_writeup_plan(_goal: &str) -> Vec<Step> {
+/// 技能流水线：画布成文（组卡成文闭环）
+/// 目标格式（前端成文入口生成）："整理成文：<类型>；意图：<描述>；卡片：id1,id2"
+/// 类型 ∈ {大纲, 初稿, 总结, 设定集}；卡片段缺失 → 读全画布；类型缺省 → 初稿
+fn canvas_writeup_plan(goal: &str) -> Vec<Step> {
+    let req = parse_writeup_goal(goal);
+    let node_ids = req.node_ids.clone();
+    let retrieve_query = if req.intent.trim().is_empty() {
+        if node_ids.is_empty() {
+            "画布内容".to_string()
+        } else {
+            format!("画布卡片 {} 张", node_ids.len())
+        }
+    } else {
+        req.intent.clone()
+    };
     vec![
-        tool_step("c1", "canvas.read", json!({ "canvasId": "first" })),
+        tool_step("w1", "canvas.read", json!({ "canvasId": "first", "nodeIds": node_ids })),
         llm_step(
-            "c2",
+            "w2",
             json!({
-                "promptTemplate": "根据下面的画布内容写一篇结构清晰的笔记（保留要点、可展开成段落）：\n{previousOutput}"
+                "retrieve": retrieve_query,
+                "promptTemplate": writeup_template(&req.kind, &req.intent),
             }),
         ),
         tool_step_confirm(
-            "c3",
+            "w3",
             "note.create",
-            json!({ "title": "画布整理成文", "category": "AI 生成" }),
+            json!({ "title": "画布整理成文", "category": "AI 生成", "content": "{previousOutput}" }),
         ),
     ]
+}
+
+/// 组卡成文请求（从 goal 解析）
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WriteupRequest {
+    pub node_ids: Vec<String>,
+    /// 产出类型：大纲 / 初稿 / 总结 / 设定集（缺省 → 初稿）
+    pub kind: String,
+    /// 用户补充意图（可选）
+    pub intent: String,
+}
+
+/// 解析组卡成文目标："整理成文：<类型>；意图：<描述>；卡片：id1,id2"
+/// 各段缺失均容错：卡片缺失 → 空（读全画布）；类型缺失 → 初稿；意图缺失 → 空。
+pub fn parse_writeup_goal(goal: &str) -> WriteupRequest {
+    let mut req = WriteupRequest {
+        kind: "初稿".to_string(),
+        ..Default::default()
+    };
+    for sep in ["整理成文：", "整理成文:"] {
+        if let Some(index) = goal.find(sep) {
+            let rest = &goal[index + sep.len()..];
+            let kind = rest.split(['；', ';']).next().unwrap_or("").trim();
+            if !kind.is_empty() {
+                req.kind = kind.to_string();
+            }
+            break;
+        }
+    }
+    for sep in ["意图：", "意图:"] {
+        if let Some(index) = goal.find(sep) {
+            let rest = &goal[index + sep.len()..];
+            req.intent = rest.split(['；', ';']).next().unwrap_or("").trim().to_string();
+            break;
+        }
+    }
+    for sep in ["卡片：", "卡片:"] {
+        if let Some(index) = goal.find(sep) {
+            let rest = &goal[index + sep.len()..];
+            req.node_ids = rest
+                .split(['；', ';'])
+                .next()
+                .unwrap_or("")
+                .split([',', '，', ' '])
+                .map(str::trim)
+                .filter(|token| !token.is_empty())
+                .map(str::to_string)
+                .collect();
+            break;
+        }
+    }
+    req
+}
+
+/// 产出类型 → 提示词模板（保留 {previousOutput} 占位符，由执行器替换为画布内容）
+pub fn writeup_template(kind: &str, intent: &str) -> String {
+    let base = match kind.trim() {
+        "大纲" => "请把下面的画布内容整理成结构清晰的大纲（层级标题 + 要点，保留关键信息）：",
+        "总结" => "请把下面的画布内容凝练成一篇简洁的总结（3-5 段，突出核心结论）：",
+        "设定集" => "请把下面的画布内容整理成条目化的设定集（按人物/世界观/规则等分类，逐条列出）：",
+        _ => "请把下面的画布内容写成一篇文章（成段成文、逻辑连贯、保留全部要点，可适度展开）：",
+    };
+    let intent = intent.trim();
+    if intent.is_empty() {
+        format!("{base}\n{{previousOutput}}")
+    } else {
+        format!("{base}\n用户补充意图：{intent}\n\n{{previousOutput}}")
+    }
 }
 
 /// 技能流水线：联网调研
@@ -643,11 +725,13 @@ impl<'a> TaskRunner<'a> {
             }
             Some("note.create") => {
                 let title = step.input.get("title").and_then(Value::as_str).unwrap_or("");
-                let content = step
+                let raw_content = step
                     .input
                     .get("content")
                     .and_then(Value::as_str)
                     .unwrap_or("");
+                // 工具输入模板：{previousOutput} → 上游步骤输出文本（组卡成文的落盘内容）
+                let content = resolve_previous_output(raw_content, outputs);
                 let category = step
                     .input
                     .get("category")
@@ -655,7 +739,7 @@ impl<'a> TaskRunner<'a> {
                     .unwrap_or_default();
                 let note = self.notes.create_note(SaveNoteRequest {
                     title: title.to_string(),
-                    content: content.to_string(),
+                    content: content.trim().to_string(),
                     category: category.to_string(),
                 })?;
                 if let Some(app) = self.app {
@@ -673,7 +757,7 @@ impl<'a> TaskRunner<'a> {
                     .get("canvasId")
                     .and_then(Value::as_str)
                     .unwrap_or("first");
-                let doc = if id == "first" {
+                let mut doc = if id == "first" {
                     canvas
                         .list()?
                         .into_iter()
@@ -682,6 +766,14 @@ impl<'a> TaskRunner<'a> {
                 } else {
                     canvas.get(id)?
                 };
+                // 组卡成文：按 nodeIds 过滤节点（未传则读全部，兼容旧调用）
+                if let Some(node_ids) = step.input.get("nodeIds").and_then(Value::as_array) {
+                    let ids: std::collections::HashSet<&str> =
+                        node_ids.iter().filter_map(Value::as_str).collect();
+                    if !ids.is_empty() {
+                        doc.nodes.retain(|node| ids.contains(node.id.as_str()));
+                    }
+                }
                 serde_json::to_value(&doc)
                     .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
             }
@@ -1097,7 +1189,34 @@ fn output_text(value: &Value) -> String {
     if let Some(c) = value.get("content").and_then(Value::as_str) {
         return c.to_string();
     }
+    // 画布文档（canvas.read 输出）：渲染成可读的卡片列表，供 LLM 直接使用
+    if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+        let lines: Vec<String> = nodes
+            .iter()
+            .filter_map(|node| node.get("text").and_then(Value::as_str))
+            .map(|text| format!("- {}", text.trim()))
+            .filter(|line| !line.trim().is_empty())
+            .collect();
+        if !lines.is_empty() {
+            return lines.join("\n");
+        }
+    }
     value.to_string()
+}
+
+/// 工具输入模板：{previousOutput} → 上游步骤输出文本（组卡成文的落盘内容）。
+/// 输出为空时原样返回（避免把空内容写进笔记）。
+pub fn resolve_previous_output(raw: &str, outputs: &HashMap<String, Value>) -> String {
+    if raw.contains("{previousOutput}") {
+        let previous = outputs
+            .values()
+            .last()
+            .map(output_text)
+            .unwrap_or_default();
+        raw.replace("{previousOutput}", &previous)
+    } else {
+        raw.to_string()
+    }
 }
 
 /// 从 outputs 里取最近一次 LLM 生成文本（扩写/润色链路中只有 LLM 步骤产出 {text}）
@@ -1215,7 +1334,8 @@ pub async fn agent_task_run(
     Ok(task)
 }
 
-/// IPC：确认/拒绝待确认步骤。ok=true → 标记确认并恢复执行；ok=false → 取消该步骤与任务
+/// IPC：确认/拒绝待确认步骤。ok=true → 标记确认并恢复执行；ok=false → 取消该步骤与任务。
+/// payload 可选：确认 note.create 步骤时可携带 { title?, content? } 覆盖落盘内容（产出预览编辑后落盘）。
 #[tauri::command]
 pub async fn agent_task_confirm(
     app: AppHandle,
@@ -1225,6 +1345,7 @@ pub async fn agent_task_confirm(
     task_id: String,
     step_id: String,
     ok: bool,
+    payload: Option<Value>,
 ) -> Result<Task, AppError> {
     let mut task = store
         .get(&task_id)?
@@ -1240,6 +1361,21 @@ pub async fn agent_task_confirm(
         task.status = TaskStatus::Cancelled;
         store.update(&task)?;
         return Ok(task);
+    }
+    // 产出预览覆盖：note.create 步骤允许用用户编辑后的 title/content 落盘
+    if let Some(payload) = payload {
+        if let (Some(obj), Some(input)) = (payload.as_object(), step.input.as_object_mut()) {
+            if let Some(title) = obj.get("title").and_then(Value::as_str) {
+                if !title.trim().is_empty() {
+                    input.insert("title".into(), Value::String(title.trim().to_string()));
+                }
+            }
+            if let Some(content) = obj.get("content").and_then(Value::as_str) {
+                if !content.trim().is_empty() {
+                    input.insert("content".into(), Value::String(content.trim().to_string()));
+                }
+            }
+        }
     }
     store.update(&task)?;
     let runner = production_runner(&app, &store, &vectors, &canvas)?;
@@ -1921,5 +2057,95 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(temp_dir("export_png_notes"));
         let _ = std::fs::remove_dir_all(temp_dir("export_png_tasks"));
+    }
+
+    // ── 组卡成文（可产出 Agent）：goal 解析 / 流水线 / 模板 / 输出渲染 ──────────
+
+    #[test]
+    fn parse_writeup_goal_extracts_type_intent_cards() {
+        let req = parse_writeup_goal(
+            "把画布上的 3 张卡片整理成文：大纲；意图：突出主角成长线；卡片：n1, n2，n3",
+        );
+        assert_eq!(req.kind, "大纲");
+        assert_eq!(req.intent, "突出主角成长线");
+        assert_eq!(req.node_ids, vec!["n1", "n2", "n3"]);
+    }
+
+    #[test]
+    fn parse_writeup_goal_handles_colon_and_fallbacks() {
+        // 半角冒号 + 无卡片 → 回退读全画布；无类型 → 初稿
+        let req = parse_writeup_goal("整理成文:设定集;意图:世界观的规则");
+        assert_eq!(req.kind, "设定集");
+        assert_eq!(req.intent, "世界观的规则");
+        assert!(req.node_ids.is_empty());
+
+        // 完全缺类型/意图/卡片
+        let req = parse_writeup_goal("整理成文");
+        assert_eq!(req.kind, "初稿");
+        assert!(req.intent.is_empty());
+        assert!(req.node_ids.is_empty());
+    }
+
+    #[test]
+    fn plan_for_goal_expands_writeup_pipeline() {
+        let goal = "把画布上的 2 张卡片整理成文：总结；意图：概括核心分歧；卡片：n1,n2";
+        let plan = plan_for_goal(goal);
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("canvas.read"));
+        // 只读选中卡片
+        let node_ids = plan[0].input["nodeIds"].as_array().unwrap();
+        assert_eq!(node_ids.len(), 2);
+        // RAG 记忆注入 + 类型模板
+        let llm = &plan[1].input;
+        assert!(llm["retrieve"].as_str().unwrap().contains("核心分歧"));
+        let template = llm["promptTemplate"].as_str().unwrap();
+        assert!(template.contains("凝练成一篇简洁的总结"));
+        assert!(template.contains("{previousOutput}"));
+        // 落盘步骤：内容模板 + 需确认
+        assert_eq!(plan[2].tool.as_deref(), Some("note.create"));
+        assert!(plan[2].required_confirm);
+        assert_eq!(plan[2].input["content"], "{previousOutput}");
+    }
+
+    #[test]
+    fn writeup_template_variants_cover_all_kinds() {
+        assert!(writeup_template("大纲", "").contains("大纲"));
+        assert!(writeup_template("初稿", "").contains("一篇文章"));
+        assert!(writeup_template("设定集", "").contains("设定集"));
+        // 意图注入
+        assert!(writeup_template("大纲", "加入伏笔").contains("加入伏笔"));
+        assert!(writeup_template("大纲", "加入伏笔").contains("{previousOutput}"));
+    }
+
+    #[test]
+    fn resolve_previous_output_substitutes_llm_text() {
+        let mut outputs = HashMap::new();
+        outputs.insert(
+            "w2".into(),
+            json!({ "text": "这是生成的成文内容" }),
+        );
+        let resolved = resolve_previous_output("{previousOutput}", &outputs);
+        assert_eq!(resolved, "这是生成的成文内容");
+
+        // 无占位符 → 原样返回；空输出 → 空替换不报错
+        assert_eq!(resolve_previous_output("固定内容", &outputs), "固定内容");
+        assert_eq!(resolve_previous_output("{previousOutput}", &HashMap::new()), "");
+    }
+
+    #[test]
+    fn output_text_renders_canvas_document_as_readable_list() {
+        let doc = json!({
+            "nodes": [
+                { "id": "n1", "text": "主角动机" },
+                { "id": "n2", "text": "雨夜重逢" },
+                { "id": "n3", "text": "" }
+            ]
+        });
+        let text = output_text(&doc);
+        assert!(text.contains("- 主角动机"));
+        assert!(text.contains("- 雨夜重逢"));
+        assert!(!text.contains("n3"), "空文本节点应被过滤");
+        // 非画布值仍走 to_string 兜底
+        assert_eq!(output_text(&json!({"a": 1})), "{\"a\":1}");
     }
 }

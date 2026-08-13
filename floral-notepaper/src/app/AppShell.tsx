@@ -15,6 +15,7 @@ import { getInitialRoute } from "../features/windows/windowRoutes";
 import { syncLanguage } from "../locales";
 import { Live2DCompanionLayer } from "../features/live2d/Live2DCompanionLayer";
 import { SidebarChat } from "../features/sidebarChat";
+import { onOpenNote } from "../features/notes/openNoteEvents";
 import { renderMainView, renderSpecialRoute } from "./routeViews";
 
 export function AppShell() {
@@ -26,6 +27,8 @@ export function AppShell() {
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);
   const [currentNoteId, setCurrentNoteId] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  /** Agent 产出落盘后的待打开笔记（切到笔记视图时传给 MainWindow） */
+  const [pendingOpenNoteId, setPendingOpenNoteId] = useState<string | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -58,6 +61,14 @@ export function AppShell() {
       })
       .catch(() => {});
   }, [userId]);
+
+  /** Agent 产出落盘 → 打开笔记：切到笔记视图并记录待打开笔记 id */
+  useEffect(() => {
+    return onOpenNote((noteId) => {
+      setPendingOpenNoteId(noteId);
+      setSidebarView("main");
+    });
+  }, []);
 
   const scheduleSync = useCallback(
     (config: AppConfig) => {
@@ -184,7 +195,9 @@ export function AppShell() {
 
   const specialRouteView = renderSpecialRoute(route);
   if (specialRouteView) {
-    const content = <div className="h-full font-body text-ink overflow-hidden">{specialRouteView}</div>;
+    const content = (
+      <div className="h-full font-body text-ink overflow-hidden">{specialRouteView}</div>
+    );
 
     return (
       <ContextMenuProvider>
@@ -217,6 +230,7 @@ export function AppShell() {
               providers,
               settingsConfig,
               userId,
+              openNoteId: pendingOpenNoteId,
               onConfigChange: handleConfigChange,
               onProvidersChange: handleProvidersChange,
               onCurrentNoteChange: handleCurrentNoteChange,

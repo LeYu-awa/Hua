@@ -26,6 +26,8 @@ interface RenderMainViewParams {
   providers: ProviderConfig[];
   settingsConfig: AppConfig | null;
   userId: string | null;
+  /** Agent 产出落盘后的待打开笔记 id（切到笔记视图时传给 MainWindow） */
+  openNoteId?: string | null;
   onConfigChange: (config: AppConfig) => void;
   onProvidersChange: (providers: ProviderConfig[]) => void;
   onCurrentNoteChange: (note: { id: string; content: string }) => void;
@@ -62,6 +64,7 @@ export function renderMainView({
   providers,
   settingsConfig,
   userId,
+  openNoteId,
   onConfigChange,
   onProvidersChange,
   onCurrentNoteChange,
@@ -111,6 +114,7 @@ export function renderMainView({
   return (
     <MainWindow
       initialConfig={settingsConfig ?? undefined}
+      initialNoteId={openNoteId ?? undefined}
       onCurrentNoteChange={onCurrentNoteChange}
     />
   );

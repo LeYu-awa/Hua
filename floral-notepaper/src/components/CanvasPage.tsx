@@ -12,6 +12,7 @@ import type { ProviderConfig } from "../features/settings/types";
 import { onAgentExport, onAgentTask, recordAgentEvent } from "../features/agent/api";
 import type { AgentEventType, AgentStepStatus } from "../features/agent/types";
 import { TaskProgressPanel } from "../features/agent/TaskProgressPanel";
+import { WriteupDialog } from "../features/agent/WriteupDialog";
 import {
   buildCanvasSvg,
   downloadBlob,
@@ -63,7 +64,14 @@ const MINI_MAP_MAX = { width: 360, height: 260 };
 type MiniMapDragState =
   | { kind: "move"; startX: number; startY: number; startLeft: number; startTop: number }
   | { kind: "resize"; startX: number; startY: number; startWidth: number; startHeight: number }
-  | { kind: "viewport"; startClientX: number; startClientY: number; startPanX: number; startPanY: number; mapScale: number };
+  | {
+      kind: "viewport";
+      startClientX: number;
+      startClientY: number;
+      startPanX: number;
+      startPanY: number;
+      mapScale: number;
+    };
 
 type CanvasPointEvent = React.MouseEvent | React.PointerEvent | MouseEvent | PointerEvent;
 
@@ -107,7 +115,14 @@ function getCanvasBounds(nodes: CanvasNode[]) {
   const top = minY - padding;
   const right = maxX + padding;
   const bottom = maxY + padding;
-  return { minX: left, minY: top, maxX: right, maxY: bottom, width: right - left, height: bottom - top };
+  return {
+    minX: left,
+    minY: top,
+    maxX: right,
+    maxY: bottom,
+    width: right - left,
+    height: bottom - top,
+  };
 }
 
 function getNodeStatusClass(node: CanvasNode) {
@@ -217,7 +232,14 @@ function getMiniMapMetrics(
 
 function CanvasActionIcon({ children }: { children: ReactNode }) {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       {children}
     </svg>
   );
@@ -421,6 +443,10 @@ export function CanvasPage({
   const [exportingPng, setExportingPng] = useState(false);
   const [enhanceGoal, setEnhanceGoal] = useState<string | null>(null);
   const [enhanceVersion, setEnhanceVersion] = useState(0);
+  // ── 组卡成文（可产出 Agent）：类型选择弹窗 + 任务面板 ─────────────────────
+  const [writeupOpen, setWriteupOpen] = useState(false);
+  const [writeupGoal, setWriteupGoal] = useState<string | null>(null);
+  const [writeupVersion, setWriteupVersion] = useState(0);
 
   // ── 新手引导（ob-1 ~ ob-4）：3s 预告动画 → 四步演示 → 模板坞 → AI 唤醒 ──
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(() => {
@@ -473,7 +499,10 @@ export function CanvasPage({
   );
 
   const selectedIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
-  const marqueeRect = useMemo(() => (marqueeState ? normalizeScreenRect(marqueeState) : null), [marqueeState]);
+  const marqueeRect = useMemo(
+    () => (marqueeState ? normalizeScreenRect(marqueeState) : null),
+    [marqueeState],
+  );
   const canvasBounds = useMemo(() => getCanvasBounds(doc.nodes), [doc.nodes]);
   const viewportWorld = useMemo(() => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -520,12 +549,28 @@ export function CanvasPage({
       const maxTop = Math.max(12, (rect?.height ?? 640) - 12);
       setMiniMapState((current) => {
         if (miniMapDrag.kind === "move") {
-          const left = clamp(miniMapDrag.startLeft + event.clientX - miniMapDrag.startX, 12, maxLeft - current.width);
-          const top = clamp(miniMapDrag.startTop + event.clientY - miniMapDrag.startY, 64, maxTop - current.height);
+          const left = clamp(
+            miniMapDrag.startLeft + event.clientX - miniMapDrag.startX,
+            12,
+            maxLeft - current.width,
+          );
+          const top = clamp(
+            miniMapDrag.startTop + event.clientY - miniMapDrag.startY,
+            64,
+            maxTop - current.height,
+          );
           return { ...current, left, top };
         }
-        const width = clamp(miniMapDrag.startWidth + event.clientX - miniMapDrag.startX, MINI_MAP_MIN.width, MINI_MAP_MAX.width);
-        const height = clamp(miniMapDrag.startHeight + event.clientY - miniMapDrag.startY, MINI_MAP_MIN.height, MINI_MAP_MAX.height);
+        const width = clamp(
+          miniMapDrag.startWidth + event.clientX - miniMapDrag.startX,
+          MINI_MAP_MIN.width,
+          MINI_MAP_MAX.width,
+        );
+        const height = clamp(
+          miniMapDrag.startHeight + event.clientY - miniMapDrag.startY,
+          MINI_MAP_MIN.height,
+          MINI_MAP_MAX.height,
+        );
         return {
           ...current,
           width,
@@ -633,6 +678,13 @@ export function CanvasPage({
     setEnhanceGoal(`扩写节点 ${node.id} 的内容：${node.text}`);
     setEnhanceVersion((v) => v + 1);
   }, [selectedNodeId]);
+
+  // ── 组卡成文入口：框选卡片 → 类型选择 → Rust canvas.writeup 任务 ──────────
+  const handleWriteupStart = useCallback((goal: string) => {
+    setWriteupOpen(false);
+    setWriteupGoal(goal);
+    setWriteupVersion((v) => v + 1);
+  }, []);
 
   // ── P1-3：画布导出 PNG（自包含 SVG → 2x 光栅化 → 下载） ───────────────────
   const handleExportPng = useCallback(async () => {
@@ -823,7 +875,9 @@ export function CanvasPage({
 
   const updateNodeText = useCallback(
     (nodeId: string, text: string) => {
-      const binding = docRef.current.nodes.find((n) => n.id === nodeId && n.agentTaskId && n.agentStepId);
+      const binding = docRef.current.nodes.find(
+        (n) => n.id === nodeId && n.agentTaskId && n.agentStepId,
+      );
       commitDoc((prev) => ({
         ...prev,
         nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, text } : n)),
@@ -958,7 +1012,9 @@ export function CanvasPage({
         : [nodeContextMenu.nodeId]
       : selectedNodeIds;
     if (ids.length === 0) return;
-    const ok = window.confirm(ids.length > 1 ? `确认批量删除 ${ids.length} 张卡片？` : "确认删除该卡片？");
+    const ok = window.confirm(
+      ids.length > 1 ? `确认批量删除 ${ids.length} 张卡片？` : "确认删除该卡片？",
+    );
     if (!ok) return;
     deleteNodes(ids);
   }, [deleteNodes, nodeContextMenu, selectedIdSet, selectedNodeIds]);
@@ -1006,7 +1062,11 @@ export function CanvasPage({
     const onMove = (event: PointerEvent) => {
       if (dragState) {
         const world = toWorld(event.clientX, event.clientY);
-        updateNodePosition(dragState.nodeId, world.x - dragState.offsetX, world.y - dragState.offsetY);
+        updateNodePosition(
+          dragState.nodeId,
+          world.x - dragState.offsetX,
+          world.y - dragState.offsetY,
+        );
       } else if (panState) {
         setViewState((vs) => ({
           ...vs,
@@ -1017,7 +1077,11 @@ export function CanvasPage({
         const rect = svgRef.current?.getBoundingClientRect();
         setMarqueeState((current) =>
           current && rect
-            ? { ...current, currentX: event.clientX - rect.left, currentY: event.clientY - rect.top }
+            ? {
+                ...current,
+                currentX: event.clientX - rect.left,
+                currentY: event.clientY - rect.top,
+              }
             : current,
         );
       }
@@ -1201,9 +1265,17 @@ export function CanvasPage({
     if (onboardingPhase !== "demo") return;
     const baseline = demoBaselineRef.current;
     if (!baseline) return;
-    if (demoStep === "pan" && baseline && (Math.abs(viewState.panX - baseline.panX) > 8 || Math.abs(viewState.panY - baseline.panY) > 8)) {
+    if (
+      demoStep === "pan" &&
+      baseline &&
+      (Math.abs(viewState.panX - baseline.panX) > 8 || Math.abs(viewState.panY - baseline.panY) > 8)
+    ) {
       completeDemoStep("pan");
-    } else if (demoStep === "zoom" && baseline && Math.abs(viewState.scale - baseline.scale) > 0.01) {
+    } else if (
+      demoStep === "zoom" &&
+      baseline &&
+      Math.abs(viewState.scale - baseline.scale) > 0.01
+    ) {
       completeDemoStep("zoom");
     }
   }, [viewState, demoStep, onboardingPhase, completeDemoStep]);
@@ -1244,27 +1316,27 @@ export function CanvasPage({
     [canvasBounds, miniMapState],
   );
 
-  const beginMiniMapViewportDrag = useCallback(
-    (event: React.PointerEvent, mapScale: number) => {
-      stopCanvasEvent(event);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      setMiniMapDrag({
-        kind: "viewport",
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startPanX: viewStateRef.current.panX,
-        startPanY: viewStateRef.current.panY,
-        mapScale,
-      });
-    },
-    [],
-  );
+  const beginMiniMapViewportDrag = useCallback((event: React.PointerEvent, mapScale: number) => {
+    stopCanvasEvent(event);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setMiniMapDrag({
+      kind: "viewport",
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPanX: viewStateRef.current.panX,
+      startPanY: viewStateRef.current.panY,
+      mapScale,
+    });
+  }, []);
 
   const createAgentStepNode = useCallback(
     (payload: AgentStepDropPayload, world: { x: number; y: number }) => {
       const defaults = NODE_DEFAULTS.task;
       const label = payload.tool ?? payload.kind ?? "Agent 步骤";
-      const inputText = payload.input && Object.keys(payload.input).length > 0 ? `\n${JSON.stringify(payload.input)}` : "";
+      const inputText =
+        payload.input && Object.keys(payload.input).length > 0
+          ? `\n${JSON.stringify(payload.input)}`
+          : "";
       const node: CanvasNode = {
         id: generateId(),
         type: "task",
@@ -1315,7 +1387,11 @@ export function CanvasPage({
       if (!template) return;
       commitDoc((prev) => {
         if (prev.nodes.length === 0) {
-          return { ...prev, nodes: [...template.document.nodes], edges: [...template.document.edges] };
+          return {
+            ...prev,
+            nodes: [...template.document.nodes],
+            edges: [...template.document.edges],
+          };
         }
         const maxX = prev.nodes.reduce((m, n) => Math.max(m, n.x + n.width), 0);
         const offset = maxX + 320;
@@ -1357,7 +1433,8 @@ export function CanvasPage({
           const gap = 40;
           const count = command.count;
           // 网格列数：按可视宽度自适应，单批最多 4 列，避免网格超出画布可视区
-          const viewW = (svgRef.current?.getBoundingClientRect().width ?? 1200) / viewStateRef.current.scale;
+          const viewW =
+            (svgRef.current?.getBoundingClientRect().width ?? 1200) / viewStateRef.current.scale;
           const maxCols = Math.max(1, Math.floor((viewW - gap) / (W + gap)));
           const cols = Math.min(count, Math.max(1, Math.min(maxCols, 4)));
           const gridW = cols * W + (cols - 1) * gap;
@@ -1413,7 +1490,11 @@ export function CanvasPage({
             zIndex: -1,
           };
           commitDoc((prev) => ({ ...prev, nodes: [...prev.nodes, zoneNode] }));
-          trackCanvasEvent("canvas_shape_added", { type: "zone", label: command.label, source: "agent" });
+          trackCanvasEvent("canvas_shape_added", {
+            type: "zone",
+            label: command.label,
+            source: "agent",
+          });
           break;
         }
         case "applyPlan": {
@@ -1506,7 +1587,9 @@ export function CanvasPage({
     onAgentTask((task) => {
       if (disposed) return;
       const stepStatus = new Map(task.plan.map((step) => [step.stepId, step.status]));
-      const hasBoundNodes = docRef.current.nodes.some((node) => node.agentTaskId === task.taskId && node.agentStepId);
+      const hasBoundNodes = docRef.current.nodes.some(
+        (node) => node.agentTaskId === task.taskId && node.agentStepId,
+      );
       if (!hasBoundNodes) return;
       commitDoc((prev) => ({
         ...prev,
@@ -1742,6 +1825,19 @@ export function CanvasPage({
               {t("canvas.enhanceNode", { defaultValue: "AI 扩写" })}
             </button>
           )}
+          {agentEnabled && providers.length > 0 && selectedNodeIds.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setWriteupOpen(true)}
+              className="canvas-control-button canvas-button-ai"
+              title={t("canvas.writeupTip", {
+                defaultValue: "把选中的卡片整理成一篇文章（预览确认后落为笔记）",
+              })}
+            >
+              <SparkIcon />
+              {t("canvas.writeup", { defaultValue: "整理成文" })}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setLinkSourceNodeId(selectedNodeId)}
@@ -1754,7 +1850,9 @@ export function CanvasPage({
           </button>
           <button
             type="button"
-            onClick={() => deleteNodes(selectedNodeIds.length > 1 ? selectedNodeIds : [selectedNodeId])}
+            onClick={() =>
+              deleteNodes(selectedNodeIds.length > 1 ? selectedNodeIds : [selectedNodeId])
+            }
             className="canvas-control-button canvas-button-danger"
           >
             {t("common.delete", { defaultValue: "删除" })}
@@ -1780,6 +1878,32 @@ export function CanvasPage({
           <TaskProgressPanel key={enhanceVersion} goal={enhanceGoal} />
         </div>
       )}
+
+      {writeupGoal && (
+        <div className="absolute bottom-4 left-4 z-30 w-[360px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="canvas-panel-title">
+              {t("canvas.writeupPanel", { defaultValue: "组卡成文" })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setWriteupGoal(null)}
+              className="canvas-icon-button canvas-button-ghost"
+              aria-label={t("common.close", { defaultValue: "关闭" })}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <TaskProgressPanel key={writeupVersion} goal={writeupGoal} />
+        </div>
+      )}
+
+      <WriteupDialog
+        open={writeupOpen}
+        nodeIds={selectedNodeIds}
+        onClose={() => setWriteupOpen(false)}
+        onStart={handleWriteupStart}
+      />
 
       {saveStatus !== "idle" && saveStatus !== "saving" && (
         <div className="absolute bottom-4 right-4 z-20 px-3 py-1.5 rounded-full bg-paper/90 border border-paper-deep/30 text-[10px] text-ink-faint shadow-sm">
@@ -1807,9 +1931,7 @@ export function CanvasPage({
             {archiveSuggestions.map((suggestion, i) => (
               <div key={i} className="canvas-suggestion-card p-2">
                 <div className="canvas-panel-text font-medium">{suggestion.tag}</div>
-                <div className="canvas-panel-muted line-clamp-2 mt-0.5">
-                  {suggestion.reason}
-                </div>
+                <div className="canvas-panel-muted line-clamp-2 mt-0.5">{suggestion.reason}</div>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {suggestion.nodeIds.map((nodeId) => (
                     <button
@@ -1845,7 +1967,8 @@ export function CanvasPage({
           >
             <div className="text-[11px] text-ink-soft leading-relaxed">{c.message}</div>
             <div className="mt-1 text-[9px] text-ink-ghost/70">
-              {t("canvas.similarity", { defaultValue: "相似度" })} {(c.similarity * 100).toFixed(0)}%
+              {t("canvas.similarity", { defaultValue: "相似度" })} {(c.similarity * 100).toFixed(0)}
+              %
             </div>
             <div className="flex items-center gap-1.5 mt-1.5">
               <button
@@ -1868,42 +1991,43 @@ export function CanvasPage({
       })}
 
       {/* 场景二：语义空白区提示（浮框 + 待补充视角，可生成占位节点）*/}
-      {agent.gap && (() => {
-        const gapScreen = toScreen(agent.gap.areaHint.x, agent.gap.areaHint.y);
-        return (
-          <div
-            className="absolute z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-3 animate-fade-in"
-            style={{
-              left: Math.max(16, Math.min(gapScreen.x, 640)),
-              top: Math.max(72, Math.min(gapScreen.y, 420)),
-            }}
-          >
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <span className="canvas-panel-text">{agent.gap.message}</span>
-            <button
-              type="button"
-              onClick={agent.dismissGap}
-              className="canvas-icon-button canvas-button-ghost shrink-0"
-              aria-label={t("common.ignore", { defaultValue: "忽略" })}
+      {agent.gap &&
+        (() => {
+          const gapScreen = toScreen(agent.gap.areaHint.x, agent.gap.areaHint.y);
+          return (
+            <div
+              className="absolute z-20 w-[240px] rounded-xl bg-paper/95 backdrop-blur-sm border border-bamboo/30 shadow-lg p-3 animate-fade-in"
+              style={{
+                left: Math.max(16, Math.min(gapScreen.x, 640)),
+                top: Math.max(72, Math.min(gapScreen.y, 420)),
+              }}
             >
-              <CloseIcon />
-            </button>
-          </div>
-          <div className="space-y-1">
-            {agent.gap.missingPerspectives.map((p, i) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => agent.gap && createPerspectiveNode(p, agent.gap.areaHint, i)}
-                className="canvas-control-button canvas-button-ai w-full justify-start"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-          </div>
-        );
-      })()}
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <span className="canvas-panel-text">{agent.gap.message}</span>
+                <button
+                  type="button"
+                  onClick={agent.dismissGap}
+                  className="canvas-icon-button canvas-button-ghost shrink-0"
+                  aria-label={t("common.ignore", { defaultValue: "忽略" })}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="space-y-1">
+                {agent.gap.missingPerspectives.map((p, i) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => agent.gap && createPerspectiveNode(p, agent.gap.areaHint, i)}
+                    className="canvas-control-button canvas-button-ai w-full justify-start"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
       {/* 场景三：共识/分歧面板（分组标识 + 桥梁方案）*/}
       {agent.discussion && (
@@ -2004,140 +2128,153 @@ export function CanvasPage({
 
         <g transform={`translate(${viewState.panX}, ${viewState.panY}) scale(${viewState.scale})`}>
           {/* 超大网格矩形：锚定在远点，覆盖任意平移/缩放后的可见区域 */}
-          <rect x={-5000} y={-5000} width={10000} height={10000} fill="url(#grid)" pointerEvents="none" />
+          <rect
+            x={-5000}
+            y={-5000}
+            width={10000}
+            height={10000}
+            fill="url(#grid)"
+            pointerEvents="none"
+          />
         </g>
 
         {/* 内容层：连线/建议/节点随缩放平移变换 */}
         <g transform={`translate(${viewState.panX}, ${viewState.panY}) scale(${viewState.scale})`}>
-        {/* 连线 */}
-        {doc.edges.map((edge) => {
-          const from = doc.nodes.find((n) => n.id === edge.fromNodeId);
-          const to = doc.nodes.find((n) => n.id === edge.toNodeId);
-          if (!from || !to) return null;
-          return (
-            <line
-              key={edge.id}
-              x1={from.x + from.width / 2}
-              y1={from.y + from.height / 2}
-              x2={to.x + to.width / 2}
-              y2={to.y + to.height / 2}
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
-              className="canvas-edge-line"
-            />
-          );
-        })}
+          {/* 连线 */}
+          {doc.edges.map((edge) => {
+            const from = doc.nodes.find((n) => n.id === edge.fromNodeId);
+            const to = doc.nodes.find((n) => n.id === edge.toNodeId);
+            if (!from || !to) return null;
+            return (
+              <line
+                key={edge.id}
+                x1={from.x + from.width / 2}
+                y1={from.y + from.height / 2}
+                x2={to.x + to.width / 2}
+                y2={to.y + to.height / 2}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
+                className="canvas-edge-line"
+              />
+            );
+          })}
 
-        {/* Agent 隐含连接建议：淡色动态虚线（区别于用户连线，可忽略）*/}
-        {agent.connections.map((c) => {
-          const from = nodeById(c.sourceId);
-          const to = nodeById(c.targetId);
-          if (!from || !to) return null;
-          return (
-            <line
-              key={`sugg-${c.sourceId}-${c.targetId}`}
-              x1={from.x + from.width / 2}
-              y1={from.y + from.height / 2}
-              x2={to.x + to.width / 2}
-              y2={to.y + to.height / 2}
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeDasharray="4 5"
-              strokeLinecap="round"
-              opacity={0.55}
-              className="canvas-suggestion-edge canvas-suggestion-line pointer-events-none"
-            />
-          );
-        })}
+          {/* Agent 隐含连接建议：淡色动态虚线（区别于用户连线，可忽略）*/}
+          {agent.connections.map((c) => {
+            const from = nodeById(c.sourceId);
+            const to = nodeById(c.targetId);
+            if (!from || !to) return null;
+            return (
+              <line
+                key={`sugg-${c.sourceId}-${c.targetId}`}
+                x1={from.x + from.width / 2}
+                y1={from.y + from.height / 2}
+                x2={to.x + to.width / 2}
+                y2={to.y + to.height / 2}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeDasharray="4 5"
+                strokeLinecap="round"
+                opacity={0.55}
+                className="canvas-suggestion-edge canvas-suggestion-line pointer-events-none"
+              />
+            );
+          })}
 
-        {/* 节点（按 zIndex 升序渲染，越靠后越在上层） */}
-        {[...doc.nodes].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)).map((node) => (
-          <g
-            key={node.id}
-            transform={`translate(${node.x}, ${node.y})`}
-            onPointerDown={(e) => handleNodePointerDown(e, node.id)}
-            onContextMenu={(e) => handleNodeContextMenu(e, node.id)}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNodeClick(node.id);
-            }}
-            className="cursor-move"
-          >
-            <rect
-              width={node.width}
-              height={node.height}
-              rx={node.type === "card" ? 12 : node.source === "zone" ? 14 : 4}
-              className={`canvas-node-rect ${
-                node.source === "zone"
-                  ? "fill-bamboo-mist/20 stroke-bamboo/45"
-                  : node.source === "plan"
-                    ? "fill-transparent stroke-ink-faint/40"
-                    : selectedIdSet.has(node.id)
-                      ? "fill-canvas-card-hover stroke-bamboo"
-                      : getNodeStatusClass(node) ||
-                        (node.source === "agent"
-                          ? "fill-bamboo-mist/40 stroke-bamboo/50"
-                          : "fill-canvas-card stroke-canvas-border")
-              }`}
-              strokeWidth={selectedIdSet.has(node.id) ? 2.5 : node.agentStepStatus === "Running" ? 2 : 1}
-              strokeDasharray={
-                node.source === "zone" || node.source === "plan" || (node.source === "agent" && !selectedIdSet.has(node.id))
-                  ? "6 4"
-                  : undefined
-              }
-            />
-            <foreignObject width={node.width} height={node.height}>
-              {node.source === "zone" || node.source === "plan" ? (
-                <div className="w-full h-full flex items-center justify-center select-none">
-                  <span
-                    className={`text-[13px] font-semibold text-center ${
-                      node.source === "zone" ? "text-bamboo" : "text-ink-faint"
-                    }`}
-                  >
-                    {node.text}
-                  </span>
-                </div>
-              ) : (
-                <div className="w-full h-full p-2">
-                  {editingNodeId === node.id ? (
-                    <textarea
-                      autoFocus
-                      value={node.text}
-                      onChange={(e) => updateNodeText(node.id, e.target.value)}
-                      onBlur={() => setEditingNodeId(null)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          setEditingNodeId(null);
-                        }
-                      }}
-                      className="w-full h-full resize-none bg-transparent text-[13px] text-ink-soft leading-relaxed outline-none select-text"
-                    />
+          {/* 节点（按 zIndex 升序渲染，越靠后越在上层） */}
+          {[...doc.nodes]
+            .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+            .map((node) => (
+              <g
+                key={node.id}
+                transform={`translate(${node.x}, ${node.y})`}
+                onPointerDown={(e) => handleNodePointerDown(e, node.id)}
+                onContextMenu={(e) => handleNodeContextMenu(e, node.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNodeClick(node.id);
+                }}
+                className="cursor-move"
+              >
+                <rect
+                  width={node.width}
+                  height={node.height}
+                  rx={node.type === "card" ? 12 : node.source === "zone" ? 14 : 4}
+                  className={`canvas-node-rect ${
+                    node.source === "zone"
+                      ? "fill-bamboo-mist/20 stroke-bamboo/45"
+                      : node.source === "plan"
+                        ? "fill-transparent stroke-ink-faint/40"
+                        : selectedIdSet.has(node.id)
+                          ? "fill-canvas-card-hover stroke-bamboo"
+                          : getNodeStatusClass(node) ||
+                            (node.source === "agent"
+                              ? "fill-bamboo-mist/40 stroke-bamboo/50"
+                              : "fill-canvas-card stroke-canvas-border")
+                  }`}
+                  strokeWidth={
+                    selectedIdSet.has(node.id) ? 2.5 : node.agentStepStatus === "Running" ? 2 : 1
+                  }
+                  strokeDasharray={
+                    node.source === "zone" ||
+                    node.source === "plan" ||
+                    (node.source === "agent" && !selectedIdSet.has(node.id))
+                      ? "6 4"
+                      : undefined
+                  }
+                />
+                <foreignObject width={node.width} height={node.height}>
+                  {node.source === "zone" || node.source === "plan" ? (
+                    <div className="w-full h-full flex items-center justify-center select-none">
+                      <span
+                        className={`text-[13px] font-semibold text-center ${
+                          node.source === "zone" ? "text-bamboo" : "text-ink-faint"
+                        }`}
+                      >
+                        {node.text}
+                      </span>
+                    </div>
                   ) : (
-                    <div
-                      onDoubleClick={() => setEditingNodeId(node.id)}
-                      className="relative w-full h-full text-[13px] text-ink-soft leading-relaxed whitespace-pre-wrap overflow-hidden"
-                    >
-                      {node.agentStepStatus && (
-                        <span className="absolute right-0 top-0 rounded-full bg-paper/85 px-1.5 py-0.5 text-[10px] font-medium text-bamboo shadow-sm">
-                          {getNodeStatusLabel(node.agentStepStatus)}
-                        </span>
+                    <div className="w-full h-full p-2">
+                      {editingNodeId === node.id ? (
+                        <textarea
+                          autoFocus
+                          value={node.text}
+                          onChange={(e) => updateNodeText(node.id, e.target.value)}
+                          onBlur={() => setEditingNodeId(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              setEditingNodeId(null);
+                            }
+                          }}
+                          className="w-full h-full resize-none bg-transparent text-[13px] text-ink-soft leading-relaxed outline-none select-text"
+                        />
+                      ) : (
+                        <div
+                          onDoubleClick={() => setEditingNodeId(node.id)}
+                          className="relative w-full h-full text-[13px] text-ink-soft leading-relaxed whitespace-pre-wrap overflow-hidden"
+                        >
+                          {node.agentStepStatus && (
+                            <span className="absolute right-0 top-0 rounded-full bg-paper/85 px-1.5 py-0.5 text-[10px] font-medium text-bamboo shadow-sm">
+                              {getNodeStatusLabel(node.agentStepStatus)}
+                            </span>
+                          )}
+                          <div className={node.agentStepStatus ? "pr-12" : undefined}>
+                            {node.text || (
+                              <span className="canvas-empty-text">
+                                {t("canvas.doubleClickToEdit", { defaultValue: "双击编辑" })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       )}
-                      <div className={node.agentStepStatus ? "pr-12" : undefined}>
-                        {node.text || (
-                          <span className="canvas-empty-text">
-                            {t("canvas.doubleClickToEdit", { defaultValue: "双击编辑" })}
-                          </span>
-                        )}
-                      </div>
                     </div>
                   )}
-                </div>
-              )}
-            </foreignObject>
-          </g>
-        ))}
+                </foreignObject>
+              </g>
+            ))}
         </g>
       </svg>
 
@@ -2217,7 +2354,13 @@ export function CanvasPage({
                 jumpMiniMapTo(event.clientX, event.clientY);
               }}
             >
-              <rect x={0} y={0} width={miniMapState.width} height={miniMapState.height - headerH} fill="transparent" />
+              <rect
+                x={0}
+                y={0}
+                width={miniMapState.width}
+                height={miniMapState.height - headerH}
+                fill="transparent"
+              />
               {doc.nodes.map((node) => (
                 <rect
                   key={`mini-${node.id}`}
@@ -2226,7 +2369,13 @@ export function CanvasPage({
                   width={Math.max(3, node.width * scale)}
                   height={Math.max(3, node.height * scale)}
                   rx={2}
-                  className={selectedIdSet.has(node.id) ? "fill-bamboo" : node.agentStepStatus ? "fill-bamboo/60" : "fill-ink-faint/45"}
+                  className={
+                    selectedIdSet.has(node.id)
+                      ? "fill-bamboo"
+                      : node.agentStepStatus
+                        ? "fill-bamboo/60"
+                        : "fill-ink-faint/45"
+                  }
                 />
               ))}
               <rect
@@ -2277,7 +2426,9 @@ export function CanvasPage({
             activeStep={demoStep}
             completedSteps={completedSteps}
             demoAnchor={demoAnchor}
-            highlight={stepDef?.target === "toolbar" ? "toolbar" : stepDef?.target === "node" ? "node" : null}
+            highlight={
+              stepDef?.target === "toolbar" ? "toolbar" : stepDef?.target === "node" ? "node" : null
+            }
             templatesVisible={!templatesDismissed}
             onIntroDone={() => {
               markOnboardingSeen();

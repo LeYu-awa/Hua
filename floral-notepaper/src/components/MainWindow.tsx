@@ -4,7 +4,10 @@ import { useTranslation } from "react-i18next";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { exportMarkdownNote, importMarkdownNote } from "../features/importExport/api";
-import { NoteEditorWorkspace, type SaveState } from "../features/editor/components/NoteEditorWorkspace";
+import {
+  NoteEditorWorkspace,
+  type SaveState,
+} from "../features/editor/components/NoteEditorWorkspace";
 import {
   getLineChangeStats,
   type NoteChangeHistoryEntry,
@@ -44,6 +47,7 @@ import type { ExternalFile, Note, NoteMetadata } from "../features/notes/types";
 import {
   filterNotes,
   getDisplayTitle,
+  getFileExtension,
   groupNotesByCategory,
   metadataFromNote,
 } from "../features/notes/noteUtils";
@@ -80,6 +84,8 @@ interface MainWindowProps {
   initialSettingsOpen?: boolean;
   initialConfig?: AppConfig;
   initialErrorMessage?: string | null;
+  /** Agent 产出落盘后的待打开笔记（切到笔记视图时传入，挂载即打开） */
+  initialNoteId?: string;
   onCurrentNoteChange?: (note: { id: string; content: string }) => void;
 }
 
@@ -87,6 +93,7 @@ export function MainWindow({
   initialSettingsOpen = false,
   initialConfig = undefined,
   initialErrorMessage = null,
+  initialNoteId,
   onCurrentNoteChange,
 }: MainWindowProps = {}) {
   const { t } = useTranslation();
@@ -211,6 +218,11 @@ export function MainWindow({
   }, [noteChangeHistory]);
 
   const isExternal = selectedExternalFile !== null;
+  const selectedNoteExtension = selectedNote
+    ? getFileExtension(selectedNote.fileName).toLowerCase()
+    : "";
+  const isSelectedManagedAttachment =
+    selectedNote !== null && selectedNoteExtension !== "" && selectedNoteExtension !== ".md";
 
   const recordNoteChange = useCallback(
     (entry: Omit<NoteChangeHistoryEntry, "id" | "createdAt" | "additions" | "removals">) => {
@@ -223,7 +235,9 @@ export function MainWindow({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         createdAt: Date.now(),
       };
-      setNoteChangeHistory((current) => [nextEntry, ...current].slice(0, NOTE_CHANGE_HISTORY_LIMIT));
+      setNoteChangeHistory((current) =>
+        [nextEntry, ...current].slice(0, NOTE_CHANGE_HISTORY_LIMIT),
+      );
     },
     [],
   );
@@ -346,6 +360,7 @@ export function MainWindow({
           {
             id: filePath,
             title: displayTitle,
+            fileName,
             filePath,
           },
         ];
@@ -380,9 +395,14 @@ export function MainWindow({
         setNotes(loadedNotes);
         setCategories(loadedCategories);
         setCollapsedCategories(new Set([...loadedCategories, ""]));
-        if (loadedNotes[0]) {
-          const note = await getNote(loadedNotes[0].id);
-          if (!cancelled) applyNote(note, { preserveDirty: true });
+        // Agent 产出落盘 → 优先打开指定笔记（组卡成文闭环），否则打开第一篇
+        const targetId = initialNoteId ?? loadedNotes[0]?.id;
+        if (targetId) {
+          const note = await getNote(targetId);
+          if (!cancelled) {
+            applyNote(note, { preserveDirty: true });
+            replaceNoteMetadata(note);
+          }
         } else {
           clearCurrentNote();
         }
@@ -404,7 +424,7 @@ export function MainWindow({
     return () => {
       cancelled = true;
     };
-  }, [applyNote, clearCurrentNote]);
+  }, [applyNote, clearCurrentNote, initialNoteId]);
 
   useEffect(() => {
     let unlisten: Promise<() => void> | null = null;
@@ -442,6 +462,7 @@ export function MainWindow({
                 //#endregion
                 setTitle(note.title);
                 setContent(note.content);
+                replaceNoteMetadata(note);
                 setSaveState("saved");
               })
               .catch(() => undefined);
@@ -460,7 +481,7 @@ export function MainWindow({
     return () => {
       void unlisten?.then((fn) => fn());
     };
-  }, [refreshNotes, loadNote, clearCurrentNote]);
+  }, [refreshNotes, loadNote, clearCurrentNote, replaceNoteMetadata]);
 
   useEffect(() => {
     function handleFocus() {
@@ -629,6 +650,11 @@ export function MainWindow({
       }
     }
 
+    if (isSelectedManagedAttachment) {
+      setSaveState("saved");
+      return null;
+    }
+
     setSaveState("saving");
     const latestContent = contentRefValue.current;
     //#region debug-point save-current-note-start
@@ -669,6 +695,7 @@ export function MainWindow({
     }
   }, [
     isExternal,
+    isSelectedManagedAttachment,
     onCurrentNoteChange,
     recordNoteChange,
     replaceNoteMetadata,
@@ -953,6 +980,7 @@ export function MainWindow({
       await exportMarkdownNote({
         id: note.id,
         title: note.id === selectedId ? title : note.title,
+        fileName: note.fileName,
       });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -1049,11 +1077,11 @@ export function MainWindow({
   };
 
   const markDirty = () => {
-    if (selectedId) setSaveState("dirty");
+    if (selectedId && !isSelectedManagedAttachment) setSaveState("dirty");
   };
 
   const ensureNoteSaved = useCallback(async (): Promise<string | null> => {
-    if (selectedId) return selectedId;
+    if (selectedId || isSelectedManagedAttachment) return selectedId;
     try {
       const note = await createNote({ title, content, category: activeCategory });
       replaceNoteMetadata(note);
@@ -1062,7 +1090,15 @@ export function MainWindow({
     } catch {
       return null;
     }
-  }, [selectedId, title, content, activeCategory, replaceNoteMetadata, applyNote]);
+  }, [
+    selectedId,
+    isSelectedManagedAttachment,
+    title,
+    content,
+    activeCategory,
+    replaceNoteMetadata,
+    applyNote,
+  ]);
 
   const handleOpenNotepad = async () => {
     setErrorMessage(null);
@@ -1208,7 +1244,7 @@ export function MainWindow({
                     <path d="m7 10 5 5 5-5" />
                     <path d="M5 21h14" />
                   </svg>
-                  <span>{t("main.sidebar.importMarkdown", { defaultValue: "导入 Markdown" })}</span>
+                  <span>{t("main.sidebar.importFile", { defaultValue: "导入文件" })}</span>
                 </button>
               </div>
 
@@ -1302,7 +1338,7 @@ export function MainWindow({
                               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                               <path d="M14 2v6h6" />
                             </svg>
-                            <span className="note-tree-name">{file.title}</span>
+                            <span className="note-tree-name">{getDisplayTitle(file, t)}</span>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1321,7 +1357,9 @@ export function MainWindow({
                   )}
 
                   {categoryGroups.map((group: CategoryGroup) => {
-                    const displayCategory = group.category || t("main.category.uncategorized", { defaultValue: "未分类" });
+                    const displayCategory =
+                      group.category ||
+                      t("main.category.uncategorized", { defaultValue: "未分类" });
                     const isCollapsed = collapsedCategories.has(group.category);
                     const isDropTarget = dragOverCategory === group.category;
 
@@ -1415,7 +1453,9 @@ export function MainWindow({
                               className="note-tree-rename-input"
                             />
                           ) : (
-                            <span className="note-tree-name note-tree-folder-name">{displayCategory}</span>
+                            <span className="note-tree-name note-tree-folder-name">
+                              {displayCategory}
+                            </span>
                           )}
                           <span className="note-tree-count">{group.notes.length}</span>
                         </div>
@@ -1440,7 +1480,11 @@ export function MainWindow({
                                       e.dataTransfer.setData("text/plain", note.id);
                                       e.dataTransfer.setData(
                                         "application/x-floral-note",
-                                        JSON.stringify({ type: "note", id: note.id, title: note.title || "笔记" }),
+                                        JSON.stringify({
+                                          type: "note",
+                                          id: note.id,
+                                          title: note.title || "笔记",
+                                        }),
                                       );
                                       e.dataTransfer.effectAllowed = "move";
                                     }}
@@ -1469,7 +1513,9 @@ export function MainWindow({
                                       <path d="M8 13h8" />
                                       <path d="M8 17h5" />
                                     </svg>
-                                    <span className="note-tree-name">{getDisplayTitle(note, t)}</span>
+                                    <span className="note-tree-name">
+                                      {getDisplayTitle(note, t)}
+                                    </span>
                                   </div>
                                 );
                               })

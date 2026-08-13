@@ -27,10 +27,7 @@ export function recordAgentEvents(events: AgentEventInput[]): Promise<AgentEvent
   return invoke("agent_record_events", { events });
 }
 
-export function listAgentEvents(
-  conversationId: string,
-  limit?: number,
-): Promise<AgentEvent[]> {
+export function listAgentEvents(conversationId: string, limit?: number): Promise<AgentEvent[]> {
   return invoke("agent_list_events", { conversationId, limit });
 }
 
@@ -38,9 +35,7 @@ export function listAgentCanvasNodes(conversationId: string): Promise<AgentCanva
   return invoke("agent_list_canvas_nodes", { conversationId });
 }
 
-export function analyzeAgentConversation(
-  conversationId: string,
-): Promise<AgentAnalysisResult> {
+export function analyzeAgentConversation(conversationId: string): Promise<AgentAnalysisResult> {
   return invoke("agent_analyze_conversation", { conversationId });
 }
 
@@ -102,7 +97,10 @@ export function getAgentTask(taskId: string): Promise<AgentTask | null> {
   return invoke("agent_task_get", { taskId });
 }
 
-export function listAgentTasks(limit?: number, status?: AgentTaskStatus | null): Promise<AgentTask[]> {
+export function listAgentTasks(
+  limit?: number,
+  status?: AgentTaskStatus | null,
+): Promise<AgentTask[]> {
   return invoke("agent_task_list", { limit, status });
 }
 
@@ -117,9 +115,15 @@ export function deleteAgentTask(taskId: string): Promise<boolean> {
   return invoke("agent_task_delete", { taskId });
 }
 
-/** 确认/拒绝待确认步骤：ok=true 标记确认并恢复执行，ok=false 取消该步骤与任务 */
-export function confirmAgentTask(taskId: string, stepId: string, ok: boolean): Promise<AgentTask> {
-  return invoke("agent_task_confirm", { taskId, stepId, ok });
+/** 确认/拒绝待确认步骤：ok=true 标记确认并恢复执行，ok=false 取消该步骤与任务。
+ *  payload 可选：确认 note.create 步骤时可携带 { title?, content? } 覆盖落盘内容（产出预览编辑后落盘）。 */
+export function confirmAgentTask(
+  taskId: string,
+  stepId: string,
+  ok: boolean,
+  payload?: { title?: string; content?: string },
+): Promise<AgentTask> {
+  return invoke("agent_task_confirm", { taskId, stepId, ok, payload });
 }
 
 /** 列出全部产品 Agent 技能（技能注册表，供技能面板/对话侧选择） */
@@ -136,9 +140,8 @@ export function onAgentStep(callback: (event: AgentStepEvent) => void): Promise<
 export function onAgentAwaitingConfirm(
   callback: (event: AgentAwaitingConfirmEvent) => void,
 ): Promise<UnlistenFn> {
-  return listen<AgentAwaitingConfirmEvent>(
-    "agent.awaiting_confirm",
-    (payload) => callback(payload.payload),
+  return listen<AgentAwaitingConfirmEvent>("agent.awaiting_confirm", (payload) =>
+    callback(payload.payload),
   );
 }
 
