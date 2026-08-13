@@ -20,6 +20,13 @@ vi.mock("../features/agent/api", () => ({
   onAgentExport: () => Promise.resolve(() => undefined),
 }));
 
+const { mockOpenNote } = vi.hoisted(() => ({
+  mockOpenNote: vi.fn(),
+}));
+vi.mock("../features/notes/openNoteEvents", () => ({
+  dispatchOpenNote: (noteId: string) => mockOpenNote(noteId),
+}));
+
 import { CanvasPage } from "./CanvasPage";
 import {
   AI_REQUEST_EVENT,
@@ -259,7 +266,11 @@ describe("CanvasPage — SVG 画布接线", () => {
 
       fireEvent.click(screen.getByText("文本")); // canvas_shape_added
       expect(mockRecordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ eventType: "canvas_shape_added", conversationId: "demo", userId: "u1" }),
+        expect.objectContaining({
+          eventType: "canvas_shape_added",
+          conversationId: "demo",
+          userId: "u1",
+        }),
       );
 
       // 连线：先选中源节点、进入连线模式再点目标节点 → canvas_binding_added
@@ -310,7 +321,13 @@ describe("CanvasPage — SVG 画布接线", () => {
       const contentLayerBefore = container.querySelectorAll('g[transform*="scale"]')[1];
       const before = contentLayerBefore?.getAttribute("transform");
 
-      fireEvent.pointerDown(screen.getByTestId("canvas-minimap-map"), { clientX: 120, clientY: 120, button: 0, pointerId: 1, pointerType: "mouse" });
+      fireEvent.pointerDown(screen.getByTestId("canvas-minimap-map"), {
+        clientX: 120,
+        clientY: 120,
+        button: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
 
       const contentLayerAfter = container.querySelectorAll('g[transform*="scale"]')[1];
       expect(contentLayerAfter?.getAttribute("transform")).not.toBe(before);
@@ -329,7 +346,12 @@ describe("CanvasPage — SVG 画布接线", () => {
         pointerId: 2,
         pointerType: "mouse",
       });
-      fireEvent.pointerMove(window, { clientX: 190, clientY: 155, pointerId: 2, pointerType: "mouse" });
+      fireEvent.pointerMove(window, {
+        clientX: 190,
+        clientY: 155,
+        pointerId: 2,
+        pointerType: "mouse",
+      });
       fireEvent.pointerUp(window, { pointerId: 2, pointerType: "mouse" });
 
       const contentLayerAfter = container.querySelectorAll('g[transform*="scale"]')[1];
@@ -340,12 +362,27 @@ describe("CanvasPage — SVG 画布接线", () => {
       const { container } = renderCanvas();
       await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
       const bg = screen.getByTestId("canvas-bg");
-      const beforePan = container.querySelectorAll('g[transform*="scale"]')[1]?.getAttribute("transform");
+      const beforePan = container
+        .querySelectorAll('g[transform*="scale"]')[1]
+        ?.getAttribute("transform");
 
-      fireEvent.pointerDown(bg, { clientX: 120, clientY: 120, button: 0, pointerId: 7, pointerType: "touch" });
-      fireEvent.pointerMove(window, { clientX: 180, clientY: 170, pointerId: 7, pointerType: "touch" });
+      fireEvent.pointerDown(bg, {
+        clientX: 120,
+        clientY: 120,
+        button: 0,
+        pointerId: 7,
+        pointerType: "touch",
+      });
+      fireEvent.pointerMove(window, {
+        clientX: 180,
+        clientY: 170,
+        pointerId: 7,
+        pointerType: "touch",
+      });
       fireEvent.pointerUp(window, { pointerId: 7, pointerType: "touch" });
-      const afterPan = container.querySelectorAll('g[transform*="scale"]')[1]?.getAttribute("transform");
+      const afterPan = container
+        .querySelectorAll('g[transform*="scale"]')[1]
+        ?.getAttribute("transform");
       expect(afterPan).not.toBe(beforePan);
 
       const beforeMiniMap = afterPan;
@@ -356,9 +393,16 @@ describe("CanvasPage — SVG 画布接线", () => {
         pointerId: 8,
         pointerType: "touch",
       });
-      fireEvent.pointerMove(window, { clientX: 175, clientY: 140, pointerId: 8, pointerType: "touch" });
+      fireEvent.pointerMove(window, {
+        clientX: 175,
+        clientY: 140,
+        pointerId: 8,
+        pointerType: "touch",
+      });
       fireEvent.pointerUp(window, { pointerId: 8, pointerType: "touch" });
-      const afterMiniMap = container.querySelectorAll('g[transform*="scale"]')[1]?.getAttribute("transform");
+      const afterMiniMap = container
+        .querySelectorAll('g[transform*="scale"]')[1]
+        ?.getAttribute("transform");
       expect(afterMiniMap).not.toBe(beforeMiniMap);
     });
 
@@ -368,11 +412,24 @@ describe("CanvasPage — SVG 画布接线", () => {
       const nodeG = screen.getByText("用户需要实时同步").closest("g") as SVGGElement;
       const before = nodeG.getAttribute("transform");
 
-      fireEvent.pointerDown(nodeG, { clientX: 120, clientY: 160, button: 0, pointerId: 3, pointerType: "mouse" });
-      fireEvent.pointerMove(window, { clientX: 260, clientY: 260, pointerId: 3, pointerType: "mouse" });
+      fireEvent.pointerDown(nodeG, {
+        clientX: 120,
+        clientY: 160,
+        button: 0,
+        pointerId: 3,
+        pointerType: "mouse",
+      });
+      fireEvent.pointerMove(window, {
+        clientX: 260,
+        clientY: 260,
+        pointerId: 3,
+        pointerType: "mouse",
+      });
       fireEvent.pointerUp(window, { pointerId: 3, pointerType: "mouse" });
 
-      const movedNode = Array.from(container.querySelectorAll("g")).find((g) => g.textContent?.includes("用户需要实时同步"));
+      const movedNode = Array.from(container.querySelectorAll("g")).find((g) =>
+        g.textContent?.includes("用户需要实时同步"),
+      );
       expect(movedNode?.getAttribute("transform")).not.toBe(before);
     });
 
@@ -383,8 +440,19 @@ describe("CanvasPage — SVG 画布接线", () => {
       const contentLayerBefore = container.querySelectorAll('g[transform*="scale"]')[1];
       const before = contentLayerBefore?.getAttribute("transform");
 
-      fireEvent.pointerDown(bg, { clientX: 100, clientY: 100, button: 1, pointerId: 1, pointerType: "mouse" });
-      fireEvent.pointerMove(window, { clientX: 180, clientY: 150, pointerId: 1, pointerType: "mouse" });
+      fireEvent.pointerDown(bg, {
+        clientX: 100,
+        clientY: 100,
+        button: 1,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
+      fireEvent.pointerMove(window, {
+        clientX: 180,
+        clientY: 150,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
       fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse" });
 
       const contentLayerAfter = container.querySelectorAll('g[transform*="scale"]')[1];
@@ -396,8 +464,20 @@ describe("CanvasPage — SVG 画布接线", () => {
       await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
       const bg = screen.getByTestId("canvas-bg");
 
-      fireEvent.pointerDown(bg, { clientX: 20, clientY: 120, button: 0, ctrlKey: true, pointerId: 1, pointerType: "mouse" });
-      fireEvent.pointerMove(window, { clientX: 330, clientY: 470, pointerId: 1, pointerType: "mouse" });
+      fireEvent.pointerDown(bg, {
+        clientX: 20,
+        clientY: 120,
+        button: 0,
+        ctrlKey: true,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
+      fireEvent.pointerMove(window, {
+        clientX: 330,
+        clientY: 470,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
       expect(screen.getByTestId("canvas-marquee")).toBeTruthy();
       fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse" });
 
@@ -414,8 +494,18 @@ describe("CanvasPage — SVG 画布接线", () => {
       vi.spyOn(window, "confirm").mockReturnValueOnce(true);
       const initial = nodeGroupCount(container);
 
-      fireEvent.pointerDown(screen.getByText("用户需要实时同步"), { ctrlKey: true, button: 0, pointerId: 1, pointerType: "mouse" });
-      fireEvent.pointerDown(screen.getByText("成本估算"), { ctrlKey: true, button: 0, pointerId: 2, pointerType: "mouse" });
+      fireEvent.pointerDown(screen.getByText("用户需要实时同步"), {
+        ctrlKey: true,
+        button: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
+      fireEvent.pointerDown(screen.getByText("成本估算"), {
+        ctrlKey: true,
+        button: 0,
+        pointerId: 2,
+        pointerType: "mouse",
+      });
       fireEvent.contextMenu(screen.getByText("成本估算"), { clientX: 240, clientY: 180 });
       fireEvent.click(screen.getByText("批量删除"));
 
@@ -437,7 +527,8 @@ describe("CanvasPage — SVG 画布接线", () => {
       };
       const dataTransfer = {
         types: ["application/x-floral-agent-step"],
-        getData: (type: string) => (type === "application/x-floral-agent-step" ? JSON.stringify(data) : ""),
+        getData: (type: string) =>
+          type === "application/x-floral-agent-step" ? JSON.stringify(data) : "",
       };
 
       fireEvent.dragOver(bg, { dataTransfer });
@@ -515,8 +606,19 @@ describe("CanvasPage — SVG 画布接线", () => {
 
       // 步骤一：中键拖拽画布（背景按下 → 移动 → 松开）
       const bg = container.querySelector('[data-testid="canvas-bg"]') as SVGRectElement;
-      fireEvent.pointerDown(bg, { clientX: 100, clientY: 100, button: 1, pointerId: 1, pointerType: "mouse" });
-      fireEvent.pointerMove(window, { clientX: 190, clientY: 150, pointerId: 1, pointerType: "mouse" });
+      fireEvent.pointerDown(bg, {
+        clientX: 100,
+        clientY: 100,
+        button: 1,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
+      fireEvent.pointerMove(window, {
+        clientX: 190,
+        clientY: 150,
+        pointerId: 1,
+        pointerType: "mouse",
+      });
       fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse" });
       await waitFor(() => expect(screen.getByText("缩放视图")).toBeTruthy());
 
@@ -532,8 +634,19 @@ describe("CanvasPage — SVG 画布接线", () => {
       // 注意：jsdom 对 svg 根元素直接派发 mousemove/mouseup 不触发 React 合成事件，
       // 三连事件均派发在节点 <g>（svg 子元素）上，经冒泡到 svg 的 onMouseMove/onMouseUp
       const nodeG = screen.getByText("用户需要实时同步").closest("g") as SVGGElement;
-      fireEvent.pointerDown(nodeG, { clientX: 120, clientY: 160, button: 0, pointerId: 4, pointerType: "mouse" });
-      fireEvent.pointerMove(window, { clientX: 260, clientY: 260, pointerId: 4, pointerType: "mouse" });
+      fireEvent.pointerDown(nodeG, {
+        clientX: 120,
+        clientY: 160,
+        button: 0,
+        pointerId: 4,
+        pointerType: "mouse",
+      });
+      fireEvent.pointerMove(window, {
+        clientX: 260,
+        clientY: 260,
+        pointerId: 4,
+        pointerType: "mouse",
+      });
       fireEvent.pointerUp(window, { pointerId: 4, pointerType: "mouse" });
 
       // 四步完成：进入完成态，且不自动唤醒 AI（引导仅提供手动发起入口）
@@ -551,3 +664,148 @@ describe("CanvasPage — SVG 画布接线", () => {
   });
 });
 
+describe("CanvasPage — 卡片增强（P0-1：待办/资源/颜色标签/分组）", () => {
+  const metaDoc: CanvasDocument = {
+    id: "canvas-meta",
+    noteId: "demo",
+    nodes: [
+      { ...nd("t1", 40, 150, "写第一章初稿"), type: "task" },
+      { ...nd("r1", 400, 150, "人物设定资料"), type: "resource", noteId: "note-abc" },
+      { ...nd("c1", 40, 360, "灵感：雨夜重逢"), type: "card", color: "#c28060", tags: ["灵感"] },
+      { ...nd("n1", 400, 360, "普通文本"), type: "text" },
+    ],
+    edges: [],
+  };
+
+  function renderMeta() {
+    return render(
+      <CanvasPage
+        documentId="canvas-meta"
+        noteId="demo"
+        providers={PROVIDERS}
+        agentEnabled
+        initialDocument={metaDoc}
+        conversationId="demo"
+        userId="u1"
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    mockOpenNote.mockClear();
+  });
+
+  it("task 待办卡：点击勾选切换完成态并落盘", async () => {
+    renderMeta();
+    await waitFor(() => expect(screen.getByText("写第一章初稿")).toBeTruthy());
+
+    fireEvent.click(screen.getByTitle("标记完成"));
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalled());
+    const saved = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
+    const task = saved.nodes.find((n) => n.id === "t1");
+    expect(task?.done).toBe(true);
+  });
+
+  it("resource 资源卡：双击打开关联笔记", async () => {
+    renderMeta();
+    await waitFor(() => expect(screen.getByText("人物设定资料")).toBeTruthy());
+
+    fireEvent.doubleClick(screen.getByText("人物设定资料"));
+
+    expect(mockOpenNote).toHaveBeenCalledWith("note-abc");
+  });
+
+  it("card 灵感卡：属性面板可设颜色并落盘", async () => {
+    renderMeta();
+    await waitFor(() => expect(screen.getByText("灵感：雨夜重逢")).toBeTruthy());
+
+    // pointerDown 选中卡片（选中发生在 pointerDown 而非 click）
+    const cardG = screen.getByText("灵感：雨夜重逢").closest("g") as SVGGElement;
+    fireEvent.pointerDown(cardG, {
+      clientX: 60,
+      clientY: 380,
+      button: 0,
+      pointerId: 11,
+      pointerType: "mouse",
+    });
+    fireEvent.pointerUp(window, { pointerId: 11, pointerType: "mouse" });
+    await waitFor(() => expect(screen.getByText("属性")).toBeTruthy());
+    fireEvent.click(screen.getByText("属性"));
+
+    // 点第二个色块（#7aa65c）
+    const swatches = document.querySelectorAll("button[aria-label^='#']");
+    expect(swatches.length).toBeGreaterThan(0);
+    fireEvent.click(swatches[1]);
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalled());
+    const saved = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
+    const card = saved.nodes.find((n) => n.id === "c1");
+    expect(card?.color).toBe("#7aa65c");
+  });
+
+  it("新建分组：选中的节点归入新分组并落盘", async () => {
+    renderMeta();
+    await waitFor(() => expect(screen.getByText("写第一章初稿")).toBeTruthy());
+
+    // ctrl+pointerDown 多选两个节点（画布用 ctrl/meta 作为多选修饰键）
+    const tG = screen.getByText("写第一章初稿").closest("g") as SVGGElement;
+    fireEvent.pointerDown(tG, {
+      clientX: 60,
+      clientY: 170,
+      button: 0,
+      pointerId: 21,
+      pointerType: "mouse",
+    });
+    const nG = screen.getByText("普通文本").closest("g") as SVGGElement;
+    fireEvent.pointerDown(nG, {
+      clientX: 420,
+      clientY: 380,
+      button: 0,
+      pointerId: 22,
+      pointerType: "mouse",
+      ctrlKey: true,
+    });
+    fireEvent.pointerUp(window, { pointerId: 21, pointerType: "mouse" });
+    fireEvent.pointerUp(window, { pointerId: 22, pointerType: "mouse" });
+
+    await waitFor(() => expect(screen.getByText("已选 2 张")).toBeTruthy());
+    fireEvent.click(screen.getByText("分组"));
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalled());
+    const saved = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
+    expect(saved.groups?.length).toBe(1);
+    expect(saved.groups?.[0].title).toContain("分组");
+    expect(saved.nodes.find((n) => n.id === "t1")?.group).toBe(saved.groups?.[0].id);
+    expect(saved.nodes.find((n) => n.id === "n1")?.group).toBe(saved.groups?.[0].id);
+  });
+
+  it("右键菜单可把节点移到分组", async () => {
+    renderMeta();
+    await waitFor(() => expect(screen.getByText("写第一章初稿")).toBeTruthy());
+
+    // 先建一个分组（pointerDown 选中普通文本）
+    const nG = screen.getByText("普通文本").closest("g") as SVGGElement;
+    fireEvent.pointerDown(nG, {
+      clientX: 420,
+      clientY: 380,
+      button: 0,
+      pointerId: 31,
+      pointerType: "mouse",
+    });
+    fireEvent.pointerUp(window, { pointerId: 31, pointerType: "mouse" });
+    fireEvent.click(screen.getByText("分组"));
+    await waitFor(() => expect(mockSave).toHaveBeenCalled());
+
+    // 右键任务节点 → 移到分组（右键会顺带选中该节点）
+    const tG = screen.getByText("写第一章初稿").closest("g") as SVGGElement;
+    fireEvent.contextMenu(tG, { clientX: 60, clientY: 170 });
+    await waitFor(() => expect(screen.getByText("移到分组")).toBeTruthy());
+    const groupTitle = screen.getByText(/^分组 \d+$/);
+    fireEvent.click(groupTitle);
+
+    await waitFor(() => expect(mockSave.mock.calls.length).toBeGreaterThan(1));
+    const saved = mockSave.mock.calls.at(-1)?.[0] as CanvasDocument;
+    expect(saved.nodes.find((n) => n.id === "t1")?.group).toBe(saved.groups?.[0].id);
+  });
+});

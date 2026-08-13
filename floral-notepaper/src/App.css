@@ -9,8 +9,8 @@
 }
 
 @theme {
-  --color-paper: #F6F8FB;
-  --color-paper-warm: #F0F3F6;
+  --color-paper: #f6f8fb;
+  --color-paper-warm: #f0f3f6;
   --color-paper-deep: #e2e8f0;
   --color-ink: #171717;
   --color-ink-soft: #4f4f4f;
@@ -21,9 +21,9 @@
   --color-bamboo-mist: #e0efe5;
   --color-bamboo-glow: #c8e6d2;
   --color-stone: #6b6b62;
-  --color-cloud: #FAFCFF;
+  --color-cloud: #fafcff;
   --color-canvas-card: #ffffff;
-  --color-canvas-card-hover: #F0F3F6;
+  --color-canvas-card-hover: #f0f3f6;
   --color-canvas-border: #d0d0d0;
   --color-canvas-grid: rgba(0, 0, 0, 0.06);
   --color-shadow: rgba(0, 0, 0, 0.04);
@@ -998,6 +998,27 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
     stroke var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
+/* ── 分组/泳道（P0-1）：泳道背景、标题条、折叠遮罩 ────────────────── */
+.canvas-group-lane {
+  fill: color-mix(in srgb, var(--color-bamboo) 5%, transparent);
+  stroke: color-mix(in srgb, var(--ui-control-muted) 30%, transparent);
+}
+
+.canvas-group-title {
+  fill: color-mix(in srgb, var(--color-bamboo) 12%, var(--ui-surface));
+  stroke: color-mix(in srgb, var(--color-bamboo) 28%, transparent);
+}
+
+.canvas-group-title-text {
+  fill: var(--ui-control-text);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.canvas-group-collapsed {
+  fill: color-mix(in srgb, var(--ui-surface) 72%, transparent);
+}
+
 .canvas-node-body,
 .canvas-node-editor {
   color: var(--ui-control-text);
@@ -1020,7 +1041,8 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
 
 /* ── 新手引导（ob-1/ob-3）：演示回放的背景网格与动作动画 ─────────────── */
 .canvas-demo-grid {
-  background-image: linear-gradient(var(--color-canvas-grid) 1px, transparent 1px),
+  background-image:
+    linear-gradient(var(--color-canvas-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-canvas-grid) 1px, transparent 1px);
   background-size: 24px 24px;
 }
@@ -2771,14 +2793,27 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
 }
 
 @keyframes bongo-celebrate {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  40% { transform: translateY(-8px) rotate(-3deg); }
-  70% { transform: translateY(-5px) rotate(3deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  40% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+  70% {
+    transform: translateY(-5px) rotate(3deg);
+  }
 }
 
 @keyframes yuno-carousel-fade {
-  from { opacity: 0; transform: translateY(2px) scale(0.98); }
-  to { opacity: 0.88; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 0.88;
+    transform: translateY(0) scale(1);
+  }
 }
 
 html.companion-transparent-window,

@@ -21,6 +21,18 @@ export interface CanvasNode {
   agentStepStatus?: CanvasAgentStepStatus;
   agentStepKind?: string;
   agentTool?: string | null;
+  /** 所属分组 id（分组/泳道） */
+  group?: string | null;
+  /** 卡片颜色标记（card 灵感卡） */
+  color?: string | null;
+  /** 卡片标签（card 灵感卡） */
+  tags?: string[];
+  /** task 待办卡完成态 */
+  done?: boolean | null;
+  /** task 待办卡截止日期（YYYY-MM-DD） */
+  dueDate?: string | null;
+  /** resource 资源卡关联笔记 id（双击打开对应笔记） */
+  noteId?: string | null;
 }
 
 export interface CanvasEdge {

@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 
 use super::notes::AppError;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasNode {
     pub id: String,
@@ -20,6 +20,24 @@ pub struct CanvasNode {
     /// z 序（越大越靠前）；旧数据无此字段时默认 0
     #[serde(default)]
     pub z_index: i32,
+    /// 所属分组 id（分组/泳道）；旧数据无此字段时默认 None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// 卡片颜色标记（card 灵感卡）；默认 None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    /// 卡片标签（card 灵感卡）；默认空
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// task 待办卡完成态；默认 None（未设置）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub done: Option<bool>,
+    /// task 待办卡截止日期（YYYY-MM-DD）；默认 None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub due_date: Option<String>,
+    /// resource 资源卡关联笔记 id；双击可打开对应笔记；默认 None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -251,6 +269,7 @@ mod tests {
                     text: "A".into(),
                     source: None,
                     z_index: 0,
+                    ..CanvasNode::default()
                 },
                 CanvasNode {
                     id: "b".into(),
@@ -262,6 +281,7 @@ mod tests {
                     text: "B".into(),
                     source: None,
                     z_index: 0,
+                    ..CanvasNode::default()
                 },
             ],
             edges: vec![],
@@ -312,6 +332,7 @@ mod tests {
             text: "决定先做实时同步 MVP\n\n— 来自聊天".into(),
             source: Some("agent".into()),
             z_index: 0,
+            ..CanvasNode::default()
         });
         store.save(doc).unwrap();
 

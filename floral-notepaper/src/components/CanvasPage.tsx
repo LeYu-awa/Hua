@@ -36,6 +36,28 @@ import {
   type OnboardingPhase,
 } from "../features/canvas/onboarding/types";
 import { getTemplateById } from "../features/canvas/onboarding/templates";
+import { dispatchOpenNote } from "../features/notes/openNoteEvents";
+import { listNotes } from "../features/notes/api";
+
+/** 卡片颜色标记可选值（card 灵感卡） */
+const NODE_COLORS = ["#c28060", "#7aa65c", "#8aa2c2", "#c2a45c", "#a67aa8", "#6f9aa8"];
+
+/** 归一化画布文档：兼容 Rust serde 省略空数组/None 字段（旧数据 & 新数据） */
+function normalizeDoc(doc: CanvasDocument): CanvasDocument {
+  return {
+    ...doc,
+    groups: doc.groups ?? [],
+    nodes: (doc.nodes ?? []).map((node) => ({
+      ...node,
+      tags: node.tags ?? [],
+      color: node.color ?? null,
+      done: node.done ?? false,
+      dueDate: node.dueDate ?? null,
+      group: node.group ?? null,
+      noteId: node.noteId ?? null,
+    })),
+  };
+}
 
 interface CanvasPageProps {
   documentId: string;
@@ -285,6 +307,31 @@ function TaskIcon() {
   );
 }
 
+function GroupIcon() {
+  return (
+    <CanvasActionIcon>
+      <rect x="2.8" y="2.8" width="10.6" height="6.2" rx="1.6" />
+      <rect x="2.8" y="11" width="10.6" height="6.2" rx="1.6" opacity="0.55" />
+      <path d="M6.8 5.9h3" opacity="0.7" />
+      <path d="M6.8 14.1h3" opacity="0.4" />
+    </CanvasActionIcon>
+  );
+}
+
+function SlidersIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M4 6.5h9" />
+      <circle cx="15.5" cy="6.5" r="1.6" />
+      <path d="M4 12h4" />
+      <circle cx="10.5" cy="12" r="1.6" />
+      <path d="M14 12h5" />
+      <circle cx="7.5" cy="17.5" r="1.6" />
+      <path d="M11 17.5h8" />
+    </CanvasActionIcon>
+  );
+}
+
 function SaveIcon() {
   return (
     <CanvasActionIcon>
@@ -447,6 +494,12 @@ export function CanvasPage({
   const [writeupOpen, setWriteupOpen] = useState(false);
   const [writeupGoal, setWriteupGoal] = useState<string | null>(null);
   const [writeupVersion, setWriteupVersion] = useState(0);
+  // ── 卡片增强（P0-1）：分组/泳道折叠 + resource 笔记列表 ────────────────────
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [noteOptions, setNoteOptions] = useState<{ id: string; title: string }[]>([]);
+  /** 节点属性面板：编辑 task 截止日期 / card 颜色标签 / resource 绑定笔记 */
+  const [nodeMetaPanelId, setNodeMetaPanelId] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
 
   // ── 新手引导（ob-1 ~ ob-4）：3s 预告动画 → 四步演示 → 模板坞 → AI 唤醒 ──
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(() => {
@@ -629,6 +682,101 @@ export function CanvasPage({
     setSaveStatus("idle");
   }, []);
 
+  // ── 卡片增强（P0-1）：分组/泳道 + task 待办 + resource 打开笔记 + card 颜色标签 ──
+  useEffect(() => {
+    let cancelled = false;
+    listNotes()
+      .then((notes) => {
+        if (!cancelled) {
+          setNoteOptions(notes.map((note) => ({ id: note.id, title: note.title })));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 局部更新单个节点（颜色/标签/待办/分组/笔记绑定等） */
+  const patchNode = useCallback(
+    (nodeId: string, patch: Partial<CanvasNode>) => {
+      commitDoc((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
+      }));
+    },
+    [commitDoc],
+  );
+
+  /** task 待办卡：切换完成态 */
+  const toggleTaskDone = useCallback(
+    (nodeId: string) => {
+      const node = docRef.current.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      patchNode(nodeId, { done: !node.done });
+    },
+    [patchNode],
+  );
+
+  /** 新建分组：把当前选中节点归入新组 */
+  const createGroupFromSelection = useCallback(() => {
+    const selected = selectedNodeIds;
+    const id = `group-${Date.now()}`;
+    commitDoc((prev) => ({
+      ...prev,
+      groups: [
+        ...(prev.groups ?? []),
+        { id, title: `分组 ${(prev.groups?.length ?? 0) + 1}`, nodeIds: selected },
+      ],
+      nodes: prev.nodes.map((node) => (selected.includes(node.id) ? { ...node, group: id } : node)),
+    }));
+  }, [selectedNodeIds, commitDoc]);
+
+  /** 把选中的节点移到指定分组（groupId 为空则移出分组） */
+  const moveNodesToGroup = useCallback(
+    (groupId: string | null) => {
+      const targets = selectedNodeIds.length > 0 ? selectedNodeIds : [selectedNodeId ?? ""];
+      const ids = new Set(targets.filter(Boolean));
+      if (ids.size === 0) return;
+      commitDoc((prev) => {
+        // 同步分组成员列表
+        const groups = (prev.groups ?? []).map((group) => {
+          const member = ids.has(group.id);
+          const nodeIds = member
+            ? [...new Set([...group.nodeIds, ...targets])]
+            : group.nodeIds.filter((id) => !ids.has(id));
+          return { ...group, nodeIds };
+        });
+        return {
+          ...prev,
+          groups,
+          nodes: prev.nodes.map((node) => (ids.has(node.id) ? { ...node, group: groupId } : node)),
+        };
+      });
+    },
+    [selectedNodeIds, selectedNodeId, commitDoc],
+  );
+
+  /** 分组折叠/展开 */
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
+  /** resource 资源卡：打开关联笔记 */
+  const openResourceNote = useCallback((nodeId: string) => {
+    const node = docRef.current.nodes.find((n) => n.id === nodeId);
+    if (!node?.noteId) return;
+    dispatchOpenNote(node.noteId);
+  }, []);
+
   const undo = useCallback(() => {
     const prev = undoStackRef.current[undoStackRef.current.length - 1];
     if (!prev) return;
@@ -715,8 +863,8 @@ export function CanvasPage({
           redoStackRef.current = [];
           dragStartSnapshotRef.current = null;
           dirtyRef.current = false;
-          docRef.current = loaded;
-          setDoc(loaded);
+          docRef.current = normalizeDoc(loaded);
+          setDoc(docRef.current);
           setHistoryState({ canUndo: false, canRedo: false });
         })
         .catch(() => {});
@@ -821,8 +969,8 @@ export function CanvasPage({
         redoStackRef.current = [];
         dragStartSnapshotRef.current = null;
         dirtyRef.current = false;
-        docRef.current = loaded;
-        setDoc(loaded);
+        docRef.current = normalizeDoc(loaded);
+        setDoc(docRef.current);
         setHistoryState({ canUndo: false, canRedo: false });
         setSaveStatus("idle");
       })
@@ -838,8 +986,8 @@ export function CanvasPage({
         redoStackRef.current = [];
         dragStartSnapshotRef.current = null;
         dirtyRef.current = false;
-        docRef.current = fallback;
-        setDoc(fallback);
+        docRef.current = normalizeDoc(fallback);
+        setDoc(docRef.current);
         setHistoryState({ canUndo: false, canRedo: false });
         setSaveStatus("idle");
       })
@@ -1681,6 +1829,18 @@ export function CanvasPage({
         </button>
         <button
           type="button"
+          onClick={createGroupFromSelection}
+          disabled={selectedNodeIds.length === 0}
+          className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.createGroupTip", {
+            defaultValue: "把选中的卡片收进一个新分组（泳道）",
+          })}
+        >
+          <GroupIcon />
+          {t("canvas.createGroup", { defaultValue: "分组" })}
+        </button>
+        <button
+          type="button"
           onClick={() => void handleSave()}
           disabled={saveStatus === "saving"}
           className="canvas-control-button canvas-button-primary"
@@ -1838,6 +1998,23 @@ export function CanvasPage({
               {t("canvas.writeup", { defaultValue: "整理成文" })}
             </button>
           )}
+          {selectedNodeIds.length <= 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setNodeMetaPanelId((prev) => (prev === selectedNodeId ? null : selectedNodeId));
+                const node = doc.nodes.find((n) => n.id === selectedNodeId);
+                setTagDraft((node?.tags ?? []).join("，"));
+              }}
+              className="canvas-control-button canvas-button-secondary"
+              title={t("canvas.nodeMetaTip", {
+                defaultValue: "编辑卡片属性（任务截止 / 颜色标签 / 绑定笔记）",
+              })}
+            >
+              <SlidersIcon />
+              {t("canvas.nodeMeta", { defaultValue: "属性" })}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setLinkSourceNodeId(selectedNodeId)}
@@ -1904,6 +2081,120 @@ export function CanvasPage({
         onClose={() => setWriteupOpen(false)}
         onStart={handleWriteupStart}
       />
+
+      {/* 节点属性面板：按类型编辑专属元数据 */}
+      {nodeMetaPanelId &&
+        (() => {
+          const metaNode = doc.nodes.find((n) => n.id === nodeMetaPanelId) ?? null;
+          if (!metaNode) return null;
+          const isTask = metaNode.type === "task";
+          const isCard = metaNode.type === "card";
+          const isResource = metaNode.type === "resource";
+          return (
+            <div className="absolute right-4 top-20 z-30 w-[240px] rounded-2xl border border-paper-deep/25 bg-paper/95 p-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
+              <div className="flex items-center justify-between mb-2">
+                <span className="canvas-panel-title">
+                  {t("canvas.nodeMeta", { defaultValue: "卡片属性" })} · {metaNode.type}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNodeMetaPanelId(null)}
+                  className="canvas-icon-button canvas-button-ghost"
+                  aria-label={t("common.close", { defaultValue: "关闭" })}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              {isTask && (
+                <label className="block text-[11px] text-ink-ghost">
+                  {t("canvas.dueDate", { defaultValue: "截止日期" })}
+                  <input
+                    type="date"
+                    value={metaNode.dueDate ?? ""}
+                    onChange={(e) => patchNode(metaNode.id, { dueDate: e.target.value || null })}
+                    className="mt-1 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none focus:border-ink-ghost/40"
+                  />
+                </label>
+              )}
+
+              {isCard && (
+                <>
+                  <div className="text-[11px] text-ink-ghost mb-1">
+                    {t("canvas.color", { defaultValue: "颜色" })}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {NODE_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() =>
+                          patchNode(metaNode.id, { color: metaNode.color === color ? null : color })
+                        }
+                        className={`h-5 w-5 rounded-full border transition-transform cursor-pointer ${
+                          metaNode.color === color
+                            ? "scale-110 border-ink"
+                            : "border-paper-deep/40 hover:scale-110"
+                        }`}
+                        style={{ backgroundColor: color }}
+                        aria-label={color}
+                      />
+                    ))}
+                  </div>
+                  <label className="mt-2 block text-[11px] text-ink-ghost">
+                    {t("canvas.tags", { defaultValue: "标签（逗号分隔）" })}
+                    <input
+                      value={tagDraft}
+                      onChange={(e) => setTagDraft(e.target.value)}
+                      onBlur={() =>
+                        patchNode(metaNode.id, {
+                          tags: tagDraft
+                            .split(/[,，]/)
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder={t("canvas.tagsPlaceholder", {
+                        defaultValue: "灵感，世界观，角色",
+                      })}
+                      className="mt-1 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none placeholder:text-ink-ghost/50 focus:border-ink-ghost/40"
+                    />
+                  </label>
+                </>
+              )}
+
+              {isResource && (
+                <label className="block text-[11px] text-ink-ghost">
+                  {t("canvas.linkNote", { defaultValue: "关联笔记" })}
+                  <select
+                    value={metaNode.noteId ?? ""}
+                    onChange={(e) => patchNode(metaNode.id, { noteId: e.target.value || null })}
+                    className="mt-1 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none cursor-pointer"
+                  >
+                    <option value="">
+                      {t("canvas.linkNoteNone", { defaultValue: "（未关联）" })}
+                    </option>
+                    {noteOptions.map((note) => (
+                      <option key={note.id} value={note.id}>
+                        {note.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {isResource && metaNode.noteId && (
+                <button
+                  type="button"
+                  onClick={() => openResourceNote(metaNode.id)}
+                  className="mt-2 w-full rounded-lg bg-ink-soft px-3 py-1.5 text-[11px] font-medium text-paper hover:opacity-90 cursor-pointer"
+                >
+                  {t("canvas.openNote", { defaultValue: "打开笔记" })} ↗
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
       {saveStatus !== "idle" && saveStatus !== "saving" && (
         <div className="absolute bottom-4 right-4 z-20 px-3 py-1.5 rounded-full bg-paper/90 border border-paper-deep/30 text-[10px] text-ink-faint shadow-sm">
@@ -2182,6 +2473,69 @@ export function CanvasPage({
             );
           })}
 
+          {/* 分组/泳道：背景泳道 + 标题 + 折叠（点在泳道上会透传到下层，标题可点击折叠） */}
+          {(doc.groups ?? []).map((group) => {
+            const memberNodes = doc.nodes.filter(
+              (n) => n.group === group.id || group.nodeIds.includes(n.id),
+            );
+            if (memberNodes.length === 0) return null;
+            const minX = Math.min(...memberNodes.map((n) => n.x)) - 16;
+            const minY = Math.min(...memberNodes.map((n) => n.y)) - 34;
+            const maxX = Math.max(...memberNodes.map((n) => n.x + n.width)) + 16;
+            const maxY = Math.max(...memberNodes.map((n) => n.y + n.height)) + 16;
+            const collapsed = collapsedGroups.has(group.id);
+            return (
+              <g key={group.id} className="canvas-group-layer">
+                <rect
+                  x={minX}
+                  y={minY}
+                  width={maxX - minX}
+                  height={maxY - minY}
+                  rx={12}
+                  className="canvas-group-lane"
+                  strokeWidth="1"
+                  strokeDasharray="5 4"
+                  pointerEvents="none"
+                />
+                <g
+                  className="cursor-pointer select-none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleGroupCollapsed(group.id);
+                  }}
+                >
+                  <rect
+                    x={minX}
+                    y={minY - 20}
+                    width={maxX - minX}
+                    height={20}
+                    rx={6}
+                    className="canvas-group-title"
+                  />
+                  <text
+                    x={minX + 10}
+                    y={minY - 6}
+                    fontSize="11"
+                    className="canvas-group-title-text"
+                  >
+                    {collapsed ? "▸" : "▾"} {group.title}（{memberNodes.length}）
+                  </text>
+                </g>
+                {collapsed && (
+                  <rect
+                    x={minX}
+                    y={minY}
+                    width={maxX - minX}
+                    height={maxY - minY}
+                    rx={12}
+                    className="canvas-group-collapsed"
+                    pointerEvents="none"
+                  />
+                )}
+              </g>
+            );
+          })}
+
           {/* 节点（按 zIndex 升序渲染，越靠后越在上层） */}
           {[...doc.nodes]
             .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
@@ -2224,6 +2578,18 @@ export function CanvasPage({
                       : undefined
                   }
                 />
+                {/* card 灵感卡：左侧颜色条 */}
+                {node.color && node.type === "card" && (
+                  <rect
+                    x={0}
+                    y={5}
+                    width={4}
+                    height={node.height - 10}
+                    rx={2}
+                    fill={node.color}
+                    pointerEvents="none"
+                  />
+                )}
                 <foreignObject width={node.width} height={node.height}>
                   {node.source === "zone" || node.source === "plan" ? (
                     <div className="w-full h-full flex items-center justify-center select-none">
@@ -2253,7 +2619,14 @@ export function CanvasPage({
                         />
                       ) : (
                         <div
-                          onDoubleClick={() => setEditingNodeId(node.id)}
+                          onDoubleClick={(e) => {
+                            if (node.type === "resource" && node.noteId) {
+                              e.preventDefault();
+                              openResourceNote(node.id);
+                              return;
+                            }
+                            setEditingNodeId(node.id);
+                          }}
                           className="relative w-full h-full text-[13px] text-ink-soft leading-relaxed whitespace-pre-wrap overflow-hidden"
                         >
                           {node.agentStepStatus && (
@@ -2261,13 +2634,73 @@ export function CanvasPage({
                               {getNodeStatusLabel(node.agentStepStatus)}
                             </span>
                           )}
-                          <div className={node.agentStepStatus ? "pr-12" : undefined}>
-                            {node.text || (
-                              <span className="canvas-empty-text">
-                                {t("canvas.doubleClickToEdit", { defaultValue: "双击编辑" })}
-                              </span>
+                          <div
+                            className={[
+                              node.agentStepStatus ? "pr-12" : "",
+                              node.type === "task" ? "pl-4" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                          >
+                            {/* task 待办卡：勾选切换完成态 */}
+                            {node.type === "task" && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleTaskDone(node.id);
+                                }}
+                                title={
+                                  node.done
+                                    ? t("canvas.taskUndone", { defaultValue: "标记未完成" })
+                                    : t("canvas.taskDone", { defaultValue: "标记完成" })
+                                }
+                                className="absolute left-0 top-0 mt-0.5 grid h-4 w-4 place-items-center rounded border border-paper-deep/50 bg-paper/70 text-[10px] leading-none text-bamboo hover:border-bamboo/50 cursor-pointer"
+                              >
+                                {node.done ? "✓" : ""}
+                              </button>
                             )}
+                            <span className={node.done ? "line-through opacity-60" : undefined}>
+                              {node.text || (
+                                <span className="canvas-empty-text">
+                                  {t("canvas.doubleClickToEdit", { defaultValue: "双击编辑" })}
+                                </span>
+                              )}
+                            </span>
                           </div>
+                          {/* task：截止日期 */}
+                          {node.type === "task" && node.dueDate && (
+                            <span className="absolute bottom-1 right-1 rounded bg-paper/85 px-1 py-px text-[9px] text-ink-ghost">
+                              {t("canvas.dueDateLabel", { defaultValue: "截止" })} {node.dueDate}
+                            </span>
+                          )}
+                          {/* resource：打开关联笔记 */}
+                          {node.type === "resource" && node.noteId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openResourceNote(node.id);
+                              }}
+                              title={t("canvas.openNote", { defaultValue: "打开笔记" })}
+                              className="absolute right-0 top-0 grid h-4 w-4 place-items-center rounded bg-paper/85 text-[10px] text-bamboo hover:bg-bamboo/15 cursor-pointer"
+                            >
+                              ↗
+                            </button>
+                          )}
+                          {/* card：标签徽章 */}
+                          {(node.tags ?? []).length > 0 && (
+                            <div className="absolute bottom-1 left-1 right-1 flex flex-wrap gap-0.5">
+                              {(node.tags ?? []).slice(0, 3).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded bg-paper/85 px-1 py-px text-[9px] text-ink-faint"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2293,19 +2726,88 @@ export function CanvasPage({
 
       {nodeContextMenu && (
         <div
-          className="absolute z-40 min-w-[150px] rounded-xl border border-paper-deep/30 bg-paper/95 p-1.5 text-[12px] text-ink-soft shadow-xl backdrop-blur"
+          className="absolute z-40 min-w-[170px] rounded-xl border border-paper-deep/30 bg-paper/95 p-1.5 text-[12px] text-ink-soft shadow-xl backdrop-blur"
           style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
-          <button
-            type="button"
-            onClick={confirmBatchDelete}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-coral transition hover:bg-coral/10"
-          >
-            <span>{selectedNodeIds.length > 1 ? "批量删除" : "删除卡片"}</span>
-            <span className="text-[10px] text-ink-ghost">{selectedNodeIds.length}</span>
-          </button>
+          {(() => {
+            const menuNode = doc.nodes.find((n) => n.id === nodeContextMenu.nodeId) ?? null;
+            const isTask = menuNode?.type === "task";
+            const canOpenNote = menuNode?.type === "resource" && Boolean(menuNode.noteId);
+            return (
+              <>
+                {canOpenNote && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openResourceNote(nodeContextMenu.nodeId);
+                      setNodeContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition hover:bg-paper-warm/60"
+                  >
+                    <span>{t("canvas.openNote", { defaultValue: "打开笔记" })}</span>
+                    <span className="text-[10px] text-ink-ghost">↗</span>
+                  </button>
+                )}
+                {isTask && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleTaskDone(nodeContextMenu.nodeId);
+                      setNodeContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition hover:bg-paper-warm/60"
+                  >
+                    <span>
+                      {menuNode?.done
+                        ? t("canvas.taskUndone", { defaultValue: "标记未完成" })
+                        : t("canvas.taskDone", { defaultValue: "标记完成" })}
+                    </span>
+                    <span className="text-[10px] text-ink-ghost">{menuNode?.done ? "◌" : "✓"}</span>
+                  </button>
+                )}
+                <div className="px-2.5 pt-1.5 text-[10px] text-ink-ghost">
+                  {t("canvas.moveToGroup", { defaultValue: "移到分组" })}
+                </div>
+                {(doc.groups ?? []).map((group) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => {
+                      moveNodesToGroup(group.id);
+                      setNodeContextMenu(null);
+                    }}
+                    className={`flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left transition hover:bg-paper-warm/60 ${
+                      menuNode?.group === group.id ? "text-bamboo" : ""
+                    }`}
+                  >
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-bamboo/70" />
+                    <span className="truncate">{group.title}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    moveNodesToGroup(null);
+                    setNodeContextMenu(null);
+                  }}
+                  className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-ink-ghost transition hover:bg-paper-warm/60"
+                >
+                  {t("canvas.ungroup", { defaultValue: "移出分组" })}
+                </button>
+                <div className="my-1 border-t border-paper-deep/15" />
+                <button
+                  type="button"
+                  onClick={confirmBatchDelete}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-coral transition hover:bg-coral/10"
+                >
+                  <span>{selectedNodeIds.length > 1 ? "批量删除" : "删除卡片"}</span>
+                  <span className="text-[10px] text-ink-ghost">{selectedNodeIds.length}</span>
+                </button>
+              </>
+            );
+          })()}
         </div>
       )}
 

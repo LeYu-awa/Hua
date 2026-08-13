@@ -821,6 +821,7 @@ impl<'a> TaskRunner<'a> {
                     text: content.to_string(),
                     source: Some("agent".to_string()),
                     z_index: 0,
+                    ..CanvasNode::default()
                 };
                 doc.nodes.push(node.clone());
                 canvas.save(doc)?;
@@ -1277,6 +1278,7 @@ pub fn canvas_write_back(
             text: trimmed.to_string(),
             source: Some("agent".to_string()),
             z_index: 0,
+            ..CanvasNode::default()
         });
     }
     canvas.save(doc.clone())?;
@@ -1792,10 +1794,10 @@ mod tests {
             note_id: None,
             co_write_session_id: None,
             nodes: vec![
-                CanvasNode { id: "n1".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "a".into(), source: None, z_index: 0 },
-                CanvasNode { id: "n2".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "b".into(), source: None, z_index: 0 },
-                CanvasNode { id: "n3".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "c".into(), source: None, z_index: 0 },
-                CanvasNode { id: "n4".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "d".into(), source: None, z_index: 0 },
+                CanvasNode { id: "n1".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "a".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                CanvasNode { id: "n2".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "b".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                CanvasNode { id: "n3".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "c".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                CanvasNode { id: "n4".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "d".into(), source: None, z_index: 0, ..CanvasNode::default() },
             ],
             edges: vec![],
             groups: vec![],
@@ -1895,6 +1897,7 @@ mod tests {
                         text: "旧内容".into(),
                         source: None,
                         z_index: 0,
+                        ..CanvasNode::default()
                     },
                     CanvasNode {
                         id: "n2".into(),
@@ -1906,6 +1909,7 @@ mod tests {
                         text: "不动".into(),
                         source: None,
                         z_index: 0,
+                        ..CanvasNode::default()
                     },
                 ],
                 edges: vec![],
@@ -1979,6 +1983,7 @@ mod tests {
                     text: "原始节点".into(),
                     source: None,
                     z_index: 0,
+                    ..CanvasNode::default()
                 }],
                 edges: vec![],
                 groups: vec![],

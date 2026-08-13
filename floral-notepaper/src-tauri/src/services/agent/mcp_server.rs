@@ -197,6 +197,7 @@ impl FloralMcp {
             text: params.content,
             source: Some("agent".to_string()),
             z_index: 0,
+            ..CanvasNode::default()
         };
         doc.nodes.push(node.clone());
         canvas.save(doc).map_err(|e| e.to_string())?;
