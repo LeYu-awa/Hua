@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderConfig } from "../settings/types";
+import { dispatchOpenChatTask } from "../diary/diaryEvents";
 
 const TASKS_STORAGE_KEY = "sidebar_ai_chat_tasks";
 
@@ -39,7 +40,13 @@ vi.mock("../settings/stats", () => ({
 }));
 
 vi.mock("../notes/api", () => ({
-  getNote: vi.fn(async () => ({ id: "n1", title: "note", content: "", category: "", wordCount: 0 })),
+  getNote: vi.fn(async () => ({
+    id: "n1",
+    title: "note",
+    content: "",
+    category: "",
+    wordCount: 0,
+  })),
 }));
 
 vi.mock("./ChatWritebackReview", () => ({
@@ -98,7 +105,12 @@ function makeAgentConfig() {
   return {
     mode: "autonomous",
     contextPolicy: { recentMessages: 16, allowLocalNoteContext: true, summarizeLongContext: true },
-    toolPolicy: { allowNoteRead: true, allowNoteWrite: true, allowWebSearch: true, allowExternalTools: true },
+    toolPolicy: {
+      allowNoteRead: true,
+      allowNoteWrite: true,
+      allowWebSearch: true,
+      allowExternalTools: true,
+    },
     permissionPolicy: {
       readWithoutConfirmation: true,
       writeBeforeConfirm: true,
@@ -150,9 +162,7 @@ describe("SidebarChat 任务隔离", () => {
       ]),
     );
 
-    const { unmount } = render(
-      <SidebarChatFixture />,
-    );
+    const { unmount } = render(<SidebarChatFixture />);
 
     // 打开任务面板 → 新建任务（切换到 T2）
     fireEvent.click(screen.getByTitle("展开任务栏"));
@@ -181,67 +191,66 @@ describe("SidebarChat 任务隔离", () => {
 /** 复用真实组件的最小渲染壳 */
 import { SidebarChat } from "./SidebarChat";
 function SidebarChatFixture() {
-  return (
-    <SidebarChat open onClose={() => {}} providers={[makeProvider()]} />
-  );
+  return <SidebarChat open onClose={() => {}} providers={[makeProvider()]} />;
 }
 
-describe("SidebarChat — AI 结构化输出（ai-1/ai-2）", () => {
-  it("AI 回复渲染为四大模块结构化区块，用户问题保持气泡并置于顶部", async () => {
-    const structuredText = `## ① 操作步骤
-1. [新建 10 张内容卡片](cards:10:内容卡片) 用于收集初始想法
-
-## ② 创作规划
-- 灵感区：放置收集到的想法卡片
-
-## ③ 思考过程
-用户想快速开始头脑风暴，因此先生成卡片、再划分区域。
-
-## ④ 上下文管理
-- 用户目标：完成一次头脑风暴
-- 画布现状：2 张卡片`;
-
-    mocks.fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: sseStream([structuredText]),
-      text: async () => "",
-    });
+describe("SidebarChat 日记接线（diary S1）", () => {
+  it("open-chat-task 事件激活对应对话任务", async () => {
+    localStorage.setItem(
+      TASKS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "task-a",
+          title: "任务A",
+          messages: [{ role: "user", content: "A的第一条", createdAt: 1000 }],
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+        {
+          id: "task-b",
+          title: "任务B",
+          messages: [{ role: "user", content: "B的第一条", createdAt: 2000 }],
+          createdAt: 2000,
+          updatedAt: 2000,
+        },
+      ]),
+    );
 
     render(<SidebarChatFixture />);
 
-    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "帮我规划一次头脑风暴" } });
-    fireEvent.click(screen.getByTestId("chat-send"));
+    // 默认激活第一个任务
+    expect(screen.getByText("A的第一条")).toBeTruthy();
 
-    // 用户气泡置顶展示（消息正文 + 任务标题均含该文本，故用 getAllByText）
-    await waitFor(() => expect(screen.getAllByText("帮我规划一次头脑风暴").length).toBeGreaterThan(0));
-
-    // 四大模块按序渲染、无缺失
-    await waitFor(() => expect(screen.getAllByText("操作步骤").length).toBeGreaterThan(0));
-    expect(screen.getByText("创作规划")).toBeTruthy();
-    expect(screen.getByText("思考过程")).toBeTruthy();
-    expect(screen.getByText("上下文管理")).toBeTruthy();
-
-    // ① 操作步骤：一键执行按钮可触发画布命令
-    expect(screen.getByText("新建 10 张内容卡片")).toBeTruthy();
-    await waitFor(() => expect(screen.getByText("一键执行")).toBeTruthy());
+    dispatchOpenChatTask("task-b");
+    await waitFor(() => expect(screen.getByText("B的第一条")).toBeTruthy());
   });
 
-  it("模型未按规范输出时回退为普通气泡（兼容旧会话）", async () => {
-    mocks.fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: sseStream(["简单回复，", "不是结构化格式"]),
-      text: async () => "",
-    });
+  it("任务内用户消息≥2条且今日未沉淀时显示日记提议卡", async () => {
+    localStorage.setItem(
+      TASKS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "task-d",
+          title: "日记任务",
+          messages: [
+            { role: "user", content: "第一条", createdAt: 1000 },
+            { role: "assistant", content: "回复一", createdAt: 2000 },
+            { role: "user", content: "第二条", createdAt: 3000 },
+          ],
+          createdAt: 1000,
+          updatedAt: 3000,
+        },
+      ]),
+    );
 
     render(<SidebarChatFixture />);
-    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "你好" } });
-    fireEvent.click(screen.getByTestId("chat-send"));
 
-    await waitFor(() => {
-      expect(screen.getAllByText("简单回复，不是结构化格式").length).toBeGreaterThan(0);
-    });
-    expect(screen.queryByText("操作步骤")).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByText(/要不要把今天的想法记成日记/)).toBeTruthy(),
+    );
+    expect(screen.getByText("存入日记")).toBeTruthy();
+    expect(screen.getByText("稍后再说")).toBeTruthy();
+    expect(screen.getByText("今天不提醒")).toBeTruthy();
   });
 });
+

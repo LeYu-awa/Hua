@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
 
-export type AppView = "home" | "main" | "settings" | "canvas" | "garden" | "profile" | "studio" | "community";
+export type AppView =
+  | "home"
+  | "main"
+  | "settings"
+  | "canvas"
+  | "diary"
+  | "garden"
+  | "profile"
+  | "studio"
+  | "community";
 
 interface AppSidebarProps {
   activeView: AppView;
@@ -66,7 +75,10 @@ function SettingsIcon({ size = 20 }: { size?: number }) {
   return (
     <IconShell size={size}>
       <path d="M12 8.3a3.7 3.7 0 1 1 0 7.4 3.7 3.7 0 0 1 0-7.4Z" />
-      <path d="M18.05 9.35 19.3 7.8l-1.95-2.05-1.62 1.13a7.36 7.36 0 0 0-1.7-.7L13.65 4h-3.3l-.38 2.18c-.6.17-1.18.4-1.7.7L6.65 5.75 4.7 7.8l1.25 1.55a7.62 7.62 0 0 0-.7 1.68L3.2 11.5v2.95l2.05.48c.17.6.4 1.16.7 1.67L4.7 18.2l1.95 2.05 1.62-1.13c.52.3 1.1.53 1.7.7l.38 2.18h3.3l.38-2.18c.6-.17 1.18-.4 1.7-.7l1.62 1.13 1.95-2.05-1.25-1.6c.3-.51.53-1.07.7-1.67l2.05-.48V11.5l-2.05-.47a7.62 7.62 0 0 0-.7-1.68Z" opacity="0.62" />
+      <path
+        d="M18.05 9.35 19.3 7.8l-1.95-2.05-1.62 1.13a7.36 7.36 0 0 0-1.7-.7L13.65 4h-3.3l-.38 2.18c-.6.17-1.18.4-1.7.7L6.65 5.75 4.7 7.8l1.25 1.55a7.62 7.62 0 0 0-.7 1.68L3.2 11.5v2.95l2.05.48c.17.6.4 1.16.7 1.67L4.7 18.2l1.95 2.05 1.62-1.13c.52.3 1.1.53 1.7.7l.38 2.18h3.3l.38-2.18c.6-.17 1.18-.4 1.7-.7l1.62 1.13 1.95-2.05-1.25-1.6c.3-.51.53-1.07.7-1.67l2.05-.48V11.5l-2.05-.47a7.62 7.62 0 0 0-.7-1.68Z"
+        opacity="0.62"
+      />
     </IconShell>
   );
 }
@@ -91,6 +103,18 @@ function GardenIcon({ size = 20 }: { size?: number }) {
       <path d="M9.1 12.45h.1" />
       <path d="M12 11.55h.1" />
       <path d="M14.9 12.45h.1" />
+    </IconShell>
+  );
+}
+
+function DiaryIcon({ size = 20 }: { size?: number }) {
+  return (
+    <IconShell size={size}>
+      <path d="M5.5 3.9h10.6c1.05 0 1.9.85 1.9 1.9v14.3H7.4a1.9 1.9 0 0 1-1.9-1.9V3.9Z" />
+      <path d="M5.5 3.9c0-1.05.85-1.9 1.9-1.9h10.6v14.3" opacity="0.45" />
+      <path d="M8.6 7.6h5.4" />
+      <path d="M8.6 10.6h5.4" />
+      <path d="M8.6 13.6h3.2" opacity="0.72" />
     </IconShell>
   );
 }
@@ -129,6 +153,7 @@ const sidebarItems: SidebarItem[] = [
   { view: "home", label: "首页", icon: HomeIcon },
   { view: "main", label: "笔记", icon: NoteIcon },
   { view: "canvas", label: "画布", icon: CanvasIcon },
+  { view: "diary", label: "日记", icon: DiaryIcon },
   { view: "garden", label: "花园", icon: GardenIcon },
   { view: "studio", label: "创作台", icon: StudioIcon },
   { view: "profile", label: "主页", icon: ProfileIcon },
@@ -138,7 +163,12 @@ function getSidebarItemClass(active: boolean) {
   return active ? "app-sidebar-item is-active" : "app-sidebar-item";
 }
 
-export function AppSidebar({ activeView, onViewChange, chatOpen = false, onToggleChat }: AppSidebarProps) {
+export function AppSidebar({
+  activeView,
+  onViewChange,
+  chatOpen = false,
+  onToggleChat,
+}: AppSidebarProps) {
   const settingsActive = activeView === "settings";
 
   return (
