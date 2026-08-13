@@ -135,4 +135,25 @@ describe("DiaryPage", () => {
     expect(await screen.findByText("今天还没记录，去和花灵聊聊今天的想法吧")).toBeTruthy();
     expect(screen.getByText("去对话")).toBeTruthy();
   });
+
+  it("does not crash when serde omits empty tags/mood/conversationId (regression: 日记页卡死)", async () => {
+    // Rust DiaryEntrySummary 对空 Vec / None 字段使用 skip_serializing_if 直接省略，
+    // 真实数据里可能完全没有 tags / mood / conversationId 键
+    vi.mocked(listDiaryEntries).mockResolvedValue([
+      {
+        id: "d-omitted",
+        title: "无标签日记",
+        preview: "今天没有标签。",
+        entryDate: dateKey(0),
+        createdAt: "2026-08-14T10:00:00Z",
+        updatedAt: "2026-08-14T10:00:00Z",
+        wordCount: 8,
+      } as DiaryEntrySummary,
+    ]);
+
+    render(<DiaryPage />);
+
+    expect(await screen.findByText("无标签日记")).toBeTruthy();
+    expect(screen.queryByText("今天还没记录，去和花灵聊聊今天的想法吧")).toBeNull();
+  });
 });

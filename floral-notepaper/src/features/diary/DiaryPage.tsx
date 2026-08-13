@@ -61,7 +61,18 @@ export function DiaryPage() {
 
   const reload = useCallback(() => {
     listDiaryEntries()
-      .then(setEntries)
+      .then((list) =>
+        // Rust 侧 serde 对空数组/None 字段会直接省略（skip_serializing_if），
+        // 这里归一化补默认值，避免 tags.map 等对 undefined 抛错导致页面崩溃
+        setEntries(
+          list.map((entry) => ({
+            ...entry,
+            tags: entry.tags ?? [],
+            mood: entry.mood ?? null,
+            conversationId: entry.conversationId ?? null,
+          })),
+        ),
+      )
       .catch(() => {});
   }, []);
 
