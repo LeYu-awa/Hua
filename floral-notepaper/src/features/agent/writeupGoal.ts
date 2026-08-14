@@ -6,7 +6,14 @@
  * 类型 ∈ {大纲, 初稿, 总结, 设定集}；goal 含"画布/卡片"关键词以命中技能注册表。
  */
 
-export type WriteupKind = "大纲" | "初稿" | "总结" | "设定集";
+export type WriteupKind =
+  | "大纲"
+  | "初稿"
+  | "总结"
+  | "设定集"
+  | "图文贴"
+  | "主题总结"
+  | "要点清单";
 
 export interface WriteupKindOption {
   kind: WriteupKind;
@@ -18,6 +25,9 @@ export const WRITEUP_KINDS: WriteupKindOption[] = [
   { kind: "初稿", description: "成段成文的完整文章" },
   { kind: "总结", description: "凝练概括卡片内容" },
   { kind: "设定集", description: "条目化设定整理（人物/世界观/规则）" },
+  { kind: "图文贴", description: "小红书/朋友圈图文贴（标题+正文+标签）" },
+  { kind: "主题总结", description: "主题知识总结（分点+来源+小结）" },
+  { kind: "要点清单", description: "3-8 条可直接引用的要点" },
 ];
 
 /** 组装组卡成文 goal（与 Rust parse_writeup_goal 的解析格式对齐） */

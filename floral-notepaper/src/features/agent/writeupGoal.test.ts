@@ -34,7 +34,15 @@ describe("isWriteupGoal", () => {
 });
 
 describe("WRITEUP_KINDS", () => {
-  it("covers the four productive output types", () => {
-    expect(WRITEUP_KINDS.map((option) => option.kind)).toEqual(["大纲", "初稿", "总结", "设定集"]);
+  it("covers the productive output types", () => {
+    expect(WRITEUP_KINDS.map((option) => option.kind)).toEqual([
+      "大纲",
+      "初稿",
+      "总结",
+      "设定集",
+      "图文贴",
+      "主题总结",
+      "要点清单",
+    ]);
   });
 });

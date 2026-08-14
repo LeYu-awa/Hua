@@ -295,6 +295,9 @@ pub fn writeup_template(kind: &str, intent: &str) -> String {
         "大纲" => "请把下面的画布内容整理成结构清晰的大纲（层级标题 + 要点，保留关键信息）：",
         "总结" => "请把下面的画布内容凝练成一篇简洁的总结（3-5 段，突出核心结论）：",
         "设定集" => "请把下面的画布内容整理成条目化的设定集（按人物/世界观/规则等分类，逐条列出）：",
+        "图文贴" => "请把下面的画布内容写成一条适合小红书/朋友圈发布的图文贴：标题要吸睛但不标题党；正文口语化、分段（每段 1-2 句）、适度使用 emoji；结尾附 3-6 个话题标签（#开头）。只输出贴文内容，不要解释：",
+        "主题总结" => "请把下面的画布内容整理成一篇主题知识总结：开头一句话点明主题，中间分点展开（每条附来源出处），结尾 2-3 句小结与延伸思考。保留关键事实与来源链接：",
+        "要点清单" => "请把下面的画布内容提炼成 3-8 条要点清单，每条一句话、可直接引用，按重要性排序：",
         _ => "请把下面的画布内容写成一篇文章（成段成文、逻辑连贯、保留全部要点，可适度展开）：",
     };
     let intent = intent.trim();
@@ -2595,6 +2598,10 @@ mod tests {
         assert!(writeup_template("大纲", "").contains("大纲"));
         assert!(writeup_template("初稿", "").contains("一篇文章"));
         assert!(writeup_template("设定集", "").contains("设定集"));
+        assert!(writeup_template("图文贴", "").contains("小红书"));
+        assert!(writeup_template("图文贴", "").contains("#"));
+        assert!(writeup_template("主题总结", "").contains("来源"));
+        assert!(writeup_template("要点清单", "").contains("要点清单"));
         // 意图注入
         assert!(writeup_template("大纲", "加入伏笔").contains("加入伏笔"));
         assert!(writeup_template("大纲", "加入伏笔").contains("{previousOutput}"));
