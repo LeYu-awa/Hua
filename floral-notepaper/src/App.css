@@ -988,6 +988,12 @@ body.sidebar-chat-resizing .sidebar-chat-panel {
   color: color-mix(in srgb, var(--ui-control-muted) 52%, transparent);
 }
 
+.canvas-edge-label {
+  fill: color-mix(in srgb, var(--ui-control-muted) 68%, transparent);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 .canvas-suggestion-edge {
   stroke: var(--color-bamboo);
 }

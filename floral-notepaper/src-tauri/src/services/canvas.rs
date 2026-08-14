@@ -41,15 +41,24 @@ pub struct CanvasNode {
     /// 成文留痕：参与组卡成文的笔记 id（溯源：哪些卡片 → 哪篇文章）；默认 None
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drafted_by: Option<String>,
+    /// 类型化字段（知识画布：knowledge.url/title、opinion.stance 等）；默认空
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub fields: std::collections::HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasEdge {
     pub id: String,
     pub from_node_id: String,
     pub to_node_id: String,
     pub style: String,
+    /// 连线关系类型（知识画布）：related/causality/contrast/supports/opposes/cites；默认 related
+    #[serde(default)]
+    pub relation_type: String,
+    /// 自定义关系标签（可选）
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub label: String,
 }
 
 /// 画布分组（P1：图层分组）。旧数据无 groups 时为空。
@@ -253,6 +262,60 @@ mod tests {
         assert!(doc.groups.is_empty());
     }
 
+    /// 知识画布 P0：fields 结构化字段 + 连线 relationType/label 往返持久化。
+    #[test]
+    fn knowledge_fields_and_edge_relation_roundtrip() {
+        let store = temp_store();
+        let mut doc = CanvasDocument {
+            id: "canvas-know".into(),
+            note_id: None,
+            co_write_session_id: None,
+            nodes: vec![CanvasNode {
+                id: "k1".into(),
+                node_type: "knowledge".into(),
+                x: 0.0,
+                y: 0.0,
+                width: 240.0,
+                height: 90.0,
+                text: "番茄工作法：25 分钟专注 + 5 分钟休息".into(),
+                source: Some("agent".into()),
+                z_index: 0,
+                fields: std::collections::HashMap::from([
+                    ("url".to_string(), "https://example.com/pomodoro".to_string()),
+                    ("title".to_string(), "番茄工作法入门".to_string()),
+                ]),
+                ..CanvasNode::default()
+            }],
+            edges: vec![CanvasEdge {
+                id: "e1".into(),
+                from_node_id: "q1".into(),
+                to_node_id: "k1".into(),
+                style: "solid".into(),
+                relation_type: "cites".into(),
+                label: "回答来源".into(),
+            }],
+            groups: vec![],
+        };
+        store.save(doc.clone()).unwrap();
+
+        let reloaded = store.get("canvas-know").unwrap();
+        assert_eq!(reloaded.nodes[0].node_type, "knowledge");
+        assert_eq!(
+            reloaded.nodes[0].fields.get("url").map(String::as_str),
+            Some("https://example.com/pomodoro")
+        );
+        assert_eq!(reloaded.edges[0].relation_type, "cites");
+        assert_eq!(reloaded.edges[0].label, "回答来源");
+
+        // 旧连线缺省 relationType → related；旧节点缺省 fields → 空
+        doc.edges[0].relation_type = String::new();
+        doc.edges[0].label = String::new();
+        store.save(doc).unwrap();
+        let legacy = store.get("canvas-know").unwrap();
+        assert_eq!(legacy.edges[0].relation_type, "", "缺省存储为空串，前端归一化处理");
+        assert!(legacy.nodes[0].fields.contains_key("url"), "fields 不受连线改动影响");
+    }
+
     /// 场景一：接受隐含连接 → 写入 dashed 连线 → 落盘 → 重新读取仍在。
     #[test]
     fn accept_connection_persists_dashed_edge() {
@@ -299,6 +362,7 @@ mod tests {
             from_node_id: "a".into(),
             to_node_id: "b".into(),
             style: "dashed".into(),
+            ..CanvasEdge::default()
         });
         store.save(updated).unwrap();
 

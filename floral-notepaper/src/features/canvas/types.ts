@@ -1,4 +1,30 @@
-export type CanvasNodeType = "text" | "card" | "resource" | "task";
+export type CanvasNodeType =
+  | "knowledge"
+  | "idea"
+  | "opinion"
+  | "resource"
+  | "task"
+  | "question"
+  | "text" // 兼容别名：加载时归一化为 idea
+  | "card"; // 兼容别名：加载时归一化为 knowledge
+
+/** 连线关系类型（知识画布） */
+export type CanvasRelationType =
+  | "related"
+  | "causality"
+  | "contrast"
+  | "supports"
+  | "opposes"
+  | "cites";
+
+export const CANVAS_RELATION_TYPES: { value: CanvasRelationType; label: string }[] = [
+  { value: "related", label: "相关" },
+  { value: "causality", label: "因果" },
+  { value: "contrast", label: "对比" },
+  { value: "supports", label: "支持" },
+  { value: "opposes", label: "反对" },
+  { value: "cites", label: "引用来源" },
+];
 
 export type CanvasAgentStepStatus = "Pending" | "Running" | "Done" | "Failed" | "Cancelled";
 
@@ -23,9 +49,9 @@ export interface CanvasNode {
   agentTool?: string | null;
   /** 所属分组 id（分组/泳道） */
   group?: string | null;
-  /** 卡片颜色标记（card 灵感卡） */
+  /** 卡片颜色标记 */
   color?: string | null;
-  /** 卡片标签（card 灵感卡） */
+  /** 卡片标签 */
   tags?: string[];
   /** task 待办卡完成态 */
   done?: boolean | null;
@@ -35,6 +61,8 @@ export interface CanvasNode {
   noteId?: string | null;
   /** 成文留痕：参与组卡成文产出的笔记 id（溯源：哪些卡片 → 哪篇文章） */
   draftedBy?: string | null;
+  /** 类型化字段（知识画布）：knowledge.url/title/confidence、opinion.source/stance 等 */
+  fields?: Record<string, string>;
 }
 
 export interface CanvasEdge {
@@ -43,6 +71,10 @@ export interface CanvasEdge {
   toNodeId: string;
   /** 虚线表示推荐/隐含，实线表示用户确认 */
   style: "solid" | "dashed";
+  /** 关系类型（知识画布），默认 related */
+  relationType?: CanvasRelationType | "";
+  /** 自定义关系标签 */
+  label?: string;
 }
 
 export interface CanvasGroup {

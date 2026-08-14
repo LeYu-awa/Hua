@@ -160,7 +160,7 @@ describe("CanvasPage — SVG 画布接线", () => {
   it("加载失败时回退 initialDocument 并渲染 SVG 画布", async () => {
     const { container } = renderCanvas();
 
-    await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
     expect(container.querySelector("svg")).toBeTruthy();
     expect(screen.getByText("保存")).toBeTruthy();
     expect(screen.getByText("智能归档")).toBeTruthy();
@@ -173,7 +173,7 @@ describe("CanvasPage — SVG 画布接线", () => {
   it("SVG 画布中显示 initialDocument 的节点且可触发保存", async () => {
     renderCanvas();
 
-    await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
     // 初始节点文本应渲染
     expect(screen.getByText("用户需要实时同步")).toBeTruthy();
     expect(screen.getByText("架构选型")).toBeTruthy();
@@ -209,10 +209,10 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("撤销/重做：新增节点入栈后可撤销回退、重做恢复", async () => {
       const { container } = renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       const initial = nodeGroupCount(container);
 
-      fireEvent.click(screen.getByText("文本")); // 新增节点
+      fireEvent.click(screen.getByText("想法")); // 新增节点
       expect(nodeGroupCount(container)).toBe(initial + 1);
 
       fireEvent.click(screen.getByTitle("撤销 (Ctrl+Z)"));
@@ -224,7 +224,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("撤销：删除节点可撤销恢复", async () => {
       const { container } = renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       const initial = nodeGroupCount(container);
 
       // 选中节点（selectedNodeId 在 pointerdown 阶段设置）
@@ -245,11 +245,11 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("自动保存：用户改动后 debounce 触发一次保存", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
       vi.useFakeTimers();
       try {
-        fireEvent.click(screen.getByText("文本")); // 用户改动
+        fireEvent.click(screen.getByText("想法")); // 用户改动
         vi.advanceTimersByTime(900);
         await Promise.resolve();
         expect(mockSave).toHaveBeenCalled();
@@ -262,9 +262,9 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("埋点：新增节点/连线/删除分别上报画布事件", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
-      fireEvent.click(screen.getByText("文本")); // canvas_shape_added
+      fireEvent.click(screen.getByText("想法")); // canvas_shape_added
       expect(mockRecordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: "canvas_shape_added",
@@ -284,6 +284,8 @@ describe("CanvasPage — SVG 画布接线", () => {
       fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse" });
       fireEvent.click(screen.getByText("连线"));
       fireEvent.click(screen.getByText("成本估算"));
+      // 连线类型选择：选"相关"后才真正建边
+      fireEvent.click(screen.getByText("相关"));
       expect(mockRecordEvent).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: "canvas_binding_added" }),
       );
@@ -360,7 +362,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("触摸：拖动画布与拖动 mini map 视口均能更新主画布", async () => {
       const { container } = renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       const bg = screen.getByTestId("canvas-bg");
       const beforePan = container
         .querySelectorAll('g[transform*="scale"]')[1]
@@ -435,7 +437,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("平移：桌面端中键拖拽空白处稳定移动整个画布", async () => {
       const { container } = renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       const bg = screen.getByTestId("canvas-bg");
       const contentLayerBefore = container.querySelectorAll('g[transform*="scale"]')[1];
       const before = contentLayerBefore?.getAttribute("transform");
@@ -461,7 +463,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("Ctrl 框选：拖出绿色虚线框并选中相交卡片", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       const bg = screen.getByTestId("canvas-bg");
 
       fireEvent.pointerDown(bg, {
@@ -490,7 +492,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("多选与批量删除：Ctrl 选中多张卡片后右键批量删除", async () => {
       const { container } = renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       vi.spyOn(window, "confirm").mockReturnValueOnce(true);
       const initial = nodeGroupCount(container);
 
@@ -514,7 +516,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("Agent 联动：任务步骤拖拽到画布生成绑定任务卡片", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
       const bg = screen.getByTestId("canvas-bg");
       const data = {
         taskId: "task-1",
@@ -542,20 +544,20 @@ describe("CanvasPage — SVG 画布接线", () => {
   describe("CanvasPage — AI 命令桥（ai-3）：一键执行画布操作", () => {
     it("createCards：新建 N 张内容卡片并渲染", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
       window.dispatchEvent(
         new CustomEvent(CANVAS_COMMAND_EVENT, {
-          detail: { kind: "createCards", count: 3, label: "想法" },
+          detail: { kind: "createCards", count: 3, label: "内容卡片" },
         }),
       );
 
-      await waitFor(() => expect(screen.getAllByText("想法").length).toBe(3));
+      await waitFor(() => expect(screen.getAllByText("内容卡片").length).toBe(3));
     });
 
     it("addZone：生成画布分区标记", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
       window.dispatchEvent(
         new CustomEvent(CANVAS_COMMAND_EVENT, {
@@ -568,7 +570,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("applyPlan：在画布预留规划模块的卡片摆放位置标记", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
       window.dispatchEvent(
         new CustomEvent(CANVAS_COMMAND_EVENT, {
@@ -581,7 +583,7 @@ describe("CanvasPage — SVG 画布接线", () => {
 
     it("runTutorial：重新触发新手引导演示卡片", async () => {
       renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
       window.dispatchEvent(
         new CustomEvent(CANVAS_COMMAND_EVENT, { detail: { kind: "runTutorial" } }),
@@ -597,7 +599,7 @@ describe("CanvasPage — SVG 画布接线", () => {
       const aiWake = vi.fn();
       const unlisten = onAiRequest(aiWake);
       const { container } = renderCanvas();
-      await waitFor(() => expect(screen.getByText("文本")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("想法")).toBeTruthy());
 
       window.dispatchEvent(
         new CustomEvent(CANVAS_COMMAND_EVENT, { detail: { kind: "runTutorial" } }),
@@ -627,7 +629,7 @@ describe("CanvasPage — SVG 画布接线", () => {
       await waitFor(() => expect(screen.getByText("新建卡片")).toBeTruthy());
 
       // 步骤三：新建卡片（工具栏「卡片」）
-      fireEvent.click(screen.getByText("卡片"));
+      fireEvent.click(screen.getByText("知识"));
       await waitFor(() => expect(screen.getByText("移动卡片")).toBeTruthy());
 
       // 步骤四：移动卡片（按住节点拖动）

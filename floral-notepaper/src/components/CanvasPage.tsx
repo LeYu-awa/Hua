@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { CanvasDocument, CanvasNode, CanvasNodeType } from "../features/canvas/types";
+import type { CanvasDocument, CanvasNode, CanvasNodeType, CanvasRelationType } from "../features/canvas/types";
+import { CANVAS_RELATION_TYPES } from "../features/canvas/types";
 import { getCanvasDocument, saveCanvasDocument } from "../features/canvas/api";
 import {
   generateArchiveSuggestions,
@@ -37,6 +38,7 @@ import {
 } from "../features/canvas/onboarding/types";
 import { getTemplateById } from "../features/canvas/onboarding/templates";
 import { dispatchOpenNote } from "../features/notes/openNoteEvents";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { listNotes } from "../features/notes/api";
 import { agentSignalQueue } from "../features/agent/signalQueue";
 
@@ -45,11 +47,21 @@ const NODE_COLORS = ["#c28060", "#7aa65c", "#8aa2c2", "#c2a45c", "#a67aa8", "#6f
 
 /** 归一化画布文档：兼容 Rust serde 省略空数组/None 字段（旧数据 & 新数据） */
 function normalizeDoc(doc: CanvasDocument): CanvasDocument {
+  // 旧类型迁移：text→idea（自由想法）、card→knowledge（知识卡）；resource/task 保留
+  const migrateType = (type: string): CanvasNodeType => {
+    if (type === "text") return "idea";
+    if (type === "card") return "knowledge";
+    if (type === "resource" || type === "task" || type === "knowledge" || type === "idea" || type === "opinion" || type === "question") {
+      return type as CanvasNodeType;
+    }
+    return "idea";
+  };
   return {
     ...doc,
     groups: doc.groups ?? [],
     nodes: (doc.nodes ?? []).map((node) => ({
       ...node,
+      type: migrateType(node.type),
       tags: node.tags ?? [],
       color: node.color ?? null,
       done: node.done ?? false,
@@ -57,6 +69,12 @@ function normalizeDoc(doc: CanvasDocument): CanvasDocument {
       group: node.group ?? null,
       noteId: node.noteId ?? null,
       draftedBy: node.draftedBy ?? null,
+      fields: node.fields ?? {},
+    })),
+    edges: (doc.edges ?? []).map((edge) => ({
+      ...edge,
+      relationType: edge.relationType || "related",
+      label: edge.label ?? "",
     })),
   };
 }
@@ -75,10 +93,48 @@ interface CanvasPageProps {
 }
 
 const NODE_DEFAULTS: Record<CanvasNodeType, { width: number; height: number; label: string }> = {
-  text: { width: 200, height: 80, label: "新节点" },
-  card: { width: 240, height: 120, label: "新卡片" },
+  knowledge: { width: 260, height: 120, label: "新知识" },
+  idea: { width: 220, height: 96, label: "新想法" },
+  opinion: { width: 240, height: 110, label: "新观点" },
   resource: { width: 260, height: 110, label: "资料节点" },
   task: { width: 220, height: 96, label: "待办任务" },
+  question: { width: 230, height: 90, label: "新问题" },
+  text: { width: 220, height: 96, label: "新想法" },
+  card: { width: 260, height: 120, label: "新知识" },
+};
+
+const NODE_TYPE_LABELS: { value: CanvasNodeType; label: string }[] = [
+  { value: "knowledge", label: "知识" },
+  { value: "idea", label: "想法" },
+  { value: "opinion", label: "观点" },
+  { value: "resource", label: "来源" },
+  { value: "task", label: "任务" },
+  { value: "question", label: "问题" },
+];
+
+/** 类型化卡片字段定义（双击打开表单，解决"空白不知打什么"） */
+const NODE_FIELD_DEFS: Record<
+  CanvasNodeType,
+  { key: string; label: string; options?: string[] }[]
+> = {
+  knowledge: [
+    { key: "url", label: "来源链接" },
+    { key: "title", label: "来源标题" },
+    { key: "confidence", label: "可信度" },
+  ],
+  idea: [],
+  opinion: [
+    { key: "source", label: "观点方" },
+    { key: "stance", label: "立场" },
+  ],
+  resource: [
+    { key: "link", label: "链接" },
+    { key: "kind", label: "类型", options: ["网页", "图片", "视频", "文档"] },
+  ],
+  task: [],
+  question: [{ key: "status", label: "状态", options: ["待答", "已答"] }],
+  text: [],
+  card: [],
 };
 
 const AGENT_STEP_DRAG_TYPE = "application/x-floral-agent-step";
@@ -330,6 +386,25 @@ function SlidersIcon() {
       <path d="M14 12h5" />
       <circle cx="7.5" cy="17.5" r="1.6" />
       <path d="M11 17.5h8" />
+    </CanvasActionIcon>
+  );
+}
+
+function OpinionIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M6 3.5h8.4a1.8 1.8 0 0 1 1.8 1.8v6.8a1.8 1.8 0 0 1-1.8 1.8H9.2L5.6 17v-3.1H4.6A1.8 1.8 0 0 1 2.8 12V5.3a1.8 1.8 0 0 1 1.8-1.8Z" opacity="0.5" />
+      <path d="m5.4 7 1.2 1.2 2.6-2.7" />
+    </CanvasActionIcon>
+  );
+}
+
+function QuestionIcon() {
+  return (
+    <CanvasActionIcon>
+      <circle cx="8" cy="8.2" r="5.4" />
+      <path d="M8 10.8v.01" />
+      <path d="M8 9.2c0-1 .8-1.3 1.3-1.6.5-.3.9-.7.9-1.2a2.2 2.2 0 1 0-4.4 0" />
     </CanvasActionIcon>
   );
 }
@@ -1095,7 +1170,12 @@ export function CanvasPage({
   }, []);
 
   const createEdge = useCallback(
-    (fromNodeId: string, toNodeId: string, style: "solid" | "dashed" = "solid") => {
+    (
+      fromNodeId: string,
+      toNodeId: string,
+      style: "solid" | "dashed" = "solid",
+      relationType: CanvasRelationType = "related",
+    ) => {
       if (fromNodeId === toNodeId) return;
       commitDoc((prev) => {
         const exists = prev.edges.some(
@@ -1106,21 +1186,36 @@ export function CanvasPage({
         if (exists) return prev;
         return {
           ...prev,
-          edges: [...prev.edges, { id: generateId(), fromNodeId, toNodeId, style }],
+          edges: [
+            ...prev.edges,
+            { id: generateId(), fromNodeId, toNodeId, style, relationType },
+          ],
         };
       });
-      trackCanvasEvent("canvas_binding_added", { fromNodeId, toNodeId, style });
+      trackCanvasEvent("canvas_binding_added", { fromNodeId, toNodeId, style, relationType });
     },
     [commitDoc, trackCanvasEvent],
   );
 
+  /** 连线关系类型选择：点目标后弹出菜单，选类型才真正建边 */
+  const [pendingEdge, setPendingEdge] = useState<{
+    from: string;
+    to: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
   const handleNodeClick = useCallback(
-    (nodeId: string) => {
+    (nodeId: string, clientX: number, clientY: number) => {
       if (!linkSourceNodeId) return;
-      createEdge(linkSourceNodeId, nodeId);
+      if (linkSourceNodeId === nodeId) {
+        setLinkSourceNodeId(null);
+        return;
+      }
+      setPendingEdge({ from: linkSourceNodeId, to: nodeId, x: clientX, y: clientY });
       setLinkSourceNodeId(null);
     },
-    [createEdge, linkSourceNodeId],
+    [linkSourceNodeId],
   );
 
   const deleteNodes = useCallback(
@@ -1836,19 +1931,28 @@ export function CanvasPage({
       <div className="canvas-toolbar-pro absolute top-4 left-4 z-10 flex items-center gap-2">
         <button
           type="button"
-          onClick={() => addNode("text")}
+          onClick={() => addNode("knowledge")}
           className="canvas-control-button canvas-button-secondary"
+          title={t("canvas.addKnowledgeTip", { defaultValue: "AI 检索提炼的知识卡（带来源）" })}
         >
-          <PlusTextIcon />
-          {t("canvas.addText", { defaultValue: "文本" })}
+          <CardIcon />
+          {t("canvas.addKnowledge", { defaultValue: "知识" })}
         </button>
         <button
           type="button"
-          onClick={() => addNode("card")}
+          onClick={() => addNode("idea")}
           className="canvas-control-button canvas-button-secondary"
         >
-          <CardIcon />
-          {t("canvas.addCard", { defaultValue: "卡片" })}
+          <PlusTextIcon />
+          {t("canvas.addIdea", { defaultValue: "想法" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => addNode("opinion")}
+          className="canvas-control-button canvas-button-secondary"
+        >
+          <OpinionIcon />
+          {t("canvas.addOpinion", { defaultValue: "观点" })}
         </button>
         <button
           type="button"
@@ -1856,7 +1960,7 @@ export function CanvasPage({
           className="canvas-control-button canvas-button-secondary"
         >
           <ResourceIcon />
-          {t("canvas.addResource", { defaultValue: "资料" })}
+          {t("canvas.addResource", { defaultValue: "来源" })}
         </button>
         <button
           type="button"
@@ -1865,6 +1969,14 @@ export function CanvasPage({
         >
           <TaskIcon />
           {t("canvas.addTask", { defaultValue: "任务" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => addNode("question")}
+          className="canvas-control-button canvas-button-secondary"
+        >
+          <QuestionIcon />
+          {t("canvas.addQuestion", { defaultValue: "问题" })}
         </button>
         <button
           type="button"
@@ -2170,6 +2282,42 @@ export function CanvasPage({
         </div>
       )}
 
+      {/* 连线关系类型选择：点目标后选择关系才建边（连线从装饰变成关系数据） */}
+      {pendingEdge && (
+        <div
+          className="absolute z-50 min-w-[130px] rounded-xl border border-paper-deep/30 bg-paper/95 p-1.5 text-[12px] text-ink-soft shadow-xl backdrop-blur"
+          style={{ left: Math.min(pendingEdge.x, window.innerWidth - 150), top: pendingEdge.y }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <div className="px-2 py-1 text-[10px] text-ink-ghost">
+            {t("canvas.edgeRelation", { defaultValue: "这条连线表示" })}
+          </div>
+          {CANVAS_RELATION_TYPES.map((rel) => (
+            <button
+              key={rel.value}
+              type="button"
+              onClick={() => {
+                createEdge(pendingEdge.from, pendingEdge.to, "solid", rel.value);
+                setPendingEdge(null);
+              }}
+              className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-paper-warm/60 cursor-pointer"
+            >
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-bamboo/70" />
+              {rel.label}
+            </button>
+          ))}
+          <div className="my-1 border-t border-paper-deep/15" />
+          <button
+            type="button"
+            onClick={() => setPendingEdge(null)}
+            className="w-full rounded-lg px-2.5 py-1.5 text-left text-ink-ghost hover:bg-paper-warm/60 cursor-pointer"
+          >
+            {t("common.cancel", { defaultValue: "取消" })}
+          </button>
+        </div>
+      )}
+
       {/* P0-3：Live2D 成文提议横幅（花灵气泡同步由信号队列驱动） */}
       {showWriteupProposal && (
         <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-bamboo/30 bg-paper/95 px-4 py-2.5 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
@@ -2207,15 +2355,29 @@ export function CanvasPage({
         (() => {
           const metaNode = doc.nodes.find((n) => n.id === nodeMetaPanelId) ?? null;
           if (!metaNode) return null;
-          const isTask = metaNode.type === "task";
-          const isCard = metaNode.type === "card";
-          const isResource = metaNode.type === "resource";
+          const nodeFields = metaNode.fields ?? {};
+          // 字段定义（类型化卡片表单：解决"双击空白不知打什么"）
+          const fieldDefs = NODE_FIELD_DEFS[metaNode.type] ?? [];
+          const patchField = (key: string, value: string) => {
+            const current = docRef.current.nodes.find((n) => n.id === metaNode.id)?.fields ?? {};
+            patchNode(metaNode.id, { fields: { ...current, [key]: value } });
+          };
           return (
-            <div className="absolute right-4 top-20 z-30 w-[240px] rounded-2xl border border-paper-deep/25 bg-paper/95 p-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
+            <div className="absolute right-4 top-20 z-30 w-[260px] rounded-2xl border border-paper-deep/25 bg-paper/95 p-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
               <div className="flex items-center justify-between mb-2">
-                <span className="canvas-panel-title">
-                  {t("canvas.nodeMeta", { defaultValue: "卡片属性" })} · {metaNode.type}
-                </span>
+                <select
+                  value={metaNode.type}
+                  onChange={(e) =>
+                    patchNode(metaNode.id, { type: e.target.value as CanvasNodeType })
+                  }
+                  className="h-6 rounded-md border border-paper-deep/25 bg-paper px-1.5 text-[11px] font-medium text-ink outline-none cursor-pointer"
+                >
+                  {NODE_TYPE_LABELS.map((entry) => (
+                    <option key={entry.value} value={entry.value}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   onClick={() => setNodeMetaPanelId(null)}
@@ -2226,74 +2388,92 @@ export function CanvasPage({
                 </button>
               </div>
 
-              {isTask && (
-                <label className="block text-[11px] text-ink-ghost">
-                  {t("canvas.dueDate", { defaultValue: "截止日期" })}
-                  <input
-                    type="date"
-                    value={metaNode.dueDate ?? ""}
-                    onChange={(e) => patchNode(metaNode.id, { dueDate: e.target.value || null })}
-                    className="mt-1 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none focus:border-ink-ghost/40"
-                  />
-                </label>
+              {/* 正文 */}
+              <textarea
+                value={metaNode.text}
+                onChange={(e) => updateNodeText(metaNode.id, e.target.value)}
+                rows={3}
+                placeholder={
+                  metaNode.type === "knowledge"
+                    ? "这条知识的核心内容…"
+                    : metaNode.type === "opinion"
+                      ? "谁持有什么观点…"
+                      : metaNode.type === "question"
+                        ? "你想探索的问题…"
+                        : metaNode.type === "idea"
+                          ? "你的想法…"
+                          : metaNode.type === "resource"
+                            ? "这个来源的价值说明…"
+                            : "待办内容…"
+                }
+                className="w-full resize-y rounded-lg border border-paper-deep/20 bg-paper px-2 py-1.5 text-[12px] text-ink leading-relaxed outline-none placeholder:text-ink-ghost/45 focus:border-ink-ghost/40"
+              />
+
+              {/* 类型化字段 */}
+              {fieldDefs.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {fieldDefs.map((def) => (
+                    <label key={def.key} className="block text-[11px] text-ink-ghost">
+                      {def.label}
+                      {def.options ? (
+                        <select
+                          value={nodeFields[def.key] ?? ""}
+                          onChange={(e) => patchField(def.key, e.target.value)}
+                          className="mt-0.5 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none cursor-pointer"
+                        >
+                          <option value="">（未设置）</option>
+                          {def.options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={nodeFields[def.key] ?? ""}
+                          onChange={(e) => patchField(def.key, e.target.value)}
+                          className="mt-0.5 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none focus:border-ink-ghost/40"
+                        />
+                      )}
+                    </label>
+                  ))}
+                </div>
               )}
 
-              {isCard && (
+              {/* task：完成 + 截止 */}
+              {metaNode.type === "task" && (
                 <>
-                  <div className="text-[11px] text-ink-ghost mb-1">
-                    {t("canvas.color", { defaultValue: "颜色" })}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {NODE_COLORS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() =>
-                          patchNode(metaNode.id, { color: metaNode.color === color ? null : color })
-                        }
-                        className={`h-5 w-5 rounded-full border transition-transform cursor-pointer ${
-                          metaNode.color === color
-                            ? "scale-110 border-ink"
-                            : "border-paper-deep/40 hover:scale-110"
-                        }`}
-                        style={{ backgroundColor: color }}
-                        aria-label={color}
-                      />
-                    ))}
-                  </div>
-                  <label className="mt-2 block text-[11px] text-ink-ghost">
-                    {t("canvas.tags", { defaultValue: "标签（逗号分隔）" })}
+                  <label className="mt-2 flex items-center gap-2 text-[11px] text-ink-ghost">
                     <input
-                      value={tagDraft}
-                      onChange={(e) => setTagDraft(e.target.value)}
-                      onBlur={() =>
-                        patchNode(metaNode.id, {
-                          tags: tagDraft
-                            .split(/[,，]/)
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder={t("canvas.tagsPlaceholder", {
-                        defaultValue: "灵感，世界观，角色",
-                      })}
-                      className="mt-1 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none placeholder:text-ink-ghost/50 focus:border-ink-ghost/40"
+                      type="checkbox"
+                      checked={Boolean(metaNode.done)}
+                      onChange={(e) => patchNode(metaNode.id, { done: e.target.checked })}
+                      className="accent-bamboo"
+                    />
+                    {t("canvas.taskDone", { defaultValue: "已完成" })}
+                  </label>
+                  <label className="mt-1 block text-[11px] text-ink-ghost">
+                    {t("canvas.dueDate", { defaultValue: "截止日期" })}
+                    <input
+                      type="date"
+                      value={metaNode.dueDate ?? ""}
+                      onChange={(e) => patchNode(metaNode.id, { dueDate: e.target.value || null })}
+                      className="mt-0.5 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none focus:border-ink-ghost/40"
                     />
                   </label>
                 </>
               )}
 
-              {isResource && (
-                <label className="block text-[11px] text-ink-ghost">
+              {/* resource：绑定笔记 */}
+              {metaNode.type === "resource" && (
+                <label className="mt-2 block text-[11px] text-ink-ghost">
                   {t("canvas.linkNote", { defaultValue: "关联笔记" })}
                   <select
                     value={metaNode.noteId ?? ""}
                     onChange={(e) => patchNode(metaNode.id, { noteId: e.target.value || null })}
-                    className="mt-1 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none cursor-pointer"
+                    className="mt-0.5 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none cursor-pointer"
                   >
-                    <option value="">
-                      {t("canvas.linkNoteNone", { defaultValue: "（未关联）" })}
-                    </option>
+                    <option value="">{t("canvas.linkNoteNone", { defaultValue: "（未关联）" })}</option>
                     {noteOptions.map((note) => (
                       <option key={note.id} value={note.id}>
                         {note.title}
@@ -2303,7 +2483,45 @@ export function CanvasPage({
                 </label>
               )}
 
-              {isResource && metaNode.noteId && (
+              {/* 通用：颜色 + 标签 */}
+              <div className="mt-2 flex flex-wrap gap-1">
+                {NODE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() =>
+                      patchNode(metaNode.id, {
+                        color: metaNode.color === color ? null : color,
+                      })
+                    }
+                    className={`h-4 w-4 rounded-full border transition-transform cursor-pointer ${
+                      metaNode.color === color
+                        ? "scale-110 border-ink"
+                        : "border-paper-deep/40 hover:scale-110"
+                    }`}
+                    style={{ backgroundColor: color }}
+                    aria-label={color}
+                  />
+                ))}
+              </div>
+              <input
+                value={tagDraft}
+                onChange={(e) => setTagDraft(e.target.value)}
+                onBlur={() =>
+                  patchNode(metaNode.id, {
+                    tags: tagDraft
+                      .split(/[,，]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder={t("canvas.tagsPlaceholder2", {
+                  defaultValue: "标签（逗号分隔）",
+                })}
+                className="mt-1.5 w-full rounded-lg border border-paper-deep/20 bg-paper px-2 py-1 text-[11px] text-ink outline-none placeholder:text-ink-ghost/50 focus:border-ink-ghost/40"
+              />
+
+              {metaNode.type === "resource" && metaNode.noteId && (
                 <button
                   type="button"
                   onClick={() => openResourceNote(metaNode.id)}
@@ -2556,18 +2774,36 @@ export function CanvasPage({
             const from = doc.nodes.find((n) => n.id === edge.fromNodeId);
             const to = doc.nodes.find((n) => n.id === edge.toNodeId);
             if (!from || !to) return null;
+            const relationLabel =
+              CANVAS_RELATION_TYPES.find((r) => r.value === edge.relationType)?.label ??
+              (edge.label || edge.relationType || "");
+            const midX = (from.x + from.width / 2 + to.x + to.width / 2) / 2;
+            const midY = (from.y + from.height / 2 + to.y + to.height / 2) / 2;
             return (
-              <line
-                key={edge.id}
-                x1={from.x + from.width / 2}
-                y1={from.y + from.height / 2}
-                x2={to.x + to.width / 2}
-                y2={to.y + to.height / 2}
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
-                className="canvas-edge-line"
-              />
+              <g key={edge.id}>
+                <line
+                  x1={from.x + from.width / 2}
+                  y1={from.y + from.height / 2}
+                  x2={to.x + to.width / 2}
+                  y2={to.y + to.height / 2}
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
+                  className="canvas-edge-line"
+                />
+                {relationLabel && (
+                  <text
+                    x={midX}
+                    y={midY - 4}
+                    textAnchor="middle"
+                    fontSize="9"
+                    className="canvas-edge-label"
+                    pointerEvents="none"
+                  >
+                    {relationLabel}
+                  </text>
+                )}
+              </g>
             );
           })}
 
@@ -2667,7 +2903,7 @@ export function CanvasPage({
                 onContextMenu={(e) => handleNodeContextMenu(e, node.id)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleNodeClick(node.id);
+                  handleNodeClick(node.id, e.clientX, e.clientY);
                 }}
                 className="cursor-move"
               >
@@ -2745,7 +2981,10 @@ export function CanvasPage({
                               openResourceNote(node.id);
                               return;
                             }
-                            setEditingNodeId(node.id);
+                            // 类型化卡片：双击打开属性面板（结构化表单），不再面对空白输入
+                            e.preventDefault();
+                            setNodeMetaPanelId(node.id);
+                            setTagDraft((node.tags ?? []).join("，"));
                           }}
                           className="relative w-full h-full text-[13px] text-ink-soft leading-relaxed whitespace-pre-wrap overflow-hidden"
                         >
@@ -2823,6 +3062,26 @@ export function CanvasPage({
                             >
                               {t("canvas.draftedBadge", { defaultValue: "成文 ✓" })}
                             </button>
+                          )}
+                          {/* knowledge 知识卡：来源链接徽章（点击在浏览器打开） */}
+                          {node.type === "knowledge" && node.fields?.url && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openUrl(node.fields?.url as string);
+                              }}
+                              title={node.fields?.url}
+                              className="absolute bottom-1 right-1 max-w-[70%] truncate rounded bg-paper/85 px-1 py-px text-[9px] text-bamboo hover:bg-bamboo/15 cursor-pointer"
+                            >
+                              {node.fields?.title || "来源"} ↗
+                            </button>
+                          )}
+                          {/* question 问题卡：状态徽章 */}
+                          {node.type === "question" && node.fields?.status && (
+                            <span className="absolute bottom-1 right-1 rounded bg-paper/85 px-1 py-px text-[9px] text-ink-ghost">
+                              {node.fields.status === "已答" ? "已答 ✓" : "待答"}
+                            </span>
                           )}
                           {/* card：标签徽章 */}
                           {(node.tags ?? []).length > 0 && (
