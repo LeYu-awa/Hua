@@ -2240,8 +2240,8 @@ export function CanvasPage({
         )}
       </div>
 
-      {/* 知识采集提问条：问 AI → 检索提炼 → 知识卡落画布（画布原生对话入口） */}
-      <div className="absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-paper-deep/25 bg-paper/95 px-3 py-2 shadow-[0_12px_36px_-16px_rgba(0,0,0,0.35)] backdrop-blur">
+      {/* 知识采集提问条：问 AI → 检索提炼 → 知识卡落画布（画布原生对话入口，底部居中避免遮挡顶部工具栏） */}
+      <div className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-paper-deep/25 bg-paper/95 px-3 py-2 shadow-[0_12px_36px_-16px_rgba(0,0,0,0.35)] backdrop-blur">
         <span className="text-[11px] text-ink-ghost whitespace-nowrap">
           {t("canvas.collectAskLabel", { defaultValue: "问 AI" })}
         </span>
@@ -2477,9 +2477,9 @@ export function CanvasPage({
         </div>
       )}
 
-      {/* P0-3：Live2D 成文提议横幅（花灵气泡同步由信号队列驱动） */}
+      {/* P0-3：Live2D 成文提议横幅（花灵气泡同步由信号队列驱动；置于底部提问条上方） */}
       {showWriteupProposal && (
-        <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-bamboo/30 bg-paper/95 px-4 py-2.5 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
+        <div className="absolute bottom-20 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-bamboo/30 bg-paper/95 px-4 py-2.5 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
           <span className="text-[12px] text-ink-soft">
             {t("canvas.writeupPropose", {
               defaultValue: "花灵：这几张卡片够成一篇文章了，要整理成文吗？",
