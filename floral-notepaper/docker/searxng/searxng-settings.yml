@@ -1,0 +1,16 @@
+# SearXNG 设置（最小配置，开启 JSON 输出供花笺 web.search 使用）
+# 参考：https://docs.searxng.org/admin/settings/settings.html
+
+use_default_settings: true
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  port: 8080
+  bind_address: 0.0.0.0
+  limiter: false
+
+# 启用常见中文/英文引擎（默认设置已含 Google/Bing/Brave 等，无需额外配置）

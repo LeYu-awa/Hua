@@ -1,0 +1,26 @@
+# SearXNG 自托管搜索引擎（花笺知识采集依赖）
+#
+# 用途：为花笺画布的"问 AI → 卡片落画布"提供网页检索（web.search 工具），
+#       JSON API 端点：http://127.0.0.1:8888/search?q=...&format=json
+#
+# 启动：
+#   docker compose -f docker/searxng/docker-compose.yml up -d
+#
+# 验证：
+#   curl "http://127.0.0.1:8888/search?q=%E7%95%AA%E8%8C%84%E5%B7%A5%E4%BD%9C%E6%B3%95&format=json"
+#
+# 花笺配置：设置 → AI 集成 → Web 搜索 地址填 http://127.0.0.1:8888
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: floral-searxng
+    ports:
+      - "${SEARXNG_PORT:-8888}:8080"
+    environment:
+      SEARXNG_BASE_URL: http://127.0.0.1:${SEARXNG_PORT:-8888}
+      # JSON 格式默认禁用，需显式开启（花笺 web.search 依赖）
+      SEARXNG_SETTINGS_FORMAT: json
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+    restart: unless-stopped

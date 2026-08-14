@@ -80,7 +80,18 @@ CanvasEdge.label: string（自定义标签）
 
 - 前端：WriteupDialog 类型选项扩展（保留写作向 4 类 + 新增知识向 3 类）；工具栏"产出"菜单
 
-## 5. 实施顺序与测试
+## 5. Obsidian Canvas 范式对齐（实现交互基准）
+
+画布交互与呈现参考 Obsidian Canvas：
+
+- **网页卡（knowledge）**：favicon（域名首字母占位）+ 来源标题 + 摘录 + URL，点击 ↗ 在浏览器打开（openUrl）
+- **笔记卡（resource + noteId）**：笔记标题 + 预览摘要，双击/点击打开本地笔记（Obsidian Note 卡）
+- **卡片尺寸可调**：右下角拖拽手柄调整宽高（min 140×70）
+- **连线带标签**：创建时选择关系类型，边上渲染类型标签（Obsidian Edge Label）
+- **分组/泳道**：标题 + 折叠（Obsidian Group）
+- 排布对齐：AI 自动分组 + 网格排版（canvas.organize）
+
+## 6. 实施顺序与测试
 
 | 期 | 内容 | 测试 |
 |---|---|---|

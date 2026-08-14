@@ -79,6 +79,17 @@ function normalizeDoc(doc: CanvasDocument): CanvasDocument {
   };
 }
 
+/** 域名首字母（网页卡 favicon 占位） */
+function domainInitial(url?: string | null): string {
+  if (!url) return "网";
+  try {
+    const host = new URL(url).hostname;
+    return host.replace(/^www\./, "").charAt(0).toUpperCase() || "网";
+  } catch {
+    return url.trim().charAt(0).toUpperCase() || "网";
+  }
+}
+
 interface CanvasPageProps {
   documentId: string;
   noteId?: string;
@@ -577,9 +588,13 @@ export function CanvasPage({
   // ── AI 自动分组：一键按语义把画布卡片分成泳道 ─────────────────────────────
   const [groupTaskGoal, setGroupTaskGoal] = useState<string | null>(null);
   const [groupTaskVersion, setGroupTaskVersion] = useState(0);
+  // ── 知识采集（P1）：画布内提问条 → AI 检索提炼 → 知识卡落画布 ─────────────
+  const [collectInput, setCollectInput] = useState("");
+  const [collectGoal, setCollectGoal] = useState<string | null>(null);
+  const [collectVersion, setCollectVersion] = useState(0);
   // ── 卡片增强（P0-1）：分组/泳道折叠 + resource 笔记列表 ────────────────────
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [noteOptions, setNoteOptions] = useState<{ id: string; title: string }[]>([]);
+  const [noteOptions, setNoteOptions] = useState<{ id: string; title: string; preview: string }[]>([]);
   /** 节点属性面板：编辑 task 截止日期 / card 颜色标签 / resource 绑定笔记 */
   const [nodeMetaPanelId, setNodeMetaPanelId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
@@ -773,7 +788,9 @@ export function CanvasPage({
     listNotes()
       .then((notes) => {
         if (!cancelled) {
-          setNoteOptions(notes.map((note) => ({ id: note.id, title: note.title })));
+          setNoteOptions(
+            notes.map((note) => ({ id: note.id, title: note.title, preview: note.preview })),
+          );
         }
       })
       .catch(() => {});
@@ -947,6 +964,99 @@ export function CanvasPage({
     setGroupTaskGoal("自动分组画布卡片");
     setGroupTaskVersion((v) => v + 1);
   }, []);
+
+  /** 知识采集提问：输入问题 → AI 检索提炼 → 知识卡落画布 */
+  const handleCollectAsk = useCallback(() => {
+    const question = collectInput.trim();
+    if (!question) return;
+    setCollectGoal(`知识采集：${question}`);
+    setCollectVersion((v) => v + 1);
+    setCollectInput("");
+  }, [collectInput]);
+
+  /** 卡片尺寸调整（Obsidian 风格）：右下角拖拽，pointermove 直接改尺寸，up 时打脏标记 */
+  const resizeStateRef = useRef<{
+    nodeId: string;
+    startClientX: number;
+    startClientY: number;
+    startW: number;
+    startH: number;
+  } | null>(null);
+
+  const startNodeResize = useCallback((e: React.PointerEvent, nodeId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const node = docRef.current.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    resizeStateRef.current = {
+      nodeId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startW: node.width,
+      startH: node.height,
+    };
+  }, []);
+
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const r = resizeStateRef.current;
+      if (!r) return;
+      const dx = e.clientX - r.startClientX;
+      const dy = e.clientY - r.startClientY;
+      const next = {
+        ...docRef.current,
+        nodes: docRef.current.nodes.map((n) =>
+          n.id === r.nodeId
+            ? { ...n, width: Math.max(140, r.startW + dx), height: Math.max(70, r.startH + dy) }
+            : n,
+        ),
+      };
+      docRef.current = next;
+      setDoc(next);
+    };
+    const up = () => {
+      if (resizeStateRef.current) {
+        dirtyRef.current = true;
+        setSaveStatus("idle");
+      }
+      resizeStateRef.current = null;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, []);
+
+  // 知识采集落卡完成（agent.task → Done）后重载画布，同步新落的知识卡
+  useEffect(() => {
+    if (!collectGoal) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    onAgentTask((task) => {
+      if (disposed || task.goal !== collectGoal || task.status !== "Done") return;
+      getCanvasDocument(documentId)
+        .then((loaded) => {
+          if (disposed) return;
+          undoStackRef.current = [];
+          redoStackRef.current = [];
+          dragStartSnapshotRef.current = null;
+          dirtyRef.current = false;
+          docRef.current = normalizeDoc(loaded);
+          setDoc(docRef.current);
+          setHistoryState({ canUndo: false, canRedo: false });
+        })
+        .catch(() => {});
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [collectGoal, documentId]);
 
   // ── P1-3：画布导出 PNG（自包含 SVG → 2x 光栅化 → 下载） ───────────────────
   const handleExportPng = useCallback(async () => {
@@ -2130,6 +2240,35 @@ export function CanvasPage({
         )}
       </div>
 
+      {/* 知识采集提问条：问 AI → 检索提炼 → 知识卡落画布（画布原生对话入口） */}
+      <div className="absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-paper-deep/25 bg-paper/95 px-3 py-2 shadow-[0_12px_36px_-16px_rgba(0,0,0,0.35)] backdrop-blur">
+        <span className="text-[11px] text-ink-ghost whitespace-nowrap">
+          {t("canvas.collectAskLabel", { defaultValue: "问 AI" })}
+        </span>
+        <input
+          value={collectInput}
+          onChange={(e) => setCollectInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleCollectAsk();
+            }
+          }}
+          placeholder={t("canvas.collectPlaceholder", {
+            defaultValue: "想了解什么？例如：怎么学习番茄工作法",
+          })}
+          className="w-[280px] rounded-lg border border-paper-deep/20 bg-paper px-2.5 py-1.5 text-[12px] text-ink outline-none placeholder:text-ink-ghost/45 focus:border-bamboo/40"
+        />
+        <button
+          type="button"
+          onClick={handleCollectAsk}
+          disabled={!collectInput.trim()}
+          className="rounded-lg bg-bamboo px-3 py-1.5 text-[11px] font-medium text-paper hover:bg-bamboo/90 disabled:opacity-50 cursor-pointer"
+        >
+          {t("canvas.collectAsk", { defaultValue: "采集" })}
+        </button>
+      </div>
+
       {selectedNodeId && (
         <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
           {selectedNodeIds.length > 1 && (
@@ -2279,6 +2418,26 @@ export function CanvasPage({
             </button>
           </div>
           <TaskProgressPanel key={groupTaskVersion} goal={groupTaskGoal} />
+        </div>
+      )}
+
+      {/* 知识采集面板：问 AI → 检索提炼 → 知识卡落画布 */}
+      {collectGoal && (
+        <div className="absolute bottom-4 left-[420px] z-30 w-[360px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="canvas-panel-title">
+              {t("canvas.collectPanel", { defaultValue: "知识采集" })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCollectGoal(null)}
+              className="canvas-icon-button canvas-button-ghost"
+              aria-label={t("common.close", { defaultValue: "关闭" })}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <TaskProgressPanel key={collectVersion} goal={collectGoal} />
         </div>
       )}
 
@@ -2957,6 +3116,85 @@ export function CanvasPage({
                         {node.text}
                       </span>
                     </div>
+                  ) : node.type === "knowledge" ? (
+                    // Obsidian 风格网页卡：favicon + 来源标题 + 摘录 + URL，点击打开
+                    <div
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        setNodeMetaPanelId(node.id);
+                        setTagDraft((node.tags ?? []).join("，"));
+                      }}
+                      className="flex h-full w-full flex-col p-2"
+                    >
+                      <div className="flex shrink-0 items-center gap-1.5 border-b border-paper-deep/15 pb-1">
+                        <span className="grid h-4 w-4 shrink-0 place-items-center rounded bg-bamboo/15 text-[8px] font-bold text-bamboo">
+                          {domainInitial(node.fields?.url)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink">
+                          {node.fields?.title || "网页来源"}
+                        </span>
+                        {node.fields?.url && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openUrl(node.fields?.url as string);
+                            }}
+                            title={node.fields?.url}
+                            className="grid h-4 w-4 shrink-0 place-items-center rounded bg-paper/85 text-[10px] text-bamboo hover:bg-bamboo/15 cursor-pointer"
+                          >
+                            ↗
+                          </button>
+                        )}
+                      </div>
+                      <div className="mt-1 min-h-0 flex-1 text-[12px] leading-relaxed text-ink-soft whitespace-pre-wrap overflow-hidden">
+                        {node.text}
+                      </div>
+                      {node.fields?.url && (
+                        <div className="shrink-0 truncate text-[9px] text-ink-ghost/70">
+                          {node.fields.url}
+                        </div>
+                      )}
+                    </div>
+                  ) : node.type === "resource" && node.noteId ? (
+                    // Obsidian 风格笔记卡：笔记标题 + 预览，双击/点击打开本地笔记
+                    <div
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        openResourceNote(node.id);
+                      }}
+                      className="flex h-full w-full flex-col p-2"
+                    >
+                      {(() => {
+                        const linked = noteOptions.find((n) => n.id === node.noteId) ?? null;
+                        return (
+                          <>
+                            <div className="flex shrink-0 items-center gap-1.5 border-b border-paper-deep/15 pb-1">
+                              <span className="grid h-4 w-4 shrink-0 place-items-center rounded bg-bamboo/15 text-[8px] font-bold text-bamboo">
+                                文
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink">
+                                {linked?.title || "本地笔记"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openResourceNote(node.id);
+                                }}
+                                title={t("canvas.openNote", { defaultValue: "打开笔记" })}
+                                className="grid h-4 w-4 shrink-0 place-items-center rounded bg-paper/85 text-[10px] text-bamboo hover:bg-bamboo/15 cursor-pointer"
+                              >
+                                ↗
+                              </button>
+                            </div>
+                            <div className="mt-1 min-h-0 flex-1 text-[11.5px] leading-relaxed text-ink-ghost whitespace-pre-wrap overflow-hidden">
+                              {linked?.preview || node.text}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   ) : (
                     <div className="w-full h-full p-2">
                       {editingNodeId === node.id ? (
@@ -3063,20 +3301,6 @@ export function CanvasPage({
                               {t("canvas.draftedBadge", { defaultValue: "成文 ✓" })}
                             </button>
                           )}
-                          {/* knowledge 知识卡：来源链接徽章（点击在浏览器打开） */}
-                          {node.type === "knowledge" && node.fields?.url && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void openUrl(node.fields?.url as string);
-                              }}
-                              title={node.fields?.url}
-                              className="absolute bottom-1 right-1 max-w-[70%] truncate rounded bg-paper/85 px-1 py-px text-[9px] text-bamboo hover:bg-bamboo/15 cursor-pointer"
-                            >
-                              {node.fields?.title || "来源"} ↗
-                            </button>
-                          )}
                           {/* question 问题卡：状态徽章 */}
                           {node.type === "question" && node.fields?.status && (
                             <span className="absolute bottom-1 right-1 rounded bg-paper/85 px-1 py-px text-[9px] text-ink-ghost">
@@ -3101,6 +3325,20 @@ export function CanvasPage({
                     </div>
                   )}
                 </foreignObject>
+                {/* Obsidian 风格：右下角尺寸调整手柄 */}
+                {node.type !== "question" && (
+                  <rect
+                    x={node.width - 12}
+                    y={node.height - 12}
+                    width={12}
+                    height={12}
+                    fill="transparent"
+                    className="cursor-nwse-resize"
+                    onPointerDown={(e) => startNodeResize(e, node.id)}
+                  >
+                    <title>{t("canvas.resize", { defaultValue: "拖动调整大小" })}</title>
+                  </rect>
+                )}
               </g>
             ))}
         </g>

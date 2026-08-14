@@ -17,7 +17,7 @@ use crate::services::agent::task_store::{
 };
 use crate::services::agent::vector_store::VectorStore;
 use crate::services::agent::web_search::searxng_search;
-use crate::services::canvas::{CanvasDocument, CanvasGroup, CanvasNode, CanvasStore};
+use crate::services::canvas::{CanvasDocument, CanvasEdge, CanvasGroup, CanvasNode, CanvasStore};
 use crate::services::notes::{default_store, AppError, Note, NoteMetadata, NoteStore, SaveNoteRequest};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -50,6 +50,7 @@ const ORGANIZE_WORDS: &[&str] = &["排版", "重排", "自动排列", "整理画
 const ENHANCE_WORDS: &[&str] = &["扩写", "展开", "补充细节", "丰富", "深化", "enhance", "详细一点"];
 const CHAPTER_WORDS: &[&str] = &["续写", "下一章", "下一节", "继续写", "chapter", "接着写"];
 const GROUP_WORDS: &[&str] = &["分组", "归组", "归类", "自动分组", "泳道", "group"];
+const COLLECT_WORDS: &[&str] = &["知识采集", "采集", "搜集", "搜一下"];
 
 // ── 查询抽取与原子工具 ────────────────────────────────────────────────────────
 
@@ -421,6 +422,82 @@ pub fn apply_ai_groups(doc: &mut CanvasDocument, specs: &[GroupSpec]) {
     }
 }
 
+/// 知识采集目标格式（前端提问条生成）："知识采集：<问题>" → 提取问题文本
+pub fn extract_collect_query(goal: &str) -> String {
+    for marker in ["知识采集：", "知识采集:", "搜索：", "搜索:"] {
+        if let Some(rest) = goal.find(marker).map(|i| &goal[i + marker.len()..]) {
+            let q = rest.trim();
+            if !q.is_empty() {
+                return q.to_string();
+            }
+        }
+    }
+    goal.trim().to_string()
+}
+
+/// 知识采集技能：检索 → LLM 提炼知识卡 JSON → 批量落画布（确认）
+fn collect_plan(goal: &str) -> Vec<Step> {
+    let query = extract_collect_query(goal);
+    vec![
+        tool_step("k1", "web.search", json!({ "query": query, "limit": 6 })),
+        llm_step(
+            "k2",
+            json!({
+                "promptTemplate": "你是知识提炼助手。根据下面的搜索结果，提炼 3-6 条最关键的知识点，输出严格 JSON：\n{\"cards\": [{\"text\": \"知识点（一句话）\", \"url\": \"来源链接\", \"title\": \"来源标题\"}]}\n每条知识必须能从搜索结果中找到依据，url 使用搜索结果里的真实链接。只输出 JSON，不要解释。\n\n{previousOutput}"
+            }),
+        ),
+        tool_step_confirm(
+            "k3",
+            "canvas.batch-create",
+            json!({ "canvasId": "first", "question": query }),
+        ),
+    ]
+}
+
+/// 一条待落画布的知识卡
+#[derive(Debug, Clone, PartialEq)]
+pub struct CollectCard {
+    pub text: String,
+    pub url: String,
+    pub title: String,
+}
+
+/// 从 LLM 输出解析知识卡 JSON（容错去掉 ```json 围栏）
+pub fn parse_collect_cards(text: &str) -> Result<Vec<CollectCard>, AppError> {
+    let mut cleaned = text.trim().to_string();
+    if let Some(start) = cleaned.find('{') {
+        if let Some(end) = cleaned.rfind('}') {
+            cleaned = cleaned[start..=end].to_string();
+        }
+    }
+    let value: Value = serde_json::from_str(&cleaned)
+        .map_err(|e| AppError::new("collectParse", format!("提炼结果不是合法 JSON：{e}")))?;
+    let cards = value
+        .get("cards")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AppError::new("collectParse", "提炼结果缺少 cards 数组"))?;
+    let mut out = Vec::new();
+    for item in cards {
+        let text = item
+            .get("text")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or("");
+        if text.is_empty() {
+            continue;
+        }
+        out.push(CollectCard {
+            text: text.to_string(),
+            url: item.get("url").and_then(Value::as_str).unwrap_or("").trim().to_string(),
+            title: item.get("title").and_then(Value::as_str).unwrap_or("").trim().to_string(),
+        });
+    }
+    if out.is_empty() {
+        return Err(AppError::new("collectParse", "提炼结果为空"));
+    }
+    Ok(out)
+}
+
 /// 技能流水线：联网调研
 fn research_plan(goal: &str) -> Vec<Step> {
     vec![
@@ -530,6 +607,12 @@ static SKILLS: &[Skill] = &[
         plan: group_plan,
     },
     Skill {
+        name: "knowledge.collect",
+        description: "知识采集：AI 上网检索并提炼成知识卡批量落入画布（确认后写回）",
+        matches: |g| has_any(g, COLLECT_WORDS),
+        plan: collect_plan,
+    },
+    Skill {
         name: "note.summarize",
         description: "检索并总结相关笔记",
         matches: |g| has_any(g, SUMMARIZE_WORDS),
@@ -591,6 +674,7 @@ pub fn tool_registry_json() -> Value {
         {"name":"canvas.node.create","description":"在画布创建文本节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","content":"string"}},
         {"name":"canvas.save","description":"把上一步 LLM 生成内容写回画布：nodeId 命中则更新该节点文本，否则追加 agent 节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","nodeId":"string 可选"}},
         {"name":"canvas.save-groups","description":"把上一步 LLM 的分组结果写回画布（AI 自动分组，写操作，需确认）","input":{"canvasId":"string 或 \"first\""}},
+        {"name":"canvas.batch-create","description":"把上一步 LLM 提炼的知识卡批量落入画布，并落一张问题卡自动 cites 连线（知识采集，写操作，需确认）","input":{"canvasId":"string 或 \"first\"","question":"string"}},
         {"name":"web.search","description":"通过本地 SearXNG 搜索互联网（需确认）","input":{"query":"string","limit":"int 默认5"}},
         {"name":"llm.generate","description":"用 LLM 生成或改写文本","input":{"prompt":"string"}},
     ])
@@ -1085,6 +1169,104 @@ impl<'a> TaskRunner<'a> {
                 canvas.save(doc.clone())?;
                 serde_json::to_value(&doc)
                     .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
+            }
+            Some("canvas.batch-create") => {
+                // 知识采集落卡：从上一步 LLM 输出解析知识卡，批量落入画布，
+                // 同时落一张 question 卡并自动 cites 连线到各知识卡。
+                let canvas = self
+                    .canvas
+                    .ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let llm_text = last_llm_output_text(outputs)
+                    .ok_or_else(|| AppError::new("collectParse", "缺少 LLM 提炼结果"))?;
+                let cards = parse_collect_cards(&llm_text)?;
+                let id = step
+                    .input
+                    .get("canvasId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("first");
+                let question = step
+                    .input
+                    .get("question")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let mut doc = if id == "first" {
+                    canvas
+                        .list()?
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| AppError::new("canvasEmpty", "没有可写入的画布"))?
+                } else {
+                    canvas.get(id)?
+                };
+                let now = chrono::Utc::now().timestamp_millis();
+                let mut question_id: Option<String> = None;
+                if !question.is_empty() {
+                    question_id = Some(format!("node-{now}-q"));
+                    doc.nodes.push(CanvasNode {
+                        id: question_id.clone().unwrap(),
+                        node_type: "question".to_string(),
+                        x: 80.0,
+                        y: 80.0,
+                        width: 240.0,
+                        height: 90.0,
+                        text: question.clone(),
+                        source: Some("agent".to_string()),
+                        z_index: 0,
+                        fields: std::collections::HashMap::from([(
+                            "status".to_string(),
+                            "已答".to_string(),
+                        )]),
+                        ..CanvasNode::default()
+                    });
+                }
+                let mut knowledge_ids: Vec<String> = Vec::new();
+                for (index, card) in cards.iter().enumerate() {
+                    let node_id = format!("node-{now}-k{index}");
+                    let mut fields = std::collections::HashMap::new();
+                    if !card.url.is_empty() {
+                        fields.insert("url".to_string(), card.url.clone());
+                    }
+                    if !card.title.is_empty() {
+                        fields.insert("title".to_string(), card.title.clone());
+                    }
+                    doc.nodes.push(CanvasNode {
+                        id: node_id.clone(),
+                        node_type: "knowledge".to_string(),
+                        x: 80.0 + (index as f64 % 2.0) * 300.0,
+                        y: 220.0 + (index as f64 / 2.0).floor() * 140.0,
+                        width: 280.0,
+                        height: 120.0,
+                        text: card.text.clone(),
+                        source: Some("agent".to_string()),
+                        z_index: 0,
+                        fields,
+                        ..CanvasNode::default()
+                    });
+                    knowledge_ids.push(node_id);
+                }
+                // question 卡 → 各知识卡 cites 连线
+                if let Some(qid) = &question_id {
+                    for kid in &knowledge_ids {
+                        doc.edges.push(CanvasEdge {
+                            id: format!("edge-{now}-{kid}"),
+                            from_node_id: qid.clone(),
+                            to_node_id: kid.clone(),
+                            style: "solid".to_string(),
+                            relation_type: "cites".to_string(),
+                            ..CanvasEdge::default()
+                        });
+                    }
+                }
+                canvas.save(doc.clone())?;
+                let summary = format!(
+                    "已采集 {} 条知识卡{}",
+                    knowledge_ids.len(),
+                    if question_id.is_some() { "（含问题卡与来源连线）" } else { "" }
+                );
+                serde_json::to_value(json!({ "ok": true, "summary": summary, "cardCount": knowledge_ids.len() }))
+                    .map_err(|e| AppError::new("serializeCanvas", format!("序列化失败：{e}")))
             }
             Some("web.search") => {
                 let query = step
@@ -1993,7 +2175,7 @@ mod tests {
     #[test]
     fn skill_registry_has_unique_names_and_descriptions() {
         let skills = skill_registry();
-        assert_eq!(skills.len(), 9);
+        assert_eq!(skills.len(), 10);
         let mut names: Vec<&str> = skills.iter().map(|s| s.name).collect();
         names.sort_unstable();
         let mut uniq = names.clone();
@@ -2691,5 +2873,98 @@ mod tests {
         assert!(person_pos < world_pos, "按分组顺序输出");
         assert!(text.find("主角动机").unwrap() > person_pos);
         assert!(text.find("世界规则").unwrap() > world_pos);
+    }
+
+    // ── 知识采集（knowledge.collect）：检索 → 提炼 → 批量落卡 ────────────────
+
+    #[test]
+    fn extract_collect_query_parses_goal() {
+        assert_eq!(extract_collect_query("知识采集：怎么学习番茄工作法"), "怎么学习番茄工作法");
+        assert_eq!(extract_collect_query("知识采集:番茄工作法"), "番茄工作法");
+        assert_eq!(extract_collect_query("随便聊聊"), "随便聊聊");
+    }
+
+    #[test]
+    fn parse_collect_cards_extracts_knowledge() {
+        let text = "```json\n{\"cards\": [{\"text\": \"番茄工作法：25 分钟专注\", \"url\": \"https://a.com/1\", \"title\": \"入门\"}, {\"text\": \"休息 5 分钟\", \"url\": \"\", \"title\": \"\"}]}\n```";
+        let cards = parse_collect_cards(text).unwrap();
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0].text, "番茄工作法：25 分钟专注");
+        assert_eq!(cards[0].url, "https://a.com/1");
+        assert!(parse_collect_cards("不是 JSON").is_err());
+        assert!(parse_collect_cards("{\"cards\": [{\"text\": \"  \"}]}").is_err());
+    }
+
+    #[test]
+    fn plan_for_goal_expands_collect_pipeline() {
+        let plan = plan_for_goal("知识采集：怎么学习番茄工作法");
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("web.search"));
+        assert_eq!(plan[0].input["query"], "怎么学习番茄工作法");
+        assert!(plan[1].kind == StepKind::Llm);
+        assert!(plan[1].input["promptTemplate"].as_str().unwrap().contains("cards"));
+        assert_eq!(plan[2].tool.as_deref(), Some("canvas.batch-create"));
+        assert!(plan[2].required_confirm);
+        assert_eq!(plan[2].input["question"], "怎么学习番茄工作法");
+    }
+
+    #[test]
+    fn runner_batch_creates_knowledge_cards_with_question_link() {
+        let dir = temp_dir("collect_canvas");
+        let _ = std::fs::remove_dir_all(&dir);
+        let canvas = CanvasStore::new(dir.clone());
+        canvas
+            .save(CanvasDocument {
+                id: "canvas-c1".into(),
+                note_id: None,
+                co_write_session_id: None,
+                nodes: vec![],
+                edges: vec![],
+                groups: vec![],
+            })
+            .unwrap();
+        let tasks = task_store("collect_tasks");
+        let notes = notes_store("collect_notes");
+
+        let mut task = Task::new("t-collect", "知识采集：番茄工作法");
+        let llm_output = json!({ "text": "{\"cards\": [{\"text\": \"25 分钟专注\", \"url\": \"https://a.com\", \"title\": \"入门\"}, {\"text\": \"5 分钟休息\"}]}" });
+        task.plan = vec![
+            Step {
+                step_id: "k2".into(),
+                kind: StepKind::Llm,
+                tool: None,
+                input: json!({}),
+                output: Some(llm_output),
+                status: StepStatus::Done,
+                required_confirm: false,
+                confirmed: true,
+            },
+            tool_step_confirm("k3", "canvas.batch-create", json!({"canvasId": "first", "question": "番茄工作法"})),
+        ];
+        tasks.create(&task).unwrap();
+        let test_runner = TaskRunner::new(&tasks, notes.clone(), None, None, Some(&canvas), None);
+
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        task.plan[1].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        let saved = canvas.get("canvas-c1").unwrap();
+        assert_eq!(saved.nodes.len(), 3, "1 张问题卡 + 2 张知识卡");
+        let question = saved.nodes.iter().find(|n| n.node_type == "question").unwrap();
+        assert_eq!(question.text, "番茄工作法");
+        assert_eq!(question.fields.get("status").map(String::as_str), Some("已答"));
+        let knowledge: Vec<_> = saved.nodes.iter().filter(|n| n.node_type == "knowledge").collect();
+        assert_eq!(knowledge.len(), 2);
+        assert_eq!(knowledge[0].fields.get("url").map(String::as_str), Some("https://a.com"));
+        // question → 每张知识卡一条 cites 连线
+        assert_eq!(saved.edges.len(), 2);
+        assert!(saved.edges.iter().all(|e| e.relation_type == "cites"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(temp_dir("collect_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("collect_notes"));
     }
 }
