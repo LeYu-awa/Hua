@@ -50,6 +50,8 @@ interface TaskProgressPanelProps {
   autoRun?: boolean;
   /** 已存在的任务（从列表进入时传入，跳过创建） */
   taskId?: string;
+  /** 组卡成文落盘成功后触发章节续写（由父组件渲染续写任务） */
+  onContinueChapter?: (note: { id: string; title: string }) => void;
 }
 
 const AGENT_STEP_DRAG_TYPE = "application/x-floral-agent-step";
@@ -70,7 +72,12 @@ function buildStepDragPayload(task: AgentTask, step: AgentStep) {
  * 主编排任务进度面板（Phase B 最小闭环的 UI 侧）：
  * 发目标 → Rust 规划执行 → 订阅 agent.step / agent.task 展示进度与结果。
  */
-export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgressPanelProps) {
+export function TaskProgressPanel({
+  goal,
+  autoRun = true,
+  taskId,
+  onContinueChapter,
+}: TaskProgressPanelProps) {
   const [task, setTask] = useState<AgentTask | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -333,8 +340,16 @@ export function TaskProgressPanel({ goal, autoRun = true, taskId }: TaskProgress
           <div className="flex shrink-0 gap-1.5">
             <button
               type="button"
-              onClick={() => dispatchOpenNote(createdNote.id)}
+              onClick={() => onContinueChapter?.(createdNote)}
               className="rounded-lg bg-bamboo px-2.5 py-1 text-[10.5px] font-medium text-paper hover:bg-bamboo/90 cursor-pointer"
+              title="让 Agent 接着这篇笔记续写下一章（追加保存）"
+            >
+              继续写下一章
+            </button>
+            <button
+              type="button"
+              onClick={() => dispatchOpenNote(createdNote.id)}
+              className="rounded-lg border border-paper-deep/20 px-2.5 py-1 text-[10.5px] font-medium text-ink-soft hover:bg-bamboo/15 cursor-pointer"
             >
               打开笔记
             </button>

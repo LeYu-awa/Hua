@@ -17,7 +17,7 @@ use crate::services::agent::task_store::{
 };
 use crate::services::agent::vector_store::VectorStore;
 use crate::services::agent::web_search::searxng_search;
-use crate::services::canvas::{CanvasDocument, CanvasNode, CanvasStore};
+use crate::services::canvas::{CanvasDocument, CanvasGroup, CanvasNode, CanvasStore};
 use crate::services::notes::{default_store, AppError, Note, NoteMetadata, NoteStore, SaveNoteRequest};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -48,6 +48,8 @@ const RESEARCH_WORDS: &[&str] = &["调研", "查资料", "了解", "研究"];
 const EXPORT_WORDS: &[&str] = &["导出", "生成文件", "输出文件", "export", "保存为"];
 const ORGANIZE_WORDS: &[&str] = &["排版", "重排", "自动排列", "整理画布", "布局", "organize", "排列"];
 const ENHANCE_WORDS: &[&str] = &["扩写", "展开", "补充细节", "丰富", "深化", "enhance", "详细一点"];
+const CHAPTER_WORDS: &[&str] = &["续写", "下一章", "下一节", "继续写", "chapter", "接着写"];
+const GROUP_WORDS: &[&str] = &["分组", "归组", "归类", "自动分组", "泳道", "group"];
 
 // ── 查询抽取与原子工具 ────────────────────────────────────────────────────────
 
@@ -237,6 +239,13 @@ pub struct WriteupRequest {
     pub intent: String,
 }
 
+/// AI 自动分组结果（LLM 输出的单个分组）
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroupSpec {
+    pub title: String,
+    pub node_ids: Vec<String>,
+}
+
 /// 解析组卡成文目标："整理成文：<类型>；意图：<描述>；卡片：id1,id2"
 /// 各段缺失均容错：卡片缺失 → 空（读全画布）；类型缺失 → 初稿；意图缺失 → 空。
 pub fn parse_writeup_goal(goal: &str) -> WriteupRequest {
@@ -292,6 +301,123 @@ pub fn writeup_template(kind: &str, intent: &str) -> String {
         format!("{base}\n{{previousOutput}}")
     } else {
         format!("{base}\n用户补充意图：{intent}\n\n{{previousOutput}}")
+    }
+}
+
+/// 从续写目标里抽笔记 id（"续写笔记 <id> 的下一章（当前标题：…）" → "<id>"）
+pub fn extract_chapter_note_id(goal: &str) -> Option<String> {
+    for marker in ["续写笔记 ", "续写笔记"] {
+        if let Some(rest) = goal.find(marker).map(|i| &goal[i + marker.len()..]) {
+            let id = rest
+                .split(|c: char| c.is_whitespace() || c == '（' || c == '(' || c == '的')
+                .find(|token| !token.is_empty())
+                .unwrap_or("");
+            if !id.is_empty() {
+                return Some(id.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// 技能流水线：章节续写（读原文 → LLM 续写 → 追加保存，确认）
+fn chapter_plan(goal: &str) -> Vec<Step> {
+    let note_id = extract_chapter_note_id(goal).unwrap_or_default();
+    vec![
+        tool_step("ch1", "note.read", json!({ "id": note_id })),
+        llm_step(
+            "ch2",
+            json!({
+                "promptTemplate": "你是花笺里的续写助手。请接着下面笔记的结尾续写下一章（保持行文风格一致、篇幅相当，直接输出续写正文）：\n{previousOutput}"
+            }),
+        ),
+        tool_step_confirm(
+            "ch3",
+            "note.update",
+            json!({ "id": note_id, "mode": "append", "content": "{previousOutput}" }),
+        ),
+    ]
+}
+
+/// 技能流水线：AI 自动分组（读画布 → LLM 语义归组 → 写回分组，确认）
+/// 目标：把画布卡片按语义自动分成泳道（分组输出落地）
+fn group_plan(_goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("g1", "canvas.read", json!({ "canvasId": "first" })),
+        llm_step(
+            "g2",
+            json!({
+                "promptTemplate": "你是花笺画布整理助手。请把下面的画布卡片按主题语义自动分组（2-6 组），并输出严格 JSON：\n{\"groups\": [{\"title\": \"组名\", \"nodeIds\": [\"卡片id\", ...]}]}\n每组至少 1 张卡片、每张卡片只属于一组，id 必须来自输入列表。只输出 JSON，不要解释。\n\n{previousOutput}"
+            }),
+        ),
+        tool_step_confirm("g3", "canvas.save-groups", json!({ "canvasId": "first" })),
+    ]
+}
+
+/// 从 LLM 输出解析分组 JSON（容错去掉 ```json 围栏）
+pub fn parse_group_plan(text: &str) -> Result<Vec<GroupSpec>, AppError> {
+    let mut cleaned = text.trim().to_string();
+    if let Some(start) = cleaned.find('{') {
+        if let Some(end) = cleaned.rfind('}') {
+            cleaned = cleaned[start..=end].to_string();
+        }
+    }
+    let value: Value = serde_json::from_str(&cleaned)
+        .map_err(|e| AppError::new("groupParse", format!("分组结果不是合法 JSON：{e}")))?;
+    let groups = value
+        .get("groups")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AppError::new("groupParse", "分组结果缺少 groups 数组"))?;
+    let mut out = Vec::new();
+    for item in groups {
+        let title = item.get("title").and_then(Value::as_str).unwrap_or("未命名分组");
+        let node_ids: Vec<String> = item
+            .get("nodeIds")
+            .and_then(Value::as_array)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !node_ids.is_empty() {
+            out.push(GroupSpec {
+                title: title.trim().to_string(),
+                node_ids,
+            });
+        }
+    }
+    if out.is_empty() {
+        return Err(AppError::new("groupParse", "分组结果为空"));
+    }
+    Ok(out)
+}
+
+/// 把 AI 分组写回画布文档：替换旧 AI 分组（group-ai-*），更新节点归属；手动分组保留。
+pub fn apply_ai_groups(doc: &mut CanvasDocument, specs: &[GroupSpec]) {
+    for node in doc.nodes.iter_mut() {
+        if node
+            .group
+            .as_deref()
+            .is_some_and(|g| g.starts_with("group-ai-"))
+        {
+            node.group = None;
+        }
+    }
+    doc.groups.retain(|g| !g.id.starts_with("group-ai-"));
+    for (index, spec) in specs.iter().enumerate() {
+        let group_id = format!("group-ai-{index}");
+        doc.groups.push(CanvasGroup {
+            id: group_id.clone(),
+            title: spec.title.clone(),
+            node_ids: spec.node_ids.clone(),
+        });
+        for node in doc.nodes.iter_mut() {
+            if spec.node_ids.iter().any(|nid| nid == &node.id) {
+                node.group = Some(group_id.clone());
+            }
+        }
     }
 }
 
@@ -392,6 +518,18 @@ static SKILLS: &[Skill] = &[
         plan: canvas_writeup_plan,
     },
     Skill {
+        name: "note.chapter",
+        description: "续写笔记的下一章（读原文 → LLM 续写 → 追加保存）",
+        matches: |g| has_any(g, CHAPTER_WORDS),
+        plan: chapter_plan,
+    },
+    Skill {
+        name: "canvas.group",
+        description: "AI 自动分组：把画布卡片按语义分成泳道（确认后写回）",
+        matches: |g| has_any(g, GROUP_WORDS),
+        plan: group_plan,
+    },
+    Skill {
         name: "note.summarize",
         description: "检索并总结相关笔记",
         matches: |g| has_any(g, SUMMARIZE_WORDS),
@@ -448,9 +586,11 @@ pub fn tool_registry_json() -> Value {
         {"name":"note.search","description":"按关键词搜索本地笔记，返回标题/分类/摘要列表","input":{"query":"string","limit":"int 默认5"}},
         {"name":"note.read","description":"读取笔记全文","input":{"id":"笔记id，或 \"top\" 表示读上一步搜索的第一条"}},
         {"name":"note.create","description":"新建笔记（写操作，需确认）","input":{"title":"string","content":"string","category":"string 可选"}},
+        {"name":"note.update","description":"更新既有笔记：mode=append 追加到末尾（章节续写），否则覆盖（写操作，需确认）","input":{"id":"笔记id","mode":"append|replace 默认 replace","content":"string"}},
         {"name":"canvas.read","description":"读取画布文档（节点+连线）","input":{"canvasId":"string 或 \"first\""}},
         {"name":"canvas.node.create","description":"在画布创建文本节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","content":"string"}},
         {"name":"canvas.save","description":"把上一步 LLM 生成内容写回画布：nodeId 命中则更新该节点文本，否则追加 agent 节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","nodeId":"string 可选"}},
+        {"name":"canvas.save-groups","description":"把上一步 LLM 的分组结果写回画布（AI 自动分组，写操作，需确认）","input":{"canvasId":"string 或 \"first\""}},
         {"name":"web.search","description":"通过本地 SearXNG 搜索互联网（需确认）","input":{"query":"string","limit":"int 默认5"}},
         {"name":"llm.generate","description":"用 LLM 生成或改写文本","input":{"prompt":"string"}},
     ])
@@ -795,6 +935,56 @@ impl<'a> TaskRunner<'a> {
                 serde_json::to_value(&note)
                     .map_err(|e| AppError::new("serializeNote", format!("序列化笔记失败：{e}")))
             }
+            Some("note.update") => {
+                // 章节续写等：更新既有笔记。mode=append 追加到末尾（默认 replace 覆盖）
+                let id = step
+                    .input
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::new("missingInput", "note.update 缺少输入参数 id"))?;
+                let mode = step
+                    .input
+                    .get("mode")
+                    .and_then(Value::as_str)
+                    .unwrap_or("replace");
+                let raw_content = step
+                    .input
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let content = resolve_previous_output(raw_content, outputs);
+                let mut note = self.notes.read_note(id)?;
+                let content = if mode == "append" && !note.content.trim().is_empty() {
+                    format!("{}\n\n{}", note.content.trim_end(), content.trim())
+                } else {
+                    content.trim().to_string()
+                };
+                let updated = self.notes.update_note(
+                    id,
+                    SaveNoteRequest {
+                        title: note.title.clone(),
+                        content,
+                        category: note.category.clone(),
+                    },
+                )?;
+                // 记忆更新：内容变更后重索引（先删源再写入）
+                if let Some(vectors) = self.vectors {
+                    if let Err(index_error) = rag::index_source(
+                        vectors,
+                        &format!("note:{}", updated.id),
+                        &updated.content,
+                    )
+                    .await
+                    {
+                        log::debug!("[memory] 重索引续写笔记失败: {}", index_error.message);
+                    }
+                }
+                if let Some(app) = self.app {
+                    let _ = app.emit("notes-changed", ());
+                }
+                serde_json::to_value(&updated)
+                    .map_err(|e| AppError::new("serializeNote", format!("序列化笔记失败：{e}")))
+            }
             Some("canvas.read") => {
                 let canvas = self
                     .canvas
@@ -866,6 +1056,35 @@ impl<'a> TaskRunner<'a> {
                 canvas.save(doc)?;
                 serde_json::to_value(&node)
                     .map_err(|e| AppError::new("serializeCanvas", format!("序列化节点失败：{e}")))
+            }
+            Some("canvas.save-groups") => {
+                // AI 自动分组写回：从上一步 LLM 输出解析分组，替换旧 AI 分组（group-ai-*），
+                // 并更新节点归属。手动分组（非 group-ai-*）保留不动。
+                let canvas = self
+                    .canvas
+                    .ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let llm_text = last_llm_output_text(outputs)
+                    .ok_or_else(|| AppError::new("groupParse", "缺少 LLM 分组结果"))?;
+                let specs = parse_group_plan(&llm_text)?;
+                let id = step
+                    .input
+                    .get("canvasId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("first");
+                let mut doc = if id == "first" {
+                    canvas
+                        .list()?
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| AppError::new("canvasEmpty", "没有可写入的画布"))?
+                } else {
+                    canvas.get(id)?
+                };
+                // 先解除旧 AI 分组的节点归属，再写入新分组（apply_ai_groups 内处理）
+                apply_ai_groups(&mut doc, &specs);
+                canvas.save(doc.clone())?;
+                serde_json::to_value(&doc)
+                    .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
             }
             Some("web.search") => {
                 let query = step
@@ -1237,14 +1456,44 @@ fn output_text(value: &Value) -> String {
     if let Some(c) = value.get("content").and_then(Value::as_str) {
         return c.to_string();
     }
-    // 画布文档（canvas.read 输出）：渲染成可读的卡片列表，供 LLM 直接使用
+    // 画布文档（canvas.read 输出）：渲染成可读的卡片列表；有分组时按分组组织（成文按分组输出）
     if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
-        let lines: Vec<String> = nodes
-            .iter()
-            .filter_map(|node| node.get("text").and_then(Value::as_str))
-            .map(|text| format!("- {}", text.trim()))
-            .filter(|line| !line.trim().is_empty())
-            .collect();
+        // 分组 id → 标题 映射
+        let group_titles: std::collections::HashMap<&str, &str> = value
+            .get("groups")
+            .and_then(Value::as_array)
+            .map(|groups| {
+                groups
+                    .iter()
+                    .filter_map(|g| {
+                        let id = g.get("id").and_then(Value::as_str)?;
+                        let title = g.get("title").and_then(Value::as_str).unwrap_or("");
+                        Some((id, title))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut lines: Vec<String> = Vec::new();
+        for node in nodes {
+            let text = node
+                .get("text")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let group_id = node.get("group").and_then(Value::as_str);
+            let group_title = group_id
+                .and_then(|id| group_titles.get(id).copied())
+                .unwrap_or("");
+            if !group_title.is_empty() {
+                let header = format!("【{group_title}】");
+                if lines.last().map(String::as_str) != Some(header.as_str()) {
+                    lines.push(header);
+                }
+            }
+            if let Some(text) = text {
+                lines.push(format!("- {text}"));
+            }
+        }
         if !lines.is_empty() {
             return lines.join("\n");
         }
@@ -1744,7 +1993,7 @@ mod tests {
     #[test]
     fn skill_registry_has_unique_names_and_descriptions() {
         let skills = skill_registry();
-        assert_eq!(skills.len(), 7);
+        assert_eq!(skills.len(), 9);
         let mut names: Vec<&str> = skills.iter().map(|s| s.name).collect();
         names.sort_unstable();
         let mut uniq = names.clone();
@@ -2288,5 +2537,159 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(temp_dir("draft_tasks"));
         let _ = std::fs::remove_dir_all(temp_dir("draft_notes"));
+    }
+
+    // ── 章节续写（note.chapter）：读原文 → LLM 续写 → 追加保存 ────────────────
+
+    #[test]
+    fn extract_chapter_note_id_parses_goal() {
+        assert_eq!(
+            extract_chapter_note_id("续写笔记 note-abc 的下一章（当前标题：第一章）").as_deref(),
+            Some("note-abc")
+        );
+        assert_eq!(
+            extract_chapter_note_id("续写笔记 n1 下一章").as_deref(),
+            Some("n1")
+        );
+        assert_eq!(extract_chapter_note_id("没有目标"), None);
+    }
+
+    #[test]
+    fn plan_for_goal_expands_chapter_pipeline() {
+        let goal = "续写笔记 note-abc 的下一章（当前标题：雨夜重逢）";
+        let plan = plan_for_goal(goal);
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("note.read"));
+        assert_eq!(plan[0].input["id"], "note-abc");
+        assert!(plan[1].kind == StepKind::Llm);
+        assert!(plan[1].input["promptTemplate"].as_str().unwrap().contains("续写下一章"));
+        assert_eq!(plan[2].tool.as_deref(), Some("note.update"));
+        assert!(plan[2].required_confirm);
+        assert_eq!(plan[2].input["mode"], "append");
+        assert_eq!(plan[2].input["content"], "{previousOutput}");
+    }
+
+    #[test]
+    fn runner_appends_chapter_to_existing_note() {
+        let dir = temp_dir("chapter_notes");
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = notes_store("chapter_notes");
+        let id = seed_note(&store, "雨夜重逢", "第一章：车站重逢。雨落在玻璃上。", "小说");
+        let tasks = task_store("chapter_tasks");
+
+        let mut task = Task::new("t-ch", &format!("续写笔记 {id} 的下一章（当前标题：雨夜重逢）"));
+        task.plan = vec![
+            tool_step("ch1", "note.read", json!({"id": id})),
+            tool_step_confirm("ch3", "note.update", json!({"id": id, "mode": "append", "content": "第二章：街角的灯亮了。"})),
+        ];
+        tasks.create(&task).unwrap();
+        let test_runner = runner(&tasks, &store);
+
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::AwaitingConfirm);
+        task.plan[1].confirmed = true;
+        tasks.update(&task).unwrap();
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+
+        // 内容追加到末尾，原内容保留
+        let note = store.read_note(&id).unwrap();
+        assert!(note.content.contains("第一章：车站重逢"));
+        assert!(note.content.contains("第二章：街角的灯亮了。"));
+        assert!(note.content.find("第一章").unwrap() < note.content.find("第二章").unwrap());
+
+        let _ = std::fs::remove_dir_all(temp_dir("chapter_notes"));
+        let _ = std::fs::remove_dir_all(temp_dir("chapter_tasks"));
+    }
+
+    // ── AI 自动分组（canvas.group）：LLM 分组 → 写回泳道 ──────────────────────
+
+    #[test]
+    fn parse_group_plan_extracts_groups_with_fences() {
+        let text = "```json\n{\"groups\": [{\"title\": \"人物\", \"nodeIds\": [\"n1\", \"n2\"]}, {\"title\": \"世界观\", \"nodeIds\": [\"n3\"]}]}\n```";
+        let specs = parse_group_plan(text).unwrap();
+        assert_eq!(specs.len(), 2);
+        assert_eq!(specs[0].title, "人物");
+        assert_eq!(specs[0].node_ids, vec!["n1", "n2"]);
+        assert_eq!(specs[1].title, "世界观");
+        assert_eq!(specs[1].node_ids, vec!["n3"]);
+    }
+
+    #[test]
+    fn parse_group_plan_rejects_invalid_or_empty() {
+        assert!(parse_group_plan("不是 JSON").is_err());
+        assert!(parse_group_plan("{\"groups\": []}").is_err());
+        assert!(parse_group_plan("{\"groups\": [{\"title\": \"x\", \"nodeIds\": []}]}").is_err());
+    }
+
+    #[test]
+    fn apply_ai_groups_writes_groups_and_preserves_manual() {
+        let mut doc = CanvasDocument {
+            id: "c".into(),
+            note_id: None,
+            co_write_session_id: None,
+            nodes: vec![
+                CanvasNode { id: "n1".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "a".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                CanvasNode { id: "n2".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "b".into(), source: None, z_index: 0, ..CanvasNode::default() },
+                CanvasNode { id: "n3".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "c".into(), source: None, z_index: 0, group: Some("group-manual".into()), ..CanvasNode::default() },
+            ],
+            edges: vec![],
+            groups: vec![CanvasGroup { id: "group-manual".into(), title: "手动组".into(), node_ids: vec!["n3".into()] }],
+        };
+
+        apply_ai_groups(
+            &mut doc,
+            &[GroupSpec { title: "人物".into(), node_ids: vec!["n1".into(), "n2".into()] }],
+        );
+
+        assert_eq!(doc.groups.len(), 2, "手动分组保留 + 1 个 AI 分组");
+        assert!(doc.groups.iter().any(|g| g.id == "group-manual"));
+        let ai = doc.groups.iter().find(|g| g.id.starts_with("group-ai-")).unwrap();
+        assert_eq!(ai.title, "人物");
+        assert_eq!(doc.nodes[0].group.as_deref(), Some(ai.id.as_str()));
+        assert_eq!(doc.nodes[1].group.as_deref(), Some(ai.id.as_str()));
+        assert_eq!(doc.nodes[2].group.as_deref(), Some("group-manual"), "手动分组的节点归属不变");
+
+        // 再次执行 → 旧 AI 分组被替换，不膨胀
+        apply_ai_groups(
+            &mut doc,
+            &[GroupSpec { title: "情节".into(), node_ids: vec!["n1".into()] }],
+        );
+        assert_eq!(doc.groups.len(), 2);
+        let ais: Vec<&str> = doc.groups.iter().filter(|g| g.id.starts_with("group-ai-")).map(|g| g.id.as_str()).collect();
+        assert_eq!(ais.len(), 1);
+        assert_eq!(doc.nodes[1].group, None, "旧 AI 分组的节点归属被解除");
+    }
+
+    #[test]
+    fn plan_for_goal_expands_group_pipeline() {
+        let plan = plan_for_goal("自动分组画布卡片");
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("canvas.read"));
+        assert!(plan[1].kind == StepKind::Llm);
+        assert!(plan[1].input["promptTemplate"].as_str().unwrap().contains("groups"));
+        assert_eq!(plan[2].tool.as_deref(), Some("canvas.save-groups"));
+        assert!(plan[2].required_confirm);
+    }
+
+    #[test]
+    fn output_text_groups_cards_under_headers() {
+        let doc = json!({
+            "nodes": [
+                { "id": "n1", "text": "主角动机", "group": "g1" },
+                { "id": "n2", "text": "雨夜重逢", "group": "g1" },
+                { "id": "n3", "text": "世界规则", "group": "g2" }
+            ],
+            "groups": [
+                { "id": "g1", "title": "人物" },
+                { "id": "g2", "title": "世界观" }
+            ]
+        });
+        let text = output_text(&doc);
+        let person_pos = text.find("【人物】").unwrap();
+        let world_pos = text.find("【世界观】").unwrap();
+        assert!(person_pos < world_pos, "按分组顺序输出");
+        assert!(text.find("主角动机").unwrap() > person_pos);
+        assert!(text.find("世界规则").unwrap() > world_pos);
     }
 }

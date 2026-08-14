@@ -38,6 +38,7 @@ import {
 import { getTemplateById } from "../features/canvas/onboarding/templates";
 import { dispatchOpenNote } from "../features/notes/openNoteEvents";
 import { listNotes } from "../features/notes/api";
+import { agentSignalQueue } from "../features/agent/signalQueue";
 
 /** 卡片颜色标记可选值（card 灵感卡） */
 const NODE_COLORS = ["#c28060", "#7aa65c", "#8aa2c2", "#c2a45c", "#a67aa8", "#6f9aa8"];
@@ -495,12 +496,20 @@ export function CanvasPage({
   const [writeupOpen, setWriteupOpen] = useState(false);
   const [writeupGoal, setWriteupGoal] = useState<string | null>(null);
   const [writeupVersion, setWriteupVersion] = useState(0);
+  // ── 章节续写：成文落盘后可接着写下一章 ────────────────────────────────────
+  const [chapterGoal, setChapterGoal] = useState<string | null>(null);
+  const [chapterVersion, setChapterVersion] = useState(0);
+  // ── AI 自动分组：一键按语义把画布卡片分成泳道 ─────────────────────────────
+  const [groupTaskGoal, setGroupTaskGoal] = useState<string | null>(null);
+  const [groupTaskVersion, setGroupTaskVersion] = useState(0);
   // ── 卡片增强（P0-1）：分组/泳道折叠 + resource 笔记列表 ────────────────────
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [noteOptions, setNoteOptions] = useState<{ id: string; title: string }[]>([]);
   /** 节点属性面板：编辑 task 截止日期 / card 颜色标签 / resource 绑定笔记 */
   const [nodeMetaPanelId, setNodeMetaPanelId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
+  /** P0-3：Live2D 成文提议（选中 ≥3 张卡片时花灵提议整理成文） */
+  const [writeupProposalDismissed, setWriteupProposalDismissed] = useState(false);
 
   // ── 新手引导（ob-1 ~ ob-4）：3s 预告动画 → 四步演示 → 模板坞 → AI 唤醒 ──
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(() => {
@@ -778,6 +787,23 @@ export function CanvasPage({
     dispatchOpenNote(node.noteId);
   }, []);
 
+  /** P0-3：选中 ≥3 张卡片时，花灵提议整理成文（信号队列自带冷却/去重，不刷屏） */
+  const showWriteupProposal =
+    agentEnabled && providers.length > 0 && selectedNodeIds.length >= 3 && !writeupProposalDismissed;
+
+  useEffect(() => {
+    if (!showWriteupProposal) return;
+    agentSignalQueue.dispatch({
+      type: "live2d_signal",
+      mood: "curious",
+      animation: "poke",
+      bubbleText: t("canvas.writeupProposeBubble", {
+        defaultValue: "这几张卡片够成一篇文章了，要整理成文吗？",
+      }),
+      priority: 40,
+    });
+  }, [showWriteupProposal, t]);
+
   const undo = useCallback(() => {
     const prev = undoStackRef.current[undoStackRef.current.length - 1];
     if (!prev) return;
@@ -833,6 +859,18 @@ export function CanvasPage({
     setWriteupOpen(false);
     setWriteupGoal(goal);
     setWriteupVersion((v) => v + 1);
+  }, []);
+
+  /** 章节续写：成文落盘后接着写下一章（goal 编码笔记 id + 标题，Rust note.chapter 技能） */
+  const handleContinueChapter = useCallback((note: { id: string; title: string }) => {
+    setChapterGoal(`续写笔记 ${note.id} 的下一章（当前标题：${note.title || "成文"}）`);
+    setChapterVersion((v) => v + 1);
+  }, []);
+
+  /** AI 自动分组：一键按语义把画布卡片分成泳道（Rust canvas.group 技能） */
+  const handleAiGroup = useCallback(() => {
+    setGroupTaskGoal("自动分组画布卡片");
+    setGroupTaskVersion((v) => v + 1);
   }, []);
 
   // ── P1-3：画布导出 PNG（自包含 SVG → 2x 光栅化 → 下载） ───────────────────
@@ -1964,6 +2002,18 @@ export function CanvasPage({
                 ? t("canvas.agentThinking", { defaultValue: "分析中…" })
                 : t("canvas.analyzeDiscussion", { defaultValue: "分析共识" })}
             </button>
+            <button
+              type="button"
+              onClick={handleAiGroup}
+              disabled={doc.nodes.length < 3}
+              className="canvas-control-button canvas-button-ai"
+              title={t("canvas.aiGroupTip", {
+                defaultValue: "让 Agent 按语义把画布卡片自动分成泳道（确认后写回）",
+              })}
+            >
+              <GroupIcon />
+              {t("canvas.aiGroup", { defaultValue: "AI 分组" })}
+            </button>
           </>
         )}
       </div>
@@ -2072,7 +2122,76 @@ export function CanvasPage({
               <CloseIcon />
             </button>
           </div>
-          <TaskProgressPanel key={writeupVersion} goal={writeupGoal} />
+          <TaskProgressPanel
+            key={writeupVersion}
+            goal={writeupGoal}
+            onContinueChapter={handleContinueChapter}
+          />
+        </div>
+      )}
+
+      {/* 章节续写面板：成文落盘后接着写下一章 */}
+      {chapterGoal && (
+        <div className="absolute bottom-4 left-[420px] z-30 w-[320px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="canvas-panel-title">
+              {t("canvas.chapterPanel", { defaultValue: "章节续写" })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setChapterGoal(null)}
+              className="canvas-icon-button canvas-button-ghost"
+              aria-label={t("common.close", { defaultValue: "关闭" })}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <TaskProgressPanel key={chapterVersion} goal={chapterGoal} />
+        </div>
+      )}
+
+      {/* AI 自动分组面板：按语义把画布卡片分成泳道 */}
+      {groupTaskGoal && (
+        <div className="absolute bottom-4 left-4 z-30 w-[320px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="canvas-panel-title">
+              {t("canvas.aiGroupPanel", { defaultValue: "AI 自动分组" })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setGroupTaskGoal(null)}
+              className="canvas-icon-button canvas-button-ghost"
+              aria-label={t("common.close", { defaultValue: "关闭" })}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <TaskProgressPanel key={groupTaskVersion} goal={groupTaskGoal} />
+        </div>
+      )}
+
+      {/* P0-3：Live2D 成文提议横幅（花灵气泡同步由信号队列驱动） */}
+      {showWriteupProposal && (
+        <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-bamboo/30 bg-paper/95 px-4 py-2.5 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
+          <span className="text-[12px] text-ink-soft">
+            {t("canvas.writeupPropose", {
+              defaultValue: "花灵：这几张卡片够成一篇文章了，要整理成文吗？",
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setWriteupOpen(true)}
+            className="rounded-lg bg-bamboo px-3 py-1 text-[11px] font-medium text-paper hover:bg-bamboo/90 cursor-pointer"
+          >
+            {t("canvas.writeup", { defaultValue: "整理成文" })}
+          </button>
+          <button
+            type="button"
+            onClick={() => setWriteupProposalDismissed(true)}
+            className="rounded-lg px-2 py-1 text-[10px] text-ink-ghost hover:text-ink cursor-pointer"
+          >
+            {t("common.ignore", { defaultValue: "忽略" })}
+          </button>
         </div>
       )}
 

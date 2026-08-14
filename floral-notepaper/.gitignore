@@ -58,3 +58,5 @@ nul
 .dbg/
 debug-*.md
 *.zip
+
+src-tauri/.cargo/
