@@ -19,10 +19,18 @@
   animation: card-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.community-card-enter:nth-child(2) { animation-delay: 0.04s; }
-.community-card-enter:nth-child(3) { animation-delay: 0.08s; }
-.community-card-enter:nth-child(4) { animation-delay: 0.12s; }
-.community-card-enter:nth-child(5) { animation-delay: 0.16s; }
+.community-card-enter:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.community-card-enter:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.community-card-enter:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.community-card-enter:nth-child(5) {
+  animation-delay: 0.16s;
+}
 
 /* ── 分类标签切换动画 ── */
 @keyframes category-slide-left {
@@ -57,8 +65,13 @@
 
 /* ── 脉冲加载骨架 ── */
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .community-skeleton {
@@ -69,7 +82,8 @@
 
 /* ── 分享按钮脉冲效果 ── */
 @keyframes share-pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(255, 36, 66, 0.3);
   }
   50% {
@@ -91,9 +105,15 @@
   margin-bottom: 0.5em;
 }
 
-.community-detail-content h1 { font-size: 1.5rem; }
-.community-detail-content h2 { font-size: 1.25rem; }
-.community-detail-content h3 { font-size: 1.1rem; }
+.community-detail-content h1 {
+  font-size: 1.5rem;
+}
+.community-detail-content h2 {
+  font-size: 1.25rem;
+}
+.community-detail-content h3 {
+  font-size: 1.1rem;
+}
 
 .community-detail-content p {
   margin-bottom: 0.75em;

@@ -1,35 +1,43 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { EditorCanvas } from '../components/EditorCanvas';
-import { EditorSidebar } from '../components/EditorSidebar';
-import { KanbanBoard } from '../components/KanbanBoard';
-import { InspirationCollector } from '../components/InspirationCollector';
-import { MaterialCollector } from '../components/MaterialCollector';
-import { ActivityTimeline } from '../components/ActivityTimeline';
-import { SharePanel } from '../components/SharePanel';
-import { useStudioStore } from '../stores/useStudioStore';
-import { useActivityLog } from '../hooks/useActivityLog';
-import { supabase } from '../../auth/supabase';
-import type { GardenArticle } from '../../garden/types';
+import { useState, useCallback, useRef, useEffect } from "react";
+import { EditorCanvas, type EditorCanvasHandle } from "../components/EditorCanvas";
+import { EditorSidebar } from "../components/EditorSidebar";
+import { KanbanBoard } from "../components/KanbanBoard";
+import { InspirationCollector } from "../components/InspirationCollector";
+import { MaterialCollector } from "../components/MaterialCollector";
+import { ActivityTimeline } from "../components/ActivityTimeline";
+import { SharePanel } from "../components/SharePanel";
+import { useStudioStore } from "../stores/useStudioStore";
+import { useActivityLog } from "../hooks/useActivityLog";
+import { supabase } from "../../auth/supabase";
+import type { GardenArticle } from "../../garden/types";
 
 interface StudioEditorPageProps {
   userId: string;
 }
 
 export function StudioEditorPage({ userId }: StudioEditorPageProps) {
-  const { kanbanView, setKanbanView, showSharePanel, setShowSharePanel, currentArticle, setCurrentArticle, setArticles } = useStudioStore();
+  const {
+    kanbanView,
+    setKanbanView,
+    showSharePanel,
+    setShowSharePanel,
+    currentArticle,
+    setCurrentArticle,
+    setArticles,
+  } = useStudioStore();
   const { logActivity } = useActivityLog();
   const [showInspiration, setShowInspiration] = useState(false);
   const [showMaterial, setShowMaterial] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
-  const editorRef = useRef<{ getContentJSON: () => unknown; getContentText: () => string }>(null);
+  const editorRef = useRef<EditorCanvasHandle>(null);
 
   // 加载文章列表
   const loadArticles = useCallback(async () => {
     const { data } = await supabase
-      .from('garden_articles')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
+      .from("garden_articles")
+      .select("*")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
     if (data) {
       setArticles(data as GardenArticle[]);
     }
@@ -46,21 +54,23 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
 
   const handleCreateNew = useCallback(() => {
     setCurrentArticle(null);
-    logActivity('create_draft');
+    logActivity("create_draft");
   }, [setCurrentArticle, logActivity]);
 
-  const handleSelectArticle = useCallback((article: GardenArticle) => {
-    setCurrentArticle(article);
-    logActivity('edit', article.id);
-  }, [setCurrentArticle, logActivity]);
+  const handleSelectArticle = useCallback(
+    (article: GardenArticle) => {
+      setCurrentArticle(article);
+      logActivity("edit", article.id);
+    },
+    [setCurrentArticle, logActivity],
+  );
 
   const handleInsertToEditor = useCallback((content: string) => {
-    // 通过 editorRef 插入内容
-    console.log('[Insert]', content);
+    editorRef.current?.insertText(content);
   }, []);
 
   const getTextContent = useCallback(() => {
-    return editorRef.current?.getContentText() || '';
+    return editorRef.current?.getContentText() || "";
   }, []);
 
   // 工具栏右侧的小红书风格操作按钮
@@ -95,7 +105,9 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
         type="button"
         onClick={() => setKanbanView(!kanbanView)}
         className={`px-2.5 py-1.5 text-[11px] rounded-lg transition-colors cursor-pointer ${
-          kanbanView ? 'bg-bamboo-mist/30 text-bamboo' : 'text-ink-ghost hover:text-ink-soft hover:bg-paper-warm/60'
+          kanbanView
+            ? "bg-bamboo-mist/30 text-bamboo"
+            : "text-ink-ghost hover:text-ink-soft hover:bg-paper-warm/60"
         }`}
         title="看板视图"
       >
@@ -122,7 +134,7 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
             <>
               <span className="text-ink-ghost">/</span>
               <span className="text-[13px] text-ink-soft truncate max-w-[200px]">
-                {currentArticle.title || '未命名'}
+                {currentArticle.title || "未命名"}
               </span>
             </>
           )}
@@ -137,7 +149,7 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
         ) : (
           <>
             <EditorSidebar onCreateNew={handleCreateNew} onSelectArticle={handleSelectArticle} />
-            <EditorCanvas />
+            <EditorCanvas ref={editorRef} />
           </>
         )}
       </div>
@@ -149,12 +161,8 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
           onInsertToEditor={handleInsertToEditor}
         />
       )}
-      {showMaterial && (
-        <MaterialCollector onClose={() => setShowMaterial(false)} />
-      )}
-      {showTimeline && (
-        <ActivityTimeline onClose={() => setShowTimeline(false)} />
-      )}
+      {showMaterial && <MaterialCollector onClose={() => setShowMaterial(false)} />}
+      {showTimeline && <ActivityTimeline onClose={() => setShowTimeline(false)} />}
       {showSharePanel && (
         <SharePanel
           blocks={[]}

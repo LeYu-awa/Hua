@@ -1,4 +1,4 @@
-import type { UserStats } from '../types';
+import type { UserStats } from "../types";
 
 interface ProfileStatsProps {
   stats: UserStats;

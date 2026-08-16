@@ -11,6 +11,7 @@
 一款以**块级编辑器为核心**、**创作过程为可沉淀内容**的创作者工具，无缝衔接从灵感收集 → 内容创作 → 多平台分发的全链路。编辑器本身既产出内容，也记录创作轨迹，实现「创作过程即内容」的核心定位。
 
 ### 目标用户
+
 - 小红书内容创作者（图文/视频）
 - 习惯 Notion 式块级编辑的知识工作者
 - 重视创作过程记录与复用的深度用户
@@ -19,15 +20,15 @@
 
 ## 2. 技术选型
 
-| 维度 | 选择 | 理由 |
-|------|------|------|
-| 编辑器引擎 | **TipTap** (ProseMirror) | 块级编辑原生支持，Yjs 协作集成，社区活跃 |
-| 编辑器入口 | **侧边栏新增「创作」** 独立页面 | 全屏深度创作体验，不与现有功能冲突 |
-| 实时协作 | **Yjs + Supabase Realtime** | CRDT 无冲突合并，复用现有 Supabase 通道 |
-| 状态管理 | **Zustand** (项目已有) | 轻量、TypeScript 友好 |
-| 持久化 | **Supabase** + IndexedDB 缓存 | 云端 + 离线草稿双保险 |
-| 样式 | **Tailwind CSS** (项目已有) | 与全站风格一致 |
-| 国际化 | **react-i18next** (项目已有) | 复用现有 i18n 配置 |
+| 维度       | 选择                            | 理由                                     |
+| ---------- | ------------------------------- | ---------------------------------------- |
+| 编辑器引擎 | **TipTap** (ProseMirror)        | 块级编辑原生支持，Yjs 协作集成，社区活跃 |
+| 编辑器入口 | **侧边栏新增「创作」** 独立页面 | 全屏深度创作体验，不与现有功能冲突       |
+| 实时协作   | **Yjs + Supabase Realtime**     | CRDT 无冲突合并，复用现有 Supabase 通道  |
+| 状态管理   | **Zustand** (项目已有)          | 轻量、TypeScript 友好                    |
+| 持久化     | **Supabase** + IndexedDB 缓存   | 云端 + 离线草稿双保险                    |
+| 样式       | **Tailwind CSS** (项目已有)     | 与全站风格一致                           |
+| 国际化     | **react-i18next** (项目已有)    | 复用现有 i18n 配置                       |
 
 ---
 
@@ -73,6 +74,7 @@
 路由渲染：`<StudioEditorPage userId={userId} />`
 
 `StudioEditorPage` 布局：
+
 ```
 ┌───── EditorSidebar ────┬────────── EditorCanvas ──────────┐
 │  文章列表              │   TipTap 编辑器                   │
@@ -91,13 +93,13 @@
 
 #### 小红书专属工具
 
-| 工具 | 实现方式 |
-|------|----------|
-| **话题标签** | 自定义 `TopicTag` 块，输入 `#` 触发自动补全（调用标签库 API），多标签组合渲染为小红书风格蓝色标签 |
-| **表情库** | 自定义 `EmojiPicker` 块或 BubbleMenu 按钮，弹出分类 emoji 面板（小红书高频表情分类：日常/心情/美食/旅行） |
-| **字号美化** | 预设字号 CSS class：`.xh-title-lg` / `.xh-title-md` / `.xh-body` / `.xh-caption`，对应小红书正文排版规范 |
-| **封面裁切** | 自定义 `CoverCrop` 块：拖拽选取 3:4 竖版区域（建议 1080×1440px），实时预览封面效果，支持多图封面轮播预览 |
-| **画质压缩** | 图片上传管道中可选压缩级别（无损/高清/均衡），使用 `canvas.toBlob` 或 `browser-image-compression` 库 |
+| 工具         | 实现方式                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------- |
+| **话题标签** | 自定义 `TopicTag` 块，输入 `#` 触发自动补全（调用标签库 API），多标签组合渲染为小红书风格蓝色标签         |
+| **表情库**   | 自定义 `EmojiPicker` 块或 BubbleMenu 按钮，弹出分类 emoji 面板（小红书高频表情分类：日常/心情/美食/旅行） |
+| **字号美化** | 预设字号 CSS class：`.xh-title-lg` / `.xh-title-md` / `.xh-body` / `.xh-caption`，对应小红书正文排版规范  |
+| **封面裁切** | 自定义 `CoverCrop` 块：拖拽选取 3:4 竖版区域（建议 1080×1440px），实时预览封面效果，支持多图封面轮播预览  |
+| **画质压缩** | 图片上传管道中可选压缩级别（无损/高清/均衡），使用 `canvas.toBlob` 或 `browser-image-compression` 库      |
 
 #### 实时自动存稿
 
@@ -153,6 +155,7 @@ CREATE INDEX idx_versions_article ON document_versions(article_id, version_numbe
 ```
 
 **activity_log 表设计：**
+
 ```sql
 CREATE TABLE activity_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -190,12 +193,12 @@ CREATE TABLE activity_log (
 
 看板视图采用类似 Trello 的列式布局：
 
-| 列 | 内容 | 操作 |
-|----|------|------|
-| 📝 待创作 | 灵感草稿、素材收集箱中标记为任务的项目 | 拖入「创作中」开始写作 |
-| ✏️ 创作中 | 正在编辑的草稿/文章（最近有编辑活动） | 点击打开编辑器 |
-| 🔍 待审核 | 标记为「待审核」的文章 | 预览/审核/驳回/发布 |
-| ✅ 已发布 | 已发布到小红书或导出到 Notion 的文章 | 查看已发布状态/编辑已发布版本 |
+| 列        | 内容                                   | 操作                          |
+| --------- | -------------------------------------- | ----------------------------- |
+| 📝 待创作 | 灵感草稿、素材收集箱中标记为任务的项目 | 拖入「创作中」开始写作        |
+| ✏️ 创作中 | 正在编辑的草稿/文章（最近有编辑活动）  | 点击打开编辑器                |
+| 🔍 待审核 | 标记为「待审核」的文章                 | 预览/审核/驳回/发布           |
+| ✅ 已发布 | 已发布到小红书或导出到 Notion 的文章   | 查看已发布状态/编辑已发布版本 |
 
 ---
 
@@ -212,18 +215,19 @@ CREATE TABLE activity_log (
 
 **格式转换器规则：**
 
-| 编辑器块类型 | 小红书格式 |
-|-------------|-----------|
-| Heading 1 | 加粗大号文字 + 换行 × 2 |
-| Heading 2 | 加粗中号文字 + 换行 |
-| Paragraph | 自然段，每段不超过 3 行 |
-| Image (单张) | 封面图（独立上传） |
-| Image (多张) | 轮播图，自动排序 |
-| TopicTag | `#话题标签` 追加到正文末尾 |
-| Emoji | 保留原生 emoji |
-| Todo List | 转换为带 ✅ 的纯文本列表 |
+| 编辑器块类型 | 小红书格式                 |
+| ------------ | -------------------------- |
+| Heading 1    | 加粗大号文字 + 换行 × 2    |
+| Heading 2    | 加粗中号文字 + 换行        |
+| Paragraph    | 自然段，每段不超过 3 行    |
+| Image (单张) | 封面图（独立上传）         |
+| Image (多张) | 轮播图，自动排序           |
+| TopicTag     | `#话题标签` 追加到正文末尾 |
+| Emoji        | 保留原生 emoji             |
+| Todo List    | 转换为带 ✅ 的纯文本列表   |
 
 **合规预检清单：**
+
 - [x] 敏感词检测（调用敏感词 API 或本地词库）
 - [x] 封面尺寸校验（宽高比 3:4，建议 1080×1440）
 - [x] 正文长度 ≤ 1000 字
@@ -233,11 +237,13 @@ CREATE TABLE activity_log (
 #### Notion 生态导出
 
 **导出格式：**
+
 - `.md` 文件（Notion 兼容的 Markdown + frontmatter 元数据）
 - 包含：文章标题、正文、封面图链接、标签、时间戳
 - 可选包含：创作轨迹、批注、素材记录
 
 **一键分享：**
+
 - 通过 Notion API（`POST /v1/pages`）在用户指定的 Notion 数据库中创建页面
 - 或生成可下载的 `.md` 压缩包
 
@@ -343,6 +349,7 @@ src/
 ## 6. 开发阶段规划
 
 ### Phase 1：编辑器基础设施
+
 - 安装 TipTap 依赖 + 配置扩展
 - StudioEditorPage 布局（侧边栏 + 编辑器区域）
 - 基础块类型：文本、标题、图片、分隔线、引用、代码块
@@ -350,12 +357,14 @@ src/
 - 自动存稿（防抖 + Supabase 持久化）
 
 ### Phase 2：小红书专属工具
+
 - TopicTag 块 + 自动补全
 - EmojiPicker 面板
 - 图片上传管道（含画质压缩）
 - CoverCrop 封面裁切
 
 ### Phase 3：创作过程管理
+
 - activity_log 全链路记录
 - 灵感草稿箱（快速录入 + 管理）
 - 素材收集箱（链接导入 + 自动解析）
@@ -363,12 +372,14 @@ src/
 - 进度看板
 
 ### Phase 4：分享分发
+
 - 小红书格式转换器
 - 合规预检工具
 - Notion 导出 / API 发布
 - 版本历史管理
 
 ### Phase 5：多人协同
+
 - Yjs 集成 + Supabase Realtime 通道
 - 光标/选区同步
 - 协作者列表
@@ -386,16 +397,16 @@ src/
 
 ## 8. 参考与迁移
 
-| 资源 | 路径 |
-|------|------|
-| 设计文档 | `Docs/plans/2026-07-22-floral-creation-studio-design.md` |
-| 数据库迁移 | `supabase/migrations/011_studio_tables.sql` |
-| 编辑器入口 | `AppSidebar.tsx` → 新增 `"studio"` view，图标 ✦ |
-| 主页面 | `src/features/studio/pages/StudioEditorPage.tsx` |
+| 资源       | 路径                                                       |
+| ---------- | ---------------------------------------------------------- |
+| 设计文档   | `Docs/plans/2026-07-22-floral-creation-studio-design.md`   |
+| 数据库迁移 | `supabase/migrations/011_studio_tables.sql`                |
+| 编辑器入口 | `AppSidebar.tsx` → 新增 `"studio"` view，图标 ✦            |
+| 主页面     | `src/features/studio/pages/StudioEditorPage.tsx`           |
 | 编辑器核心 | `src/features/studio/components/EditorCanvas.tsx` (TipTap) |
-| 状态管理 | `src/features/studio/stores/useStudioStore.ts` (Zustand) |
-| 小红书工具 | `src/features/studio/services/xiaohongshu.ts` |
-| 合规预检 | `src/features/studio/services/complianceCheck.ts` |
+| 状态管理   | `src/features/studio/stores/useStudioStore.ts` (Zustand)   |
+| 小红书工具 | `src/features/studio/services/xiaohongshu.ts`              |
+| 合规预检   | `src/features/studio/services/complianceCheck.ts`          |
 
 ### 迁移清单 (Supabase)
 

@@ -36,10 +36,7 @@
   },
   "parameterMap": {
     "eyeOpen": {
-      "targets": [
-        "ParamEyeLOpen",
-        "ParamEyeROpen"
-      ],
+      "targets": ["ParamEyeLOpen", "ParamEyeROpen"],
       "mode": "set",
       "scale": 1,
       "min": 0,
@@ -60,20 +57,14 @@
       "max": 1.2
     },
     "eyeSquint": {
-      "targets": [
-        "ParamEyeLOpen",
-        "ParamEyeROpen"
-      ],
+      "targets": ["ParamEyeLOpen", "ParamEyeROpen"],
       "mode": "subtract",
       "scale": 0.22,
       "min": 0,
       "max": 1.2
     },
     "eyeSmile": {
-      "targets": [
-        "ParamEyeLSmile",
-        "ParamEyeRSmile"
-      ],
+      "targets": ["ParamEyeLSmile", "ParamEyeRSmile"],
       "mode": "set",
       "scale": 1,
       "min": 0,
@@ -157,39 +148,28 @@
       "max": 1
     },
     "browInnerUp": {
-      "targets": [
-        "ParamBrowLY",
-        "ParamBrowRY"
-      ],
+      "targets": ["ParamBrowLY", "ParamBrowRY"],
       "mode": "set",
       "scale": 1,
       "min": -1,
       "max": 1
     },
     "browOuterUp": {
-      "targets": [
-        "ParamBrowLAngle",
-        "ParamBrowRAngle"
-      ],
+      "targets": ["ParamBrowLAngle", "ParamBrowRAngle"],
       "mode": "set",
       "scale": 0.9,
       "min": -1,
       "max": 1
     },
     "browDown": {
-      "targets": [
-        "ParamBrowLForm",
-        "ParamBrowRForm"
-      ],
+      "targets": ["ParamBrowLForm", "ParamBrowRForm"],
       "mode": "set",
       "scale": -0.85,
       "min": -1,
       "max": 1
     },
     "tear": {
-      "targets": [
-        "ParamTear"
-      ],
+      "targets": ["ParamTear"],
       "mode": "set",
       "scale": 1,
       "min": 0,
@@ -204,50 +184,17 @@
     }
   },
   "idleConfig": {
-    "gazeX": [
-      -0.12,
-      0.12
-    ],
-    "gazeY": [
-      -0.06,
-      0.08
-    ],
-    "headX": [
-      -0.08,
-      0.08
-    ],
-    "headY": [
-      -0.04,
-      0.04
-    ],
-    "headZ": [
-      -0.05,
-      0.05
-    ],
-    "bodyX": [
-      -0.045,
-      0.045
-    ],
-    "bodyY": [
-      -0.014,
-      0.014
-    ],
-    "bodyZ": [
-      -0.055,
-      0.055
-    ],
-    "mouthSmile": [
-      0.02,
-      0.1
-    ],
-    "browInnerUp": [
-      0,
-      0.06
-    ],
-    "eyeOpen": [
-      0.9,
-      1
-    ]
+    "gazeX": [-0.12, 0.12],
+    "gazeY": [-0.06, 0.08],
+    "headX": [-0.08, 0.08],
+    "headY": [-0.04, 0.04],
+    "headZ": [-0.05, 0.05],
+    "bodyX": [-0.045, 0.045],
+    "bodyY": [-0.014, 0.014],
+    "bodyZ": [-0.055, 0.055],
+    "mouthSmile": [0.02, 0.1],
+    "browInnerUp": [0, 0.06],
+    "eyeOpen": [0.9, 1]
   },
   "reactionBias": {
     "shy": {
@@ -312,9 +259,7 @@
       {
         "name": "F01",
         "file": "expressions/F01.exp3.json",
-        "params": [
-          "ParamMouthForm"
-        ]
+        "params": ["ParamMouthForm"]
       },
       {
         "name": "F02",
@@ -364,12 +309,7 @@
       {
         "name": "F05",
         "file": "expressions/F05.exp3.json",
-        "params": [
-          "ParamEyeLSmile",
-          "ParamEyeRSmile",
-          "ParamBrowLY",
-          "ParamBrowRY"
-        ]
+        "params": ["ParamEyeLSmile", "ParamEyeRSmile", "ParamBrowLY", "ParamBrowRY"]
       },
       {
         "name": "F06",

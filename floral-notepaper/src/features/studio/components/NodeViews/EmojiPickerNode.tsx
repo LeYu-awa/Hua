@@ -1,13 +1,37 @@
-import { useState } from 'react';
-import type { NodeViewProps } from '@tiptap/react';
-import { NodeViewWrapper } from '@tiptap/react';
+import { useState } from "react";
+import type { NodeViewProps } from "@tiptap/react";
+import { NodeViewWrapper } from "@tiptap/react";
 
-const EMOJI_LIST = ['✨', '🌟', '❤️', '🧡', '💛', '💚', '💙', '💜', '😊', '🥰', '😍', '🤗', '🌈', '🌸', '🌺', '🍀', '🌿', '🍎', '🍕', '🌍', '🗺️', '📸', '✈️'];
+const EMOJI_LIST = [
+  "✨",
+  "🌟",
+  "❤️",
+  "🧡",
+  "💛",
+  "💚",
+  "💙",
+  "💜",
+  "😊",
+  "🥰",
+  "😍",
+  "🤗",
+  "🌈",
+  "🌸",
+  "🌺",
+  "🍀",
+  "🌿",
+  "🍎",
+  "🍕",
+  "🌍",
+  "🗺️",
+  "📸",
+  "✈️",
+];
 
 export function EmojiPickerNode(props: NodeViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const { node, updateAttributes, deleteNode, editor } = props;
-  const emoji = node.attrs.emoji as string || '';
+  const emoji = (node.attrs.emoji as string) || "";
   const isEditable = editor?.isEditable ?? false;
 
   if (!isEditable) {
@@ -20,11 +44,7 @@ export function EmojiPickerNode(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="inline-flex items-center relative">
-      <button
-        type="button"
-        onClick={() => setShowPicker(!showPicker)}
-        className="cursor-pointer"
-      >
+      <button type="button" onClick={() => setShowPicker(!showPicker)} className="cursor-pointer">
         {emoji ? (
           <span className="text-[20px] hover:opacity-80 transition-opacity">{emoji}</span>
         ) : (
@@ -42,15 +62,18 @@ export function EmojiPickerNode(props: NodeViewProps) {
           ✕
         </button>
       )}
-      
+
       {showPicker && (
         <div className="absolute top-full left-0 mt-1 bg-paper border border-paper-deep/20 rounded-lg shadow-lg p-2 z-50 w-[200px]">
           <div className="flex flex-wrap gap-1">
-            {EMOJI_LIST.map(e => (
+            {EMOJI_LIST.map((e) => (
               <button
                 key={e}
                 type="button"
-                onClick={() => { updateAttributes({ emoji: e }); setShowPicker(false); }}
+                onClick={() => {
+                  updateAttributes({ emoji: e });
+                  setShowPicker(false);
+                }}
                 className="w-7 h-7 flex items-center justify-center hover:bg-paper-warm/60 rounded cursor-pointer text-[16px]"
               >
                 {e}

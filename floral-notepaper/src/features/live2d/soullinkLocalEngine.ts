@@ -85,7 +85,13 @@ const PARAMETER_MAP: ParameterMap = {
   eyeSquint: { targets: ["ParamEyeLSmile", "ParamEyeRSmile"], min: 0, max: 1, scale: 0.55 },
   browInnerUp: { targets: ["ParamBrowLY", "ParamBrowRY"], min: -1, max: 1, scale: 0.55 },
   browOuterUp: { targets: ["ParamBrowLY", "ParamBrowRY"], min: -1, max: 1, scale: 0.35 },
-  browDown: { targets: ["ParamBrowLY", "ParamBrowRY"], mode: "subtract", min: -1, max: 1, scale: 0.6 },
+  browDown: {
+    targets: ["ParamBrowLY", "ParamBrowRY"],
+    mode: "subtract",
+    min: -1,
+    max: 1,
+    scale: 0.6,
+  },
   mouthOpen: { target: "ParamMouthOpenY", min: 0, max: 1, scale: 0.85 },
   mouthSmile: { target: "ParamMouthForm", min: -1, max: 1, scale: 0.85 },
   mouthFrown: { target: "ParamMouthForm", mode: "subtract", min: -1, max: 1, scale: 0.7 },
@@ -389,7 +395,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * 从配置的供应商构建 Embedding 情绪分类器（README「不使用 LLM：直接接入 Embedding 分类」）。
  * 初始化失败 / 超时返回 null —— 会话层会自动降级到内置启发式分类，不影响主链路。
  */
-async function buildEmbeddingClassifier(provider: ProviderConfig): Promise<MessageClassifier | null> {
+async function buildEmbeddingClassifier(
+  provider: ProviderConfig,
+): Promise<MessageClassifier | null> {
   try {
     const isEmbeddingModel = (m: ProviderConfig["models"][number]) =>
       m.capabilities?.some((c) => c.toLowerCase().includes("embedding")) ||
@@ -426,15 +434,35 @@ const EXPRESSION_SIGNATURES: Array<{
   match: (params: string[]) => boolean;
 }> = [
   // 害羞 / 恋爱 → 脸红表情（ParamTere / ParamCheek）
-  { emotions: ["shy", "love", "embarrassed"], match: (p) => p.includes("ParamTere") || p.includes("ParamCheek") },
+  {
+    emotions: ["shy", "love", "embarrassed"],
+    match: (p) => p.includes("ParamTere") || p.includes("ParamCheek"),
+  },
   // 开心 / 愉悦 → 眉眼微笑表情（EyeLSmile / EyeRSmile）
-  { emotions: ["happy", "cheerful", "delighted"], match: (p) => p.includes("ParamEyeLSmile") || p.includes("ParamEyeRSmile") },
+  {
+    emotions: ["happy", "cheerful", "delighted"],
+    match: (p) => p.includes("ParamEyeLSmile") || p.includes("ParamEyeRSmile"),
+  },
   // 兴奋 / 惊讶 → 睁眼 + 眼珠形态（EyeBallForm / EyeLOpen+ROpen）
-  { emotions: ["excited", "surprised", "amazed"], match: (p) => p.includes("ParamEyeBallForm") || (p.includes("ParamEyeLOpen") && p.includes("ParamEyeROpen") && !p.includes("ParamEyeLSmile")) },
+  {
+    emotions: ["excited", "surprised", "amazed"],
+    match: (p) =>
+      p.includes("ParamEyeBallForm") ||
+      (p.includes("ParamEyeLOpen") && p.includes("ParamEyeROpen") && !p.includes("ParamEyeLSmile")),
+  },
   // 悲伤 → 眉毛内侧 / 眉角
-  { emotions: ["sad", "grief", "lonely"], match: (p) => p.includes("ParamBrowLX") || p.includes("ParamBrowRX") || p.includes("ParamBrowLAngle") },
+  {
+    emotions: ["sad", "grief", "lonely"],
+    match: (p) =>
+      p.includes("ParamBrowLX") || p.includes("ParamBrowRX") || p.includes("ParamBrowLAngle"),
+  },
   // 愤怒 → 张嘴 + 眉形
-  { emotions: ["angry", "frustrated"], match: (p) => p.includes("ParamMouthOpenY") && (p.includes("ParamBrowLForm") || p.includes("ParamBrowRForm")) },
+  {
+    emotions: ["angry", "frustrated"],
+    match: (p) =>
+      p.includes("ParamMouthOpenY") &&
+      (p.includes("ParamBrowLForm") || p.includes("ParamBrowRForm")),
+  },
   // 平静 / 放松 → 参数最少的表情（最接近中性）
   { emotions: ["calm", "relaxed"], match: (p) => p.length <= 2 },
 ];
@@ -466,7 +494,11 @@ function deriveNativeAnimationMaps(catalog: NativeAnimationCatalog): {
   // 回退到参数最少的表情；calm 优先保留已命中的专属表情。
   const fallback = expressions.reduce<NativeExpressionEntry | undefined>(
     (best, e) =>
-      !best || (e.params?.length ?? Number.POSITIVE_INFINITY) < (best.params?.length ?? Number.POSITIVE_INFINITY) ? e : best,
+      !best ||
+      (e.params?.length ?? Number.POSITIVE_INFINITY) <
+        (best.params?.length ?? Number.POSITIVE_INFINITY)
+        ? e
+        : best,
     undefined,
   );
   if (fallback?.name) {
@@ -485,13 +517,21 @@ function deriveNativeAnimationMaps(catalog: NativeAnimationCatalog): {
   const motionMap: Record<string, MotionBinding> = {};
   const firstMotion = motions[0];
   if (firstMotion) {
-    const gesture: MotionBinding = { group: firstMotion.group, index: firstMotion.index, priority: "normal" };
+    const gesture: MotionBinding = {
+      group: firstMotion.group,
+      index: firstMotion.index,
+      priority: "normal",
+    };
     for (const e of ["happy", "excited", "surprised", "amazed", "cheerful", "delighted"]) {
       motionMap[e] = gesture;
     }
     const secondMotion = motions[1];
     if (secondMotion) {
-      const shyGesture: MotionBinding = { group: secondMotion.group, index: secondMotion.index, priority: "normal" };
+      const shyGesture: MotionBinding = {
+        group: secondMotion.group,
+        index: secondMotion.index,
+        priority: "normal",
+      };
       motionMap.shy = shyGesture;
       motionMap.love = shyGesture;
     }
@@ -517,7 +557,11 @@ export class SoullinkLocalEngineAdapter {
   private previousTime = this.startedAt;
   private lastSeenReply = "";
 
-  constructor(core: SoullinkCoreModelApi, modelPath: string, options: SoullinkLocalEngineOptions = {}) {
+  constructor(
+    core: SoullinkCoreModelApi,
+    modelPath: string,
+    options: SoullinkLocalEngineOptions = {},
+  ) {
     const parameterIndex = createParameterIndex(core);
     this.indexById = parameterIndex.indexById;
     this.onReply = options.onReply;
@@ -595,7 +639,8 @@ export class SoullinkLocalEngineAdapter {
     }
 
     // 未显式指定分类器时，从配置中尝试构建 Embedding 情绪分类器
-    let classifier: MessageClassifier | null | Promise<MessageClassifier | null> | undefined = options.classifier;
+    let classifier: MessageClassifier | null | Promise<MessageClassifier | null> | undefined =
+      options.classifier;
     if (classifier === undefined) {
       try {
         const config = await getConfig();

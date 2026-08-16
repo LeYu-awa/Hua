@@ -73,15 +73,10 @@ export function ChatPanel({ conversationId, currentUserId }: ChatPanelProps) {
           messages.map((msg) => {
             const isSelf = msg.sender_id === currentUserId;
             return (
-              <div
-                key={msg.id}
-                className={`flex ${isSelf ? "justify-end" : "justify-start"}`}
-              >
+              <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-[11px] leading-relaxed ${
-                    isSelf
-                      ? "bg-bamboo/20 text-ink-soft"
-                      : "bg-paper-warm/70 text-ink"
+                    isSelf ? "bg-bamboo/20 text-ink-soft" : "bg-paper-warm/70 text-ink"
                   }`}
                 >
                   <p>{msg.content}</p>

@@ -39,7 +39,9 @@ export function loadTTSConfig(): TTSConfig {
       merged.engine === "openai" &&
       apiUrl.replace(/\/+$/, "") === DEFAULT_TTS.apiUrl.replace(/\/+$/, "") &&
       (parsed.enabled !== true || parsed.autoSpeak !== true);
-    return isEmptyLegacyGptSovits || isCloudOpenAiDefault || isLocalVibeVoiceDefault ? { ...DEFAULT_TTS } : merged;
+    return isEmptyLegacyGptSovits || isCloudOpenAiDefault || isLocalVibeVoiceDefault
+      ? { ...DEFAULT_TTS }
+      : merged;
   } catch {
     return { ...DEFAULT_TTS };
   }

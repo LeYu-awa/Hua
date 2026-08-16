@@ -4,7 +4,13 @@ interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   rootMargin?: string;
 }
 
-export function LazyImage({ src, alt, className = "", rootMargin = "200px", ...rest }: LazyImageProps) {
+export function LazyImage({
+  src,
+  alt,
+  className = "",
+  rootMargin = "200px",
+  ...rest
+}: LazyImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [inView, setInView] = useState(false);

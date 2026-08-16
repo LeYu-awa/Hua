@@ -13,34 +13,34 @@
 
 `src-tauri/src/services/canvas.rs`：
 
-| 结构 | 字段 | 说明 |
-|---|---|---|
-| `CanvasDocument` | `id` / `noteId` / `coWriteSessionId` / `nodes` / `edges` | `coWriteSessionId` 已为协作预留；`noteId` 建立画布↔笔记关联 |
-| `CanvasNode` | `id` / `type`(text·card·resource·task) / `x` / `y` / `width` / `height` / `text` / `source?` | `source="agent"` 标记 AI 产出，前端 IPC 契约已用显式 `rename` 对齐（`node_type` ↔ `type`） |
-| `CanvasEdge` | `id` / `fromNodeId` / `toNodeId` / `style`(solid·dashed) | 虚线=隐含连接建议 |
+| 结构             | 字段                                                                                         | 说明                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `CanvasDocument` | `id` / `noteId` / `coWriteSessionId` / `nodes` / `edges`                                     | `coWriteSessionId` 已为协作预留；`noteId` 建立画布↔笔记关联                                |
+| `CanvasNode`     | `id` / `type`(text·card·resource·task) / `x` / `y` / `width` / `height` / `text` / `source?` | `source="agent"` 标记 AI 产出，前端 IPC 契约已用显式 `rename` 对齐（`node_type` ↔ `type`） |
+| `CanvasEdge`     | `id` / `fromNodeId` / `toNodeId` / `style`(solid·dashed)                                     | 虚线=隐含连接建议                                                                          |
 
 存储：`CanvasStore`（JSON 文件落盘，`base_dir/canvas/*.json`），IPC：`canvas_save/get/delete/list`。
 
 ### 0.2 Agent 触点（已具备）
 
-| 层 | 能力 | 位置 |
-|---|---|---|
-| 前端分析器 | 隐含连接建议 / 语义空白区 / 共识分歧（规则引擎 + embedding + LLM） | `src/features/agent/connectionRecommendations.ts`、`semanticGap.ts`、`consensus.ts`，封装于 `useCanvasAgent.ts` |
-| 前端上下文 | 画布节点摘要注入共笔 Prompt + 被引用节点溯源 | `src/features/agent/canvasContext.ts` |
-| Rust 技能 | `canvas.writeup`（画布成文）、`canvas.organize`（网格排版） | `orchestrator.rs` 的 `SKILLS` 注册表 |
-| MCP 工具 | `canvas_read` / `canvas_node_create`（source=agent） | `src-tauri/src/services/agent/mcp_server.rs` |
-| 输出总线 | `agent.live2d` / `agent.canvas` / `agent.speech` / `agent.ui` | `output_bus.rs` |
-| 基础设施 | OpenAI 兼容 LLM、Embedding(bge-m3/Qwen3)、sqlite-vec RAG、SearXNG、写操作确认机制（`required_confirm` + `agent_task_confirm`） | `services/agent/*` |
+| 层         | 能力                                                                                                                           | 位置                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| 前端分析器 | 隐含连接建议 / 语义空白区 / 共识分歧（规则引擎 + embedding + LLM）                                                             | `src/features/agent/connectionRecommendations.ts`、`semanticGap.ts`、`consensus.ts`，封装于 `useCanvasAgent.ts` |
+| 前端上下文 | 画布节点摘要注入共笔 Prompt + 被引用节点溯源                                                                                   | `src/features/agent/canvasContext.ts`                                                                           |
+| Rust 技能  | `canvas.writeup`（画布成文）、`canvas.organize`（网格排版）                                                                    | `orchestrator.rs` 的 `SKILLS` 注册表                                                                            |
+| MCP 工具   | `canvas_read` / `canvas_node_create`（source=agent）                                                                           | `src-tauri/src/services/agent/mcp_server.rs`                                                                    |
+| 输出总线   | `agent.live2d` / `agent.canvas` / `agent.speech` / `agent.ui`                                                                  | `output_bus.rs`                                                                                                 |
+| 基础设施   | OpenAI 兼容 LLM、Embedding(bge-m3/Qwen3)、sqlite-vec RAG、SearXNG、写操作确认机制（`required_confirm` + `agent_task_confirm`） | `services/agent/*`                                                                                              |
 
 ### 0.3 差距清单（GAP）
 
-| 维度 | 现状 | 目标 | 缺口 |
-|---|---|---|---|
-| 基础绘图 | 节点增删/拖拽/连线/保存 | 全键盘化、缩放平移、撤销重做 | 大 |
-| 图层管理 | 无 | 分组/层级/折叠 | 大 |
-| 协作编辑 | 仅字段预留 | 实时共笔 + Agent 调度 | 最大 |
-| 导出分享 | 仅 Agent 落 Markdown | 图片/PDF/Excel 模板 + 分享 | 中 |
-| Agent 深度 | 3 个前端分析器 + 2 个 Rust 技能 | 生成/布局/上下文/多模态/调度五维 | 中 |
+| 维度       | 现状                            | 目标                             | 缺口 |
+| ---------- | ------------------------------- | -------------------------------- | ---- |
+| 基础绘图   | 节点增删/拖拽/连线/保存         | 全键盘化、缩放平移、撤销重做     | 大   |
+| 图层管理   | 无                              | 分组/层级/折叠                   | 大   |
+| 协作编辑   | 仅字段预留                      | 实时共笔 + Agent 调度            | 最大 |
+| 导出分享   | 仅 Agent 落 Markdown            | 图片/PDF/Excel 模板 + 分享       | 中   |
+| Agent 深度 | 3 个前端分析器 + 2 个 Rust 技能 | 生成/布局/上下文/多模态/调度五维 | 中   |
 
 ---
 
@@ -51,6 +51,7 @@
 **目标用户**：个人知识工作者与创作者——用花箴做笔记沉淀、Live2D 陪伴表达、把碎片想法整理成结构。
 
 **产品定位（一句话）**：
+
 > 花箴画布是"把想法摊开、连起来、长成作品"的**结构化思维工作台**——个人笔记的连接器、AI Agent 的协作面板、Live2D 的表达舞台。
 
 **核心用户价值（优先级排序）**：
@@ -63,6 +64,7 @@
 ### 1.2 功能矩阵（P0/P1/P2 分级）
 
 #### 基础绘图（P0，1 期）
+
 - 节点：四种类型（text/card/resource/task，已有）+ 富文本编辑、Markdown 渲染、颜色/图标标记
 - 连线：拖拽连线（solid）、自动连线建议（dashed 预览，已有前端分析器）
 - 视图：画布缩放（滚轮/快捷键）、平移、缩略图定位、键盘快捷操作（新建/删除/复制/全选）
@@ -70,18 +72,21 @@
 - 自动保存 + 手动保存双轨（已有 `handleSave`，补 debounce 自动保存）
 
 #### 图层与结构管理（P1，2 期）
+
 - 分组：框选建组、组内折叠、组标题
 - 层级：z 序调整（置顶/置底/上移/下移）
 - 结构辅助：网格吸附、对齐线、等距分布（为 `canvas.organize` 的"语义排版"提供前置）
 - 模板：思维导图/四象限/时间线/流程图起步模板，Agent 一键生成
 
 #### 协作编辑（P1-P2，3 期起）
+
 - 单机共笔：`coWriteSessionId` 关联同一画布多视图（聊天侧沉淀 + 画布侧浏览，已有雏形）
 - 实时同步：局域网 P2P / 自托管同步（见 3.1 技术约束）
 - 并发控制：CRDT 或基于事务的 last-write-wins + 冲突标记
 - 权限：个人默认全权，分享视图只读/可编辑
 
 #### 导出分享（P1，2 期）
+
 - 导出：Markdown（已有 `note.export`）、PNG/SVG 图片、PDF（纸张模板保真，见 `floral-export-fidelity` skill）、Excel 表格（任务/资源节点结构化导出）
 - 分享：导出文件落地本地导出目录 + 生成分享摘要卡片
 
@@ -109,26 +114,26 @@
 
 ### 1.4 迭代 Roadmap
 
-| 阶段 | 范围 | 退出标准 |
-|---|---|---|
-| **P0（1 期）** 画布 0.9 | 基础绘图完善（缩放/撤销/自动保存/键盘）+ 现有 Agent 分析器体验打磨 | 用户 10 分钟内能完成"建画布→打节点→Agent 排版→成文"闭环 |
-| **P1（2 期）** 结构 + 导出 | 图层分组/模板 + Markdown/PNG/PDF/Excel 导出 | 导出保真验收通过；模板使用率 > 30% |
-| **P2（3 期）** 协作 MVP | 共笔会话 + 局域网实时同步 + Agent 分工调度 | 双端同步延迟 < 500ms；协作场景渗透率见 §1.5 |
-| **P3（4 期）** 多模态 + 智能 | 图片/手绘节点、语音命令、语义布局、协作智能体（调度/共识辅助） | Agent 生成内容采纳率 > 60% |
+| 阶段                         | 范围                                                               | 退出标准                                                |
+| ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------- |
+| **P0（1 期）** 画布 0.9      | 基础绘图完善（缩放/撤销/自动保存/键盘）+ 现有 Agent 分析器体验打磨 | 用户 10 分钟内能完成"建画布→打节点→Agent 排版→成文"闭环 |
+| **P1（2 期）** 结构 + 导出   | 图层分组/模板 + Markdown/PNG/PDF/Excel 导出                        | 导出保真验收通过；模板使用率 > 30%                      |
+| **P2（3 期）** 协作 MVP      | 共笔会话 + 局域网实时同步 + Agent 分工调度                         | 双端同步延迟 < 500ms；协作场景渗透率见 §1.5             |
+| **P3（4 期）** 多模态 + 智能 | 图片/手绘节点、语音命令、语义布局、协作智能体（调度/共识辅助）     | Agent 生成内容采纳率 > 60%                              |
 
 ### 1.5 量化成功指标（北极星 + 分模块）
 
 **北极星**：周活跃创作闭环数（完成"画布→成文→笔记"全链路的周用户数）。
 
-| 模块 | 指标 | 目标（上线 90 天） | 埋点方式 |
-|---|---|---|---|
-| 留存 | 画布用户 7 日留存 / 30 日留存 | ≥ 35% / ≥ 20% | `agent_record_event` 事件流扩展 `canvas.session` |
-| 功能使用率 | 画布月活占全应用 MAU | ≥ 50% | 前端进入画布计数 |
-| 基础绘图 | 人均周建节点数 / 成画布数 | ≥ 15 节点 / ≥ 2 画布 | CanvasPage 操作埋点 |
-| Agent 采纳 | 建议采纳率（连接/空白区/排版/成文） | ≥ 60% | dismiss vs apply 事件比 |
-| 导出 | 周导出次数 / 导出保真满意度 | ≥ 30 次/周 / NPS ≥ 4 | export 事件 + 问卷 |
-| 协作渗透率 | 使用协作会话的活跃用户占比 | 30 日 ≥ 20% | `coWriteSessionId` 活跃数 |
-| 性能 | 千节点画布交互帧率 / 保存延迟 | ≥ 45fps / < 300ms | 前端 performance API + 埋点 |
+| 模块       | 指标                                | 目标（上线 90 天）   | 埋点方式                                         |
+| ---------- | ----------------------------------- | -------------------- | ------------------------------------------------ |
+| 留存       | 画布用户 7 日留存 / 30 日留存       | ≥ 35% / ≥ 20%        | `agent_record_event` 事件流扩展 `canvas.session` |
+| 功能使用率 | 画布月活占全应用 MAU                | ≥ 50%                | 前端进入画布计数                                 |
+| 基础绘图   | 人均周建节点数 / 成画布数           | ≥ 15 节点 / ≥ 2 画布 | CanvasPage 操作埋点                              |
+| Agent 采纳 | 建议采纳率（连接/空白区/排版/成文） | ≥ 60%                | dismiss vs apply 事件比                          |
+| 导出       | 周导出次数 / 导出保真满意度         | ≥ 30 次/周 / NPS ≥ 4 | export 事件 + 问卷                               |
+| 协作渗透率 | 使用协作会话的活跃用户占比          | 30 日 ≥ 20%          | `coWriteSessionId` 活跃数                        |
+| 性能       | 千节点画布交互帧率 / 保存延迟       | ≥ 45fps / < 300ms    | 前端 performance API + 埋点                      |
 
 ---
 
@@ -137,11 +142,13 @@
 ### 2.1 Agent 融入画布生态（五大能力）
 
 #### 2.1.1 智能内容生成
+
 - **节点级**：选中空白/半成品节点 → Agent 扩写、润色、结构化（复用 `llm.generate` 工具）。
 - **画布级**：`canvas.writeup` 已有——画布 → 成文笔记（P0 已落地）。
 - **反哺**：笔记/RAG 检索结果 → 生成"建议补充节点"（`rag.retrieve` → 节点草案，dashed 预览）。
 
 #### 2.1.2 自动化布局优化
+
 - **已有**：`canvas.organize` 网格排版（P0 已落地，`orchestrator.rs`）。
 - **升级**：
   - **语义排版**：用 embedding 计算节点相似度 → 相近主题聚类布局（力导向/按簇分块）。
@@ -149,18 +156,21 @@
   - **关注点**：布局改动全部可撤销（进操作栈），避免"整理一次乱一次"。
 
 #### 2.1.3 上下文理解辅助创作
+
 - **已有**：`canvasContext.ts` 把画布节点摘要注入共笔 Prompt，并返回被引用节点（UI 可展示溯源）。
 - **升级**：
   - **语义空白区**（已有 `semanticGap`）：分析器发现"节点 A 与 B 之间缺什么"，生成补白建议节点。
   - **会话记忆**：画布节点文本增量索引进 RAG（sqlite-vec），后续提问/创作可跨画布召回。
 
 #### 2.1.4 多模态交互支持
+
 - **Live2D 表达**：`output_bus` 的 `agent.live2d` 通道——成文/总结完成后由角色"说话"演绎。
 - **语音**：`agent.speech` 通道，画布指令/朗读节点。
 - **图片/手绘**（P3）：节点支持贴图；手绘区域 → Agent 识别为节点结构（图转思维导图）。
 - **输入方式**：语音命令（"把这两个节点连起来"）→ 走 orchestrator 技能匹配（复用 `match_skill` 关键词检测）。
 
 #### 2.1.5 实时协作中的智能调度
+
 - **分工建议**：共笔会话中，Agent 按节点归属/文本主题建议任务切分（谁负责哪块）。
 - **共识/分歧检测**：已有 `detectConsensus`（前端分析器）——多人在同一主题下的观点分歧，Agent 汇总成"共识卡片"。
 - **冲突仲裁**：两人同时改同一节点 → Agent 生成合并建议（diff 展示，走确认）。
@@ -199,25 +209,25 @@
 
 #### 2.2.3 模型能力集成
 
-| 能力 | 模型/服务 | 接入点（已落地） |
-|---|---|---|
-| 文本生成/规划 | OpenAI 兼容（Ollama/vLLM/DeepSeek） | `HttpLlmProvider`、`plan_with_llm` |
-| 语义检索 | bge-m3 / Qwen3-Embedding | `HttpEmbeddingProvider` + sqlite-vec `VectorStore` |
-| 记忆 | 自拼 RAG（分块→嵌入→top-k→拼 context） | `rag.rs` |
-| Web 事实 | 自托管 SearXNG | `web_search.rs` |
-| 建议分析（连接/空白/共识） | 前端规则引擎 + LLM 兜底 | `connectionRecommendations/semanticGap/consensus` |
+| 能力                       | 模型/服务                              | 接入点（已落地）                                   |
+| -------------------------- | -------------------------------------- | -------------------------------------------------- |
+| 文本生成/规划              | OpenAI 兼容（Ollama/vLLM/DeepSeek）    | `HttpLlmProvider`、`plan_with_llm`                 |
+| 语义检索                   | bge-m3 / Qwen3-Embedding               | `HttpEmbeddingProvider` + sqlite-vec `VectorStore` |
+| 记忆                       | 自拼 RAG（分块→嵌入→top-k→拼 context） | `rag.rs`                                           |
+| Web 事实                   | 自托管 SearXNG                         | `web_search.rs`                                    |
+| 建议分析（连接/空白/共识） | 前端规则引擎 + LLM 兜底                | `connectionRecommendations/semanticGap/consensus`  |
 
 ### 2.3 Agent 技能矩阵（映射到 `SKILLS` 注册表）
 
-| 场景 | 技能（新增=🔧） | 依赖工具 | 阶段 |
-|---|---|---|---|
-| 画布成文 | `canvas.writeup`（已有） | canvas.read, llm.generate, note.create | P0 ✅ |
-| 画布排版 | `canvas.organize`（已有，网格） | canvas.read, canvas.organize | P0 ✅ |
-| 节点扩写/润色 | `canvas.node.enhance` 🔧 | canvas.read, llm.generate, canvas.save | P1 |
-| 建议补充节点 | `canvas.gap.fill` 🔧 | rag.retrieve, canvas.node.create | P2 |
-| 语义聚类排版 | `canvas.organize.semantic` 🔧 | embed, canvas.organize | P2 |
-| 协作共识卡片 | `collab.consensus.card` 🔧 | consensus, canvas.node.create | P3 |
-| 语音指令 | `canvas.voice.command` 🔧 | match_skill + speech 输入 | P3 |
+| 场景          | 技能（新增=🔧）                 | 依赖工具                               | 阶段  |
+| ------------- | ------------------------------- | -------------------------------------- | ----- |
+| 画布成文      | `canvas.writeup`（已有）        | canvas.read, llm.generate, note.create | P0 ✅ |
+| 画布排版      | `canvas.organize`（已有，网格） | canvas.read, canvas.organize           | P0 ✅ |
+| 节点扩写/润色 | `canvas.node.enhance` 🔧        | canvas.read, llm.generate, canvas.save | P1    |
+| 建议补充节点  | `canvas.gap.fill` 🔧            | rag.retrieve, canvas.node.create       | P2    |
+| 语义聚类排版  | `canvas.organize.semantic` 🔧   | embed, canvas.organize                 | P2    |
+| 协作共识卡片  | `collab.consensus.card` 🔧      | consensus, canvas.node.create          | P3    |
+| 语音指令      | `canvas.voice.command` 🔧       | match_skill + speech 输入              | P3    |
 
 > 新增技能严格走 `.trae/skills/floral-agent-mcp-dev/SKILL.md` 四步链路：注册表 → execute_tool 分支 → MCP `#[tool]`（如需对外）→ SKILLS 注册 + 测试。
 
@@ -251,16 +261,16 @@
 
 ### 3.4 测试验证方案
 
-| 层 | 用例 | 工具/位置 |
-|---|---|---|
-| Rust 契约 | 前端形状 JSON ↔ Rust 反序列化（`type`/`nodeType`） | `canvas.rs` 已有 `deserializes_frontend_shaped_payload` |
-| Rust 存储 | 节点/边落盘-重读、`source=agent` 持久化 | `canvas.rs` 已有 2 个场景测试 |
-| Rust 技能 | `canvas.writeup` / `canvas.organize` 端到端（含 AwaitingConfirm 恢复） | `orchestrator.rs` tests（23 个） |
-| MCP 端到端 | `--mcp` 子进程全链路（initialize→tools/list→tools/call） | `tests/mcp_stdio.rs` |
-| 前端 | `canvasContext`（注入+溯源）、`useCanvasAgent`（降级）、分析器 | `canvasContext.test.ts`、`connectionRecommendations` 等 |
-| 导出保真 | Excel/PDF 模板读回断言（纸张/列宽/分页） | `floral-export-fidelity` skill 清单 |
-| 指标 | 画布会话/采纳率/协作渗透埋点 | `agent_record_event` 扩展 |
-| 回归 | 全量 `cargo test --lib`（已知唯一失败为环境性桌面透明测试）+ `npx tsc --noEmit` | CI/本地 |
+| 层         | 用例                                                                            | 工具/位置                                               |
+| ---------- | ------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Rust 契约  | 前端形状 JSON ↔ Rust 反序列化（`type`/`nodeType`）                              | `canvas.rs` 已有 `deserializes_frontend_shaped_payload` |
+| Rust 存储  | 节点/边落盘-重读、`source=agent` 持久化                                         | `canvas.rs` 已有 2 个场景测试                           |
+| Rust 技能  | `canvas.writeup` / `canvas.organize` 端到端（含 AwaitingConfirm 恢复）          | `orchestrator.rs` tests（23 个）                        |
+| MCP 端到端 | `--mcp` 子进程全链路（initialize→tools/list→tools/call）                        | `tests/mcp_stdio.rs`                                    |
+| 前端       | `canvasContext`（注入+溯源）、`useCanvasAgent`（降级）、分析器                  | `canvasContext.test.ts`、`connectionRecommendations` 等 |
+| 导出保真   | Excel/PDF 模板读回断言（纸张/列宽/分页）                                        | `floral-export-fidelity` skill 清单                     |
+| 指标       | 画布会话/采纳率/协作渗透埋点                                                    | `agent_record_event` 扩展                               |
+| 回归       | 全量 `cargo test --lib`（已知唯一失败为环境性桌面透明测试）+ `npx tsc --noEmit` | CI/本地                                                 |
 
 ---
 

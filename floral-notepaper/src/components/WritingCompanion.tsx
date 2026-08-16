@@ -124,8 +124,7 @@ export function WritingCompanion({
   };
 
   // 场景四：焦虑关怀提示优先展示（立即、不等停顿），可忽略
-  const showAlert =
-    enabled && !hidden && alertMessage != null && alertMessage !== dismissedAlert;
+  const showAlert = enabled && !hidden && alertMessage != null && alertMessage !== dismissedAlert;
 
   if (showAlert) {
     return (

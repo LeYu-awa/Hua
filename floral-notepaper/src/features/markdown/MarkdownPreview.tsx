@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -65,13 +66,17 @@ const CODE_KEYWORDS = new Set([
 
 function tokenClass(token: string, language: string): string | null {
   const normalized = language.toLowerCase();
-  if (/^\/\//.test(token) || /^\/\*/.test(token) || token.startsWith("# ")) return "md-token-comment";
+  if (/^\/\//.test(token) || /^\/\*/.test(token) || token.startsWith("# "))
+    return "md-token-comment";
   if (/^(['"`])/.test(token)) return "md-token-string";
   if (/^#([\da-f]{3,8})\b/i.test(token)) return "md-token-string";
   if (/^\d+(\.\d+)?/.test(token)) return "md-token-number";
   if (CODE_KEYWORDS.has(token)) return "md-token-keyword";
   if (/^[{}()[\].,;:+\-*/%=<>!&|?]+$/.test(token)) return "md-token-punctuation";
-  if ((normalized.includes("css") || normalized.includes("scss")) && /^[.#]?[a-z_-][\w-]*/i.test(token)) {
+  if (
+    (normalized.includes("css") || normalized.includes("scss")) &&
+    /^[.#]?[a-z_-][\w-]*/i.test(token)
+  ) {
     return "md-token-property";
   }
   if ((normalized.includes("html") || normalized.includes("xml")) && /^<\/?[\w-]+/.test(token)) {
@@ -83,7 +88,8 @@ function tokenClass(token: string, language: string): string | null {
 }
 
 function highlightCode(code: string, language = ""): React.ReactNode[] {
-  const pattern = /(\/\/.*|\/\*[\s\S]*?\*\/|`(?:\\.|[^`])*`|'(?:\\.|[^'])*'|"(?:\\.|[^"])*"|#(?:[\da-f]{3,8})\b|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b|<\/?[\w-]+|[{}()[\].,;:+\-*/%=<>!&|?]+|\s+|.)/g;
+  const pattern =
+    /(\/\/.*|\/\*[\s\S]*?\*\/|`(?:\\.|[^`])*`|'(?:\\.|[^'])*'|"(?:\\.|[^"])*"|#(?:[\da-f]{3,8})\b|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b|<\/?[\w-]+|[{}()[\].,;:+\-*/%=<>!&|?]+|\s+|.)/g;
   const nodes: React.ReactNode[] = [];
   const tokens = code.match(pattern) ?? [code];
 
@@ -197,13 +203,39 @@ interface MarkdownPreviewProps {
   fontSize?: number;
   renderHtml?: boolean;
   imageBaseDir?: string;
+  /** 覆写主题 CSS 变量（磁贴等按背景色注入可读文字色，如 --md-text/--md-heading/--md-muted） */
+  colorVars?: React.CSSProperties;
 }
 
 const remarkPlugins = [remarkGfm, remarkMath, remarkAlerts];
-const rehypePluginsDefault = [rehypeKatex, rehypeSlug];
-const rehypePluginsWithHtml = [rehypeRaw, rehypeKatex, rehypeSlug] as Parameters<
-  typeof Markdown
->[0]["rehypePlugins"];
+// KaTeX 解析失败时以红色原样展示，而不是抛异常导致整页白屏
+const rehypeKatexOptions = { throwOnError: false, errorColor: "#e5484d" };
+const rehypePluginsDefault = [
+  [rehypeKatex, rehypeKatexOptions],
+  rehypeSlug,
+] as Parameters<typeof Markdown>[0]["rehypePlugins"];
+// 开启 HTML 渲染（renderHtml）时必须先 rehypeRaw 再 sanitize：
+// 只允许安全标签/属性，剥离 onerror/onclick 等事件属性与 javascript: 链接
+const baseAttributes = defaultSchema.attributes ?? {};
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...baseAttributes,
+    "*": [...(baseAttributes["*"] ?? []), ["className"], ["id"], ["title"]],
+    span: [["className"], ["style"]],
+    blockquote: [["className"], ["dataAlertType"], ["data-alert-type"]],
+    code: [["className"]],
+    img: [["src"], ["alt"], ["title"], ["width"], ["height"], ["loading"]],
+    a: [["href"], ["title"], ["target"], ["rel"]],
+    input: [["type"], ["checked"], ["disabled"]],
+  },
+};
+const rehypePluginsWithHtml = [
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  [rehypeKatex, rehypeKatexOptions],
+  rehypeSlug,
+] as Parameters<typeof Markdown>[0]["rehypePlugins"];
 
 function AlertIcon({ type }: { type: string }) {
   switch (type) {
@@ -360,6 +392,7 @@ export function MarkdownPreview({
   fontSize = 14,
   renderHtml = false,
   imageBaseDir,
+  colorVars,
 }: MarkdownPreviewProps) {
   const { t } = useTranslation();
   const components = useMemo<Components>(
@@ -399,7 +432,10 @@ export function MarkdownPreview({
   const normalizedContent = useMemo(() => normalizeMarkdownCodeFences(content), [content]);
 
   return (
-    <div className="markdown-preview" style={{ fontSize: `${fontSize}px` }}>
+    <div
+      className="markdown-preview"
+      style={{ ...colorVars, fontSize: `${fontSize}px` }}
+    >
       {normalizedContent.trim() ? (
         <Markdown
           remarkPlugins={remarkPlugins}

@@ -36,10 +36,7 @@ export interface AgentCanvasNode {
 
 export type AgentSuggestionStatus = "pending" | "dismissed" | "accepted";
 
-export type AgentSuggestionType =
-  | "idle_prompt"
-  | "chat_to_canvas_node"
-  | "suggest_connection";
+export type AgentSuggestionType = "idle_prompt" | "chat_to_canvas_node" | "suggest_connection";
 
 export interface AgentSuggestion {
   id: string;

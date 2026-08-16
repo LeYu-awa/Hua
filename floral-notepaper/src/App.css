@@ -572,15 +572,17 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* contain: paint 会让 fixed 弹窗（WriteupDialog / 历史变更 / 添加供应商等）被容器
+   裁剪并限制遮罩范围；去掉 paint 保留 layout，画布自身用 overflow-hidden 负责裁剪 */
 .app-main-content {
   min-width: 0;
-  contain: layout paint;
+  contain: layout;
 }
 
 .sidebar-chat-panel,
 .sidebar-chat-task-panel,
 .sidebar-chat-conversation {
-  contain: layout paint;
+  contain: layout;
 }
 
 .sidebar-chat-panel {

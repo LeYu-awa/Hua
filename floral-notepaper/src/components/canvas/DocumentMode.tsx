@@ -41,9 +41,7 @@ export function DocumentMode({ selectedDocId, docTitle, onDocTitleChange }: Docu
           {saveState === "saved" && (
             <span className="text-[9px] text-bamboo font-mono">已保存</span>
           )}
-          {provider && (
-            <span className="text-[9px] text-bamboo font-mono">● 在线</span>
-          )}
+          {provider && <span className="text-[9px] text-bamboo font-mono">● 在线</span>}
         </div>
       </div>
 
@@ -60,9 +58,7 @@ export function DocumentMode({ selectedDocId, docTitle, onDocTitleChange }: Docu
 
       {/* 底部状态栏 */}
       <div className="shrink-0 flex items-center justify-between h-7 px-4 border-t border-paper-deep/10 bg-paper/40">
-        <span className="text-[9px] font-mono text-ink-faint">
-          {content.length} 字
-        </span>
+        <span className="text-[9px] font-mono text-ink-faint">{content.length} 字</span>
       </div>
     </div>
   );

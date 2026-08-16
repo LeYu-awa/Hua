@@ -20,7 +20,16 @@ export function TopNavBar({
             className="flex items-center justify-center w-9 h-9 rounded-full text-[var(--color-ink-soft)] hover:bg-[var(--color-paper-warm)] transition-colors duration-200 cursor-pointer"
             aria-label="返回"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>

@@ -91,7 +91,12 @@ function splitSections(markdown: string): {
     buffer.push(line);
   }
   flush();
-  return { steps: sections.steps ?? "", plan: sections.plan ?? "", reasoning: sections.reasoning ?? "", context: sections.context ?? "" };
+  return {
+    steps: sections.steps ?? "",
+    plan: sections.plan ?? "",
+    reasoning: sections.reasoning ?? "",
+    context: sections.context ?? "",
+  };
 }
 
 function isListLine(line: string): boolean {
@@ -121,7 +126,10 @@ function parsePlan(text: string): PlanItem[] {
     if (!content) continue;
     const colon = content.search(/[：:]/);
     if (colon > 0) {
-      items.push({ label: content.slice(0, colon).trim(), detail: content.slice(colon + 1).trim() });
+      items.push({
+        label: content.slice(0, colon).trim(),
+        detail: content.slice(colon + 1).trim(),
+      });
     } else {
       items.push({ label: content });
     }
@@ -145,7 +153,10 @@ function parseContext(text: string): ContextGraphSection[] {
         value: content.slice(colon + 1).trim(),
       });
     } else {
-      items.push({ id: `ctx-${items.length}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, label: content });
+      items.push({
+        id: `ctx-${items.length}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        label: content,
+      });
     }
   }
   return items.length > 0 ? [{ category: "AI 记录", items }] : [];

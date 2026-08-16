@@ -60,11 +60,10 @@ describe("classifyNodesByEmbedding", () => {
         [1, 0],
         [0, 1],
       ]);
-    const r = await classifyNodesByEmbedding(
-      [node("a", "资料"), node("b", "待办")],
-      providers,
-      { tags: ["资料", "待办"], minGroupSize: 2 },
-    );
+    const r = await classifyNodesByEmbedding([node("a", "资料"), node("b", "待办")], providers, {
+      tags: ["资料", "待办"],
+      minGroupSize: 2,
+    });
     expect(r).toEqual([]);
   });
 });

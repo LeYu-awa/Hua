@@ -11,10 +11,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ProviderConfig } from "../settings/types";
 import type { CanvasNode, CanvasEdge } from "../canvas/types";
-import {
-  findImplicitConnections,
-  type ImplicitConnection,
-} from "./connectionRecommendations";
+import { findImplicitConnections, type ImplicitConnection } from "./connectionRecommendations";
 import { detectSemanticGaps, type SemanticGapResult } from "./semanticGap";
 import { detectConsensus, type ConsensusResult } from "./consensus";
 import { pairKey } from "./ruleEngine";
@@ -54,10 +51,7 @@ const NO_LOADING: Record<CanvasAgentKind, boolean> = {
 /**
  * 画布 Agent 交互状态机。providers 为空或 enabled=false 时，所有 run* 都安全返回空。
  */
-export function useCanvasAgent(
-  providers: ProviderConfig[],
-  enabled: boolean,
-): CanvasAgentApi {
+export function useCanvasAgent(providers: ProviderConfig[], enabled: boolean): CanvasAgentApi {
   const [rawConnections, setRawConnections] = useState<ImplicitConnection[]>([]);
   const [gap, setGap] = useState<SemanticGapResult | null>(null);
   const [discussion, setDiscussion] = useState<ConsensusResult | null>(null);

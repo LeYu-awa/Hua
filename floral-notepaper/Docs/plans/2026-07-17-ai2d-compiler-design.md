@@ -6,13 +6,13 @@
 
 ## 1. 项目命名
 
-| 层级 | 名称 | 说明 |
-|------|------|------|
-| 项目品牌 | **AI2D** | 全称 `AI-native 2D character animation`，简短、可搜索、npm 可用 |
-| CLI 包 | `@ai2d/cli` | CLI + 核心编译逻辑，将分层角色图编译为 IR（第一版主推入口） |
-| 运行时包 | `@ai2d/runtime` | Canvas 2D 播放器，零依赖消费 IR |
-| Demo 应用 | `ai2d-demo` | Vite + vanilla TS 单页，展示 5 个动画场景 |
-| 中文品牌 | **AI2D**（不另起中文名） | README 副标题用「AI 原生 2D 角色动画编译器」 |
+| 层级      | 名称                     | 说明                                                            |
+| --------- | ------------------------ | --------------------------------------------------------------- |
+| 项目品牌  | **AI2D**                 | 全称 `AI-native 2D character animation`，简短、可搜索、npm 可用 |
+| CLI 包    | `@ai2d/cli`              | CLI + 核心编译逻辑，将分层角色图编译为 IR（第一版主推入口）     |
+| 运行时包  | `@ai2d/runtime`          | Canvas 2D 播放器，零依赖消费 IR                                 |
+| Demo 应用 | `ai2d-demo`              | Vite + vanilla TS 单页，展示 5 个动画场景                       |
+| 中文品牌  | **AI2D**（不另起中文名） | README 副标题用「AI 原生 2D 角色动画编译器」                    |
 
 > 第一版只发 **两个包**：`@ai2d/cli` + `@ai2d/runtime`。不设 `@ai2d/shared`，Schema 类型放在 `@ai2d/cli` 中 export，runtime 独立维护自身类型。
 
@@ -79,36 +79,38 @@ ai2d/
 ```typescript
 // 核心类型（Zod schema，同时也是 TypeScript 类型）
 
-const TextureFormatSchema = z.enum(['png', 'webp', 'jpg']);
+const TextureFormatSchema = z.enum(["png", "webp", "jpg"]);
 
 const LayerSchema = z.object({
-  id: z.string(),                          // 图层唯一 ID，如 "head", "eye-L", "mouth"
-  name: z.string(),                        // 图层名（原始 PSD 图层名）
-  texture: z.string(),                     // 图片路径（相对 IR JSON 或 data URL）
+  id: z.string(), // 图层唯一 ID，如 "head", "eye-L", "mouth"
+  name: z.string(), // 图层名（原始 PSD 图层名）
+  texture: z.string(), // 图片路径（相对 IR JSON 或 data URL）
   textureFormat: TextureFormatSchema,
-  width: z.number(),                       // 图层原始宽度 (px)
-  height: z.number(),                      // 图层原始高度 (px)
-  zIndex: z.number().default(0),           // 绘制顺序，从小到大从后往前绘制
-  originX: z.number(),                     // 锚点 X（相对图片左上角，归一化 0-1）
-  originY: z.number(),                     // 锚点 Y（相对图片左上角，归一化 0-1）
-  blendMode: z.enum(['normal', 'multiply', 'screen']).default('normal'),
+  width: z.number(), // 图层原始宽度 (px)
+  height: z.number(), // 图层原始高度 (px)
+  zIndex: z.number().default(0), // 绘制顺序，从小到大从后往前绘制
+  originX: z.number(), // 锚点 X（相对图片左上角，归一化 0-1）
+  originY: z.number(), // 锚点 Y（相对图片左上角，归一化 0-1）
+  blendMode: z.enum(["normal", "multiply", "screen"]).default("normal"),
   opacity: z.number().min(0).max(1).default(1),
   // 网格变形参数
-  mesh: z.object({
-    cols: z.number().default(4),          // 网格列数（含边缘，最小 2）
-    rows: z.number().default(4),          // 网格行数（含边缘，最小 2）
-    // 初始顶点位置（归一化坐标 0-1，对应 texture 宽高）
-    // length = cols * rows
-    vertices: z.array(z.tuple([z.number(), z.number()])),
-    // 三角剖分索引（每 3 个一组 → 一个三角形）
-    // 运行时根据 vertices 自动生成，也可显式指定
-    triangles: z.array(z.number()).optional(),
-  }).optional(),                            // 无 mesh 即为静态图层
+  mesh: z
+    .object({
+      cols: z.number().default(4), // 网格列数（含边缘，最小 2）
+      rows: z.number().default(4), // 网格行数（含边缘，最小 2）
+      // 初始顶点位置（归一化坐标 0-1，对应 texture 宽高）
+      // length = cols * rows
+      vertices: z.array(z.tuple([z.number(), z.number()])),
+      // 三角剖分索引（每 3 个一组 → 一个三角形）
+      // 运行时根据 vertices 自动生成，也可显式指定
+      triangles: z.array(z.number()).optional(),
+    })
+    .optional(), // 无 mesh 即为静态图层
 });
 
 const ControlPointSchema = z.object({
-  id: z.string(),                          // 控制点 ID，如 "eyeL", "mouthOpen"
-  label: z.string(),                       // 语义标签，如 "左眼睁开度", "嘴角上扬"
+  id: z.string(), // 控制点 ID，如 "eyeL", "mouthOpen"
+  label: z.string(), // 语义标签，如 "左眼睁开度", "嘴角上扬"
   range: z.tuple([z.number(), z.number()]).default([0, 1]), // 范围
   defaultValue: z.number().default(0.5),
   // 影响矩阵：按图层分组存储，减少重复数据
@@ -116,35 +118,39 @@ const ControlPointSchema = z.object({
   // 控制点值为 0 → 不动；为 1 → 顶点偏移 (dx, dy)
   // dx/dy 为归一化值，运行时乘以 texture 宽高得到像素偏移
   influences: z.record(
-    z.string(),  // layerId
+    z.string(), // layerId
     z.record(
-      z.string(),  // vertexIndex（转为字符串）
-      z.array(z.tuple([
-        z.number(),  // dx
-        z.number(),  // dy
-      ]))
-    )
+      z.string(), // vertexIndex（转为字符串）
+      z.array(
+        z.tuple([
+          z.number(), // dx
+          z.number(), // dy
+        ]),
+      ),
+    ),
   ),
 });
 
 const AnimationClipSchema = z.object({
   id: z.string(),
-  name: z.string(),                        // 如 "blink", "breath", "surprise"
-  duration: z.number(),                    // 毫秒
+  name: z.string(), // 如 "blink", "breath", "surprise"
+  duration: z.number(), // 毫秒
   // 关键帧列表
-  keyframes: z.array(z.object({
-    time: z.number(),                      // 相对时间（毫秒，从 0 开始）
-    controlPoints: z.record(z.string(), z.number()), // { controlPointId: value }
-    easing: z.enum(['linear', 'easeIn', 'easeOut', 'easeInOut']).default('easeInOut'),
-  })),
+  keyframes: z.array(
+    z.object({
+      time: z.number(), // 相对时间（毫秒，从 0 开始）
+      controlPoints: z.record(z.string(), z.number()), // { controlPointId: value }
+      easing: z.enum(["linear", "easeIn", "easeOut", "easeInOut"]).default("easeInOut"),
+    }),
+  ),
   loop: z.boolean().default(true),
 });
 
 const CharacterSchema = z.object({
-  formatVersion: z.string().default('ai2d-v0.1'),
+  formatVersion: z.string().default("ai2d-v0.1"),
   name: z.string(),
-  width: z.number(),                       // 角色画布宽 (px)
-  height: z.number(),                      // 角色画布高 (px)
+  width: z.number(), // 角色画布宽 (px)
+  height: z.number(), // 角色画布高 (px)
   layers: z.array(LayerSchema),
   controlPoints: z.array(ControlPointSchema),
   animations: z.array(AnimationClipSchema).optional(),
@@ -186,10 +192,22 @@ const CharacterSchema = z.object({
         "cols": 4,
         "rows": 4,
         "vertices": [
-          [0,0],[0.33,0],[0.66,0],[1,0],
-          [0,0.33],[0.33,0.33],[0.66,0.33],[1,0.33],
-          [0,0.66],[0.33,0.66],[0.66,0.66],[1,0.66],
-          [0,1],[0.33,1],[0.66,1],[1,1]
+          [0, 0],
+          [0.33, 0],
+          [0.66, 0],
+          [1, 0],
+          [0, 0.33],
+          [0.33, 0.33],
+          [0.66, 0.33],
+          [1, 0.33],
+          [0, 0.66],
+          [0.33, 0.66],
+          [0.66, 0.66],
+          [1, 0.66],
+          [0, 1],
+          [0.33, 1],
+          [0.66, 1],
+          [1, 1]
         ]
       }
     }
@@ -217,11 +235,11 @@ const CharacterSchema = z.object({
 
 第一版**不使用 Thin-Plate Spline（TPS）**，原因是：
 
-| 方案 | 复杂度 | 精度 | 适用场景 |
-|------|--------|------|----------|
-| 双线性网格变形 | 低 | 中等 | 面部局部变形（眼、嘴）✅ |
-| TPS (Thin-Plate Spline) | 高 | 高 | 全身大幅变形 ❌ 第一版不做 |
-| 仿射变换 | 低 | 低 | 整体位移/旋转 ✅ 已有 |
+| 方案                    | 复杂度 | 精度 | 适用场景                   |
+| ----------------------- | ------ | ---- | -------------------------- |
+| 双线性网格变形          | 低     | 中等 | 面部局部变形（眼、嘴）✅   |
+| TPS (Thin-Plate Spline) | 高     | 高   | 全身大幅变形 ❌ 第一版不做 |
+| 仿射变换                | 低     | 低   | 整体位移/旋转 ✅ 已有      |
 
 ### 第一版的变形策略
 
@@ -252,6 +270,7 @@ const CharacterSchema = z.object({
 
    - 性能目标：在 4×4 网格（8 三角形）× 10 图层 = 80 次 clip/帧 场景下保住 30fps
    - 第一版不提前优化，在 Demo 中用 `performance.now()` 标记性能基线
+
 3. **控制点驱动**：控制点值 → 线性加权 → 顶点偏移
 4. **插值**：关键帧之间用线性插值 + easing 函数
 
@@ -269,19 +288,19 @@ const CharacterSchema = z.object({
 
 ```typescript
 // 导入
-import { AI2DPlayer } from '@ai2d/runtime';
+import { AI2DPlayer } from "@ai2d/runtime";
 
 // 1. 创建播放器
-const player = new AI2DPlayer(document.getElementById('canvas')!, {
+const player = new AI2DPlayer(document.getElementById("canvas")!, {
   width: 600,
   height: 800,
 });
 
 // 2. 加载角色
-await player.load('./haru-mini/haru.ir.json');
+await player.load("./haru-mini/haru.ir.json");
 
 // 3. 播放动画
-player.play('breath');
+player.play("breath");
 ```
 
 ### AI2DPlayer API 设计
@@ -290,12 +309,12 @@ player.play('breath');
 interface AI2DPlayerOptions {
   width: number;
   height: number;
-  fps?: number;            // 默认 30
+  fps?: number; // 默认 30
   backgroundColor?: string;
 }
 
 interface ControlPointState {
-  [controlPointId: string]: number;  // 0-1 归一化值（会被 range 映射）
+  [controlPointId: string]: number; // 0-1 归一化值（会被 range 映射）
 }
 
 class AI2DPlayer {
@@ -306,7 +325,7 @@ class AI2DPlayer {
   loadFromIR(ir: CharacterSchema): void;
 
   // 播放控制
-  play(clipId?: string): void;         // 播放指定动画，不传则播默认动画
+  play(clipId?: string): void; // 播放指定动画，不传则播默认动画
   pause(): void;
   resume(): void;
   stop(): void;
@@ -322,16 +341,17 @@ class AI2DPlayer {
   get duration(): number;
 
   // 导出（v0.1 只做 API 预留，不实现）
-  capture(): ImageData;                      // 截取当前帧
-  exportFrames(options: {                    // 导出帧序列（配合 ffmpeg.wasm / gif.js）
+  capture(): ImageData; // 截取当前帧
+  exportFrames(options: {
+    // 导出帧序列（配合 ffmpeg.wasm / gif.js）
     duration: number;
     fps: number;
   }): Promise<ImageData[]>;
 
   // 事件
-  on(event: 'frame', handler: (time: number) => void): void;
-  on(event: 'load', handler: () => void): void;
-  on(event: 'error', handler: (err: Error) => void): void;
+  on(event: "frame", handler: (time: number) => void): void;
+  on(event: "load", handler: () => void): void;
+  on(event: "error", handler: (err: Error) => void): void;
 
   // 清理
   destroy(): void;
@@ -345,15 +365,15 @@ class AI2DPlayer {
 ```typescript
 // Agent 发送语义命令
 agentBus.send({
-  type: 'CHARACTER_COMMAND',
+  type: "CHARACTER_COMMAND",
   payload: {
     controlPoints: { eyeL: 0.2, mouthOpen: 0.8, headTilt: 5 },
-    animation: 'talk',
+    animation: "talk",
   },
 });
 
 // Runtime 层消费
-player.on('frame', (time) => {
+player.on("frame", (time) => {
   const cp = signalBridge.getLatestControlPoints();
   if (cp) player.setControlPoints(cp);
 });
@@ -365,13 +385,13 @@ player.on('frame', (time) => {
 
 ### 场景列表
 
-| # | 场景 | 验收标准 |
-|---|------|----------|
-| 1 | **呼吸** | 角色胸部/肩膀图层以 0.25Hz 频率做微小上下位移，持续循环 |
-| 2 | **眨眼** | 每 3-5 秒一次完整眨眼（眼睑图层 0→1→0，约 150ms），随机间隔 |
-| 3 | **嘴巴开合** | 鼠标点击或键盘空格触发，嘴巴 0→1→0，约 300ms |
-| 4 | **鼠标跟随** | 头部/眼睛网格跟随鼠标位置做小范围偏移（±5px），带有 100ms 延迟平滑 |
-| 5 | **情绪文本框** | 文本框输入 `happy/sad/surprise/angry`，触发不同控制点组合 + 动画 clip 切换 |
+| #   | 场景           | 验收标准                                                                   |
+| --- | -------------- | -------------------------------------------------------------------------- |
+| 1   | **呼吸**       | 角色胸部/肩膀图层以 0.25Hz 频率做微小上下位移，持续循环                    |
+| 2   | **眨眼**       | 每 3-5 秒一次完整眨眼（眼睑图层 0→1→0，约 150ms），随机间隔                |
+| 3   | **嘴巴开合**   | 鼠标点击或键盘空格触发，嘴巴 0→1→0，约 300ms                               |
+| 4   | **鼠标跟随**   | 头部/眼睛网格跟随鼠标位置做小范围偏移（±5px），带有 100ms 延迟平滑         |
+| 5   | **情绪文本框** | 文本框输入 `happy/sad/surprise/angry`，触发不同控制点组合 + 动画 clip 切换 |
 
 ### 第一版 Demo 技术约束
 
@@ -382,12 +402,12 @@ player.on('frame', (time) => {
 
 ### 发布目标
 
-| 时间 | 目标 |
-|------|------|
-| 第一周 | CLI 编译 + IR 格式 + 场景 1-3 可用 |
-| 第二周 | 场景 4-5 + 内部测试 + README 打磨 |
+| 时间   | 目标                                               |
+| ------ | -------------------------------------------------- |
+| 第一周 | CLI 编译 + IR 格式 + 场景 1-3 可用                 |
+| 第二周 | 场景 4-5 + 内部测试 + README 打磨                  |
 | 第三周 | `@ai2d/runtime` NPM 发布 + **Show HN**（收集反馈） |
-| 第四周 | 根据 Show HN 反馈迭代 + Twitter 短视频 + 长尾传播 |
+| 第四周 | 根据 Show HN 反馈迭代 + Twitter 短视频 + 长尾传播  |
 
 > 节奏逻辑：第二周不急着发 Show HN，先把 Demo 体验和 README 磨透。Show HN 只有一次首印象，数据到位了再发。
 
@@ -419,24 +439,26 @@ Existing 2D character animation pipelines (Live2D, Spine) were designed for **hu
 AI2D reimagines the pipeline from the ground up:
 
 ```
-Input              Compiler          Runtime
-━━━━━━━━━          ━━━━━━━━          ━━━━━━━
-PNG layers    →    @ai2d/compiler →  @ai2d/runtime
-Control data  →    (CLI / API)    →  (Canvas 2D)
-└─ AI-generated   └─ .ir.json      └─ < 5KB gzip
-```
+
+Input Compiler Runtime
+━━━━━━━━━ ━━━━━━━━ ━━━━━━━
+PNG layers → @ai2d/compiler → @ai2d/runtime
+Control data → (CLI / API) → (Canvas 2D)
+└─ AI-generated └─ .ir.json └─ < 5KB gzip
+
+````
 
 ## Quick Start (3 lines)
 
 ```bash
 npm install @ai2d/runtime
-```
+````
 
 ```typescript
-import { AI2DPlayer } from '@ai2d/runtime';
+import { AI2DPlayer } from "@ai2d/runtime";
 const player = new AI2DPlayer(canvas);
-await player.load('./character.ir.json');
-player.play('breath');
+await player.load("./character.ir.json");
+player.play("breath");
 ```
 
 ## Key Features
@@ -449,22 +471,24 @@ player.play('breath');
 
 ## Roadmap
 
-| Version | Focus |
-|---------|-------|
+| Version | Focus                                                                                  |
+| ------- | -------------------------------------------------------------------------------------- |
 | v0.1    | Mesh deformation (bilinear), clip-based triangle rendering, 5 demo scenes, NPM release |
-| v0.2    | TPS backend (opt-in WASM), PSD layer parser, `setTransform` perf optimization |
-| v0.3    | GIF/MP4 export, multi-character scenes, editor UI prototype |
+| v0.2    | TPS backend (opt-in WASM), PSD layer parser, `setTransform` perf optimization          |
+| v0.3    | GIF/MP4 export, multi-character scenes, editor UI prototype                            |
 
 > Track progress on the [AI2D Roadmap Project Board](https://github.com/.../projects/1).
 
 ## License
 
 MIT
+
 ```
 
 ### 中文副标题（README 顶部）
 
 ```
+
 <p align="center">
   AI 原生 2D 角色动画编译器与 Canvas 运行时。<br/>
   把分层角色图和语义控制点编译成实时动画角色，<br/>

@@ -150,7 +150,10 @@ export async function findImplicitConnections(
 
   let vectors: number[][];
   try {
-    vectors = await callEmbedding(providers, valid.map((n) => n.text.slice(0, 500)));
+    vectors = await callEmbedding(
+      providers,
+      valid.map((n) => n.text.slice(0, 500)),
+    );
   } catch {
     return [];
   }

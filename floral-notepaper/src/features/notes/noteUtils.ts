@@ -1,17 +1,31 @@
 import { t, type TFunction } from "i18next";
 import type { Note, NoteMetadata } from "./types";
 
+export function getFileExtension(fileName: string): string {
+  const match = fileName.match(/\.([^.\\/]+)$/);
+  return match ? `.${match[1]}` : "";
+}
+
+export function withFileExtension(name: string, fileName: string): string {
+  const extension = getFileExtension(fileName);
+  if (!extension) return name;
+  return name.toLowerCase().endsWith(extension.toLowerCase()) ? name : `${name}${extension}`;
+}
+
 export function getDisplayTitle(
-  note: Pick<NoteMetadata, "title" | "preview">,
+  note: Pick<NoteMetadata, "title" | "fileName"> & { preview?: string },
   translate: TFunction = t,
 ): string {
   const title = note.title.trim();
-  if (title) return title;
+  if (title) return withFileExtension(title, note.fileName);
 
-  const preview = note.preview.trim();
-  if (preview) return preview.slice(0, 20);
+  const preview = note.preview?.trim() ?? "";
+  if (preview) return withFileExtension(preview.slice(0, 20), note.fileName);
 
-  return translate("common.untitledNote", { defaultValue: "无标题笔记" });
+  return withFileExtension(
+    translate("common.untitledNote", { defaultValue: "无标题笔记" }),
+    note.fileName,
+  );
 }
 
 export function buildPreview(content: string): string {
@@ -35,7 +49,8 @@ export function metadataFromNote(note: Note): NoteMetadata {
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     wordCount: note.wordCount,
-    preview: buildPreview(note.content),
+    preview: note.preview ?? buildPreview(note.content),
+    filePath: note.filePath,
   };
 }
 

@@ -45,7 +45,10 @@
     linear-gradient(var(--canvas-texture-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--canvas-texture-line) 1px, transparent 1px),
     radial-gradient(circle, var(--canvas-grid-dot) 1px, transparent 1px);
-  background-size: 48px 48px, 48px 48px, 18px 18px;
+  background-size:
+    48px 48px,
+    48px 48px,
+    18px 18px;
   opacity: 0.72;
 }
 
@@ -137,8 +140,11 @@
   padding: 12px;
   text-align: left;
   color: var(--workflow-ink);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--workflow-panel-solid) 94%, var(--workflow-accent-soft)), var(--workflow-panel-solid));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--workflow-panel-solid) 94%, var(--workflow-accent-soft)),
+    var(--workflow-panel-solid)
+  );
   border: 1px solid var(--workflow-border);
   border-radius: 14px;
   cursor: grab;

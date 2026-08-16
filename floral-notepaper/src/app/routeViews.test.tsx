@@ -9,12 +9,16 @@ vi.mock("../components/CanvasPage", () => ({
   ),
 }));
 
-vi.mock("../components/DashboardPage", () => ({ DashboardPage: () => <div data-testid="dashboard-page" /> }));
+vi.mock("../components/DashboardPage", () => ({
+  DashboardPage: () => <div data-testid="dashboard-page" />,
+}));
 vi.mock("../components/MainWindow", () => ({
   MainWindow: () => <div data-testid="main-window" />,
 }));
 vi.mock("../components/NotePad", () => ({
-  NotePad: ({ initialNoteId }: { initialNoteId?: string }) => <div data-testid="notepad-route">{initialNoteId}</div>,
+  NotePad: ({ initialNoteId }: { initialNoteId?: string }) => (
+    <div data-testid="notepad-route">{initialNoteId}</div>
+  ),
 }));
 vi.mock("../components/SettingsPage", () => ({
   SettingsPage: () => <div data-testid="settings-page" />,
@@ -26,13 +30,17 @@ vi.mock("../features/companion/components/CompanionFloatingPage", () => ({
   CompanionFloatingPage: () => <div data-testid="companion-route" />,
 }));
 vi.mock("../features/garden/components/GardenLayout", () => ({
-  GardenLayout: ({ userId }: { userId: string | null }) => <div data-testid="garden-page">{userId}</div>,
+  GardenLayout: ({ userId }: { userId: string | null }) => (
+    <div data-testid="garden-page">{userId}</div>
+  ),
 }));
 vi.mock("../features/social/pages/MyProfilePage", () => ({
   MyProfilePage: ({ userId }: { userId: string }) => <div data-testid="profile-page">{userId}</div>,
 }));
 vi.mock("../features/studio/pages/StudioEditorPage", () => ({
-  StudioEditorPage: ({ userId }: { userId: string }) => <div data-testid="studio-page">{userId}</div>,
+  StudioEditorPage: ({ userId }: { userId: string }) => (
+    <div data-testid="studio-page">{userId}</div>
+  ),
 }));
 
 import { renderMainView, renderSpecialRoute } from "./routeViews";

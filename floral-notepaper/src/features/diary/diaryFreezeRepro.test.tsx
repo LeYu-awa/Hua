@@ -67,9 +67,7 @@ describe("diary page freeze reproduction", () => {
   beforeEach(() => {
     mocks.invoke.mockImplementation((cmd: string) => {
       if (cmd === "diary_list") {
-        return Promise.resolve(
-          Array.from({ length: 20 }, (_, i) => diarySummary(`d${i}`)),
-        );
+        return Promise.resolve(Array.from({ length: 20 }, (_, i) => diarySummary(`d${i}`)));
       }
       if (cmd === "diary_get") {
         return Promise.resolve({
@@ -106,7 +104,12 @@ describe("diary page freeze reproduction", () => {
 
     render(
       <>
-        <SidebarChat open={false} onClose={() => {}} providers={[provider]} onRequestOpen={() => {}} />
+        <SidebarChat
+          open={false}
+          onClose={() => {}}
+          providers={[provider]}
+          onRequestOpen={() => {}}
+        />
         <DiaryPage />
       </>,
     );

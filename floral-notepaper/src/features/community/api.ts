@@ -1,8 +1,4 @@
-import type {
-  CommunityArticle,
-  Category,
-  CommunityFilters,
-} from "./types";
+import type { CommunityArticle, Category, CommunityFilters } from "./types";
 
 /* ═══════════════════════════════════════════
    Mock 数据 — 模拟后端接口响应
@@ -69,7 +65,7 @@ function createMockArticles(): CommunityArticle[] {
   for (let i = 0; i < 60; i++) {
     const catIndex = (i % (CATEGORIES.length - 1)) + 1;
     const r = (Math.random() * 16777215) | 0;
-    const ratio: ("1:1" | "3:4" | "16:9") = (["1:1", "3:4", "16:9"] as const)[i % 3];
+    const ratio: "1:1" | "3:4" | "16:9" = (["1:1", "3:4", "16:9"] as const)[i % 3];
     articles.push({
       id: `article-${i}`,
       title: titles[i % titles.length],

@@ -484,9 +484,7 @@ export function DeepSeekChat({
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setDismissedDistill((prev) => new Set(prev).add(s.messageId))
-                    }
+                    onClick={() => setDismissedDistill((prev) => new Set(prev).add(s.messageId))}
                     className="text-[10px] px-1.5 py-1 rounded-md text-ink-ghost hover:bg-paper-deep/20 transition-colors cursor-pointer"
                   >
                     忽略

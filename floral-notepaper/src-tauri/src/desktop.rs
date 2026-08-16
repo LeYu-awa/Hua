@@ -1,6 +1,6 @@
 use crate::{
     locales::{self, Locale},
-    services::notes::{default_store, AppConfig, AppError},
+    services::notes::{default_store, AppConfig, AppError, DEFAULT_SEARXNG_URL},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -2324,7 +2324,7 @@ mod tests {
             toggle_visibility_shortcut: "Ctrl+Shift+K".into(),
             providers: Vec::new(),
             default_models: Default::default(),
-            searxng_url: String::new(),
+            searxng_url: DEFAULT_SEARXNG_URL.into(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,
@@ -2396,7 +2396,7 @@ mod tests {
             toggle_visibility_shortcut: String::new(),
             providers: Vec::new(),
             default_models: Default::default(),
-            searxng_url: String::new(),
+            searxng_url: DEFAULT_SEARXNG_URL.into(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,
@@ -2434,7 +2434,7 @@ mod tests {
             toggle_visibility_shortcut: "Ctrl+Shift+H".into(),
             providers: Vec::new(),
             default_models: Default::default(),
-            searxng_url: String::new(),
+            searxng_url: DEFAULT_SEARXNG_URL.into(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,

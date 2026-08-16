@@ -5,7 +5,10 @@ import type { CompanionConfig } from "../types";
 
 export function CompanionEventBridge() {
   const [config, setConfig] = useState<CompanionConfig>(() => loadCompanionConfig());
-  const bridgeConfig = { ...config, enabled: config.enabled && config.visible && config.mode === "floating" };
+  const bridgeConfig = {
+    ...config,
+    enabled: config.enabled && config.visible && config.mode === "floating",
+  };
 
   useCompanionEvents(bridgeConfig);
 

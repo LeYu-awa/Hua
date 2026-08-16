@@ -80,11 +80,7 @@ export async function runAgentLoop(
       }
     }
 
-    current = [
-      ...current,
-      buildAssistantToolCallMessage(result.toolCalls),
-      ...toolMessages,
-    ];
+    current = [...current, buildAssistantToolCallMessage(result.toolCalls), ...toolMessages];
   }
 
   return { text: "", cancelled: false, finishedByToolLimit: true };

@@ -22,9 +22,10 @@ export function SortSwitcher({ active, onChange }: SortSwitcherProps) {
             onClick={() => onChange(opt.value)}
             className={`
               px-3.5 py-1 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer select-none
-              ${isActive
-                ? "bg-[#FF2442] text-white shadow-sm"
-                : "text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
+              ${
+                isActive
+                  ? "bg-[#FF2442] text-white shadow-sm"
+                  : "text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
               }
             `}
           >

@@ -1,16 +1,28 @@
-import { useState } from 'react';
-import type { NodeViewProps } from '@tiptap/react';
-import { NodeViewWrapper } from '@tiptap/react';
+import { useState } from "react";
+import type { NodeViewProps } from "@tiptap/react";
+import { NodeViewWrapper } from "@tiptap/react";
 
 const SUGGESTED_TAGS = [
-  '日常', '分享', '穿搭', '美妆', '美食', '旅行', '健身',
-  '好物推荐', '探店', 'Vlog', '开箱', '教程', '干货', '测评',
+  "日常",
+  "分享",
+  "穿搭",
+  "美妆",
+  "美食",
+  "旅行",
+  "健身",
+  "好物推荐",
+  "探店",
+  "Vlog",
+  "开箱",
+  "教程",
+  "干货",
+  "测评",
 ];
 
 export function TopicTagNode(props: NodeViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const { node, updateAttributes, deleteNode, editor } = props;
-  const tag = node.attrs.tag as string || '';
+  const tag = (node.attrs.tag as string) || "";
   const isEditable = editor?.isEditable ?? false;
 
   const handleSelectTag = (t: string) => {
@@ -54,11 +66,11 @@ export function TopicTagNode(props: NodeViewProps) {
           + 添加话题标签
         </button>
       )}
-      
+
       {showPicker && (
         <div className="absolute top-full left-0 mt-1 bg-paper border border-paper-deep/20 rounded-lg shadow-lg p-2 z-50 w-[200px]">
           <div className="flex flex-wrap gap-1">
-            {SUGGESTED_TAGS.map(t => (
+            {SUGGESTED_TAGS.map((t) => (
               <button
                 key={t}
                 type="button"

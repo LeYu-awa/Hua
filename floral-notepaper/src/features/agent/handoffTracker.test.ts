@@ -12,10 +12,7 @@ function ev(
 
 describe("trackHandoffs", () => {
   it("同区域内不同用户先后编辑且在窗口内 => 接力点", () => {
-    const events = [
-      ev("A", "方案", 1000),
-      ev("B", "方案", 2000),
-    ];
+    const events = [ev("A", "方案", 1000), ev("B", "方案", 2000)];
     const { handoffs } = trackHandoffs(events);
     expect(handoffs).toHaveLength(1);
     expect(handoffs[0]).toMatchObject({ area: "方案", fromUserId: "A", toUserId: "B" });

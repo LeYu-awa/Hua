@@ -104,7 +104,10 @@ export async function detectSemanticGaps(
   let nodeVectors: number[][];
   let perspectiveVectors: number[][];
   try {
-    nodeVectors = await callEmbedding(providers, valid.map((n) => n.text.slice(0, 500)));
+    nodeVectors = await callEmbedding(
+      providers,
+      valid.map((n) => n.text.slice(0, 500)),
+    );
     perspectiveVectors = await callEmbedding(
       providers,
       perspectives.map((p) => `${p.label}：${p.description}`),

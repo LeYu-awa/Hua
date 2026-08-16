@@ -68,10 +68,7 @@ export function trackHandoffs(
     for (let i = 1; i < areaEvents.length; i++) {
       const prev = areaEvents[i - 1];
       const cur = areaEvents[i];
-      if (
-        prev.userId !== cur.userId &&
-        cur.timestamp - prev.timestamp <= maxGapMs
-      ) {
+      if (prev.userId !== cur.userId && cur.timestamp - prev.timestamp <= maxGapMs) {
         handoffs.push({
           area,
           fromUserId: prev.userId,
@@ -119,9 +116,7 @@ function assignRoles(
   }
   const framer = userIds
     .slice()
-    .sort(
-      (a, b) => createCount[b] - createCount[a] || firstEventAt[a] - firstEventAt[b],
-    )[0];
+    .sort((a, b) => createCount[b] - createCount[a] || firstEventAt[a] - firstEventAt[b])[0];
 
   return userIds.map((id) => {
     if (id === framer && createCount[id] > 0) {

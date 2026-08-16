@@ -12,7 +12,7 @@ export function getNoteContextMenuItems(translate: TFunction = t): NoteContextMe
   return [
     {
       action: "export",
-      label: translate("noteMenu.export", { defaultValue: "导出 Markdown" }),
+      label: translate("noteMenu.export", { defaultValue: "导出文件" }),
     },
     {
       action: "move",

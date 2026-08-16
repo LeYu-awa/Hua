@@ -49,18 +49,26 @@ function PlaceholderContent({ tab }: { tab: ElysiaTab }) {
 }
 
 // ---- TTS 配置面板 ----
-function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TTSConfig) => void }) {
+function TTSSettings({
+  config,
+  onChange,
+}: {
+  config: TTSConfig;
+  onChange: (c: TTSConfig) => void;
+}) {
   const update = (patch: Partial<TTSConfig>) => onChange({ ...config, ...patch });
 
   const handleBrowseFile = async (key: "gptWeightsPath" | "sovitsWeightsPath") => {
     try {
       // 使用 Tauri dialog 选择文件
       const { open } = await import("@tauri-apps/plugin-dialog");
-      const extensions = key === "gptWeightsPath"
-        ? [{ name: "CKPT", extensions: ["ckpt"] }]
-        : [{ name: "PTH", extensions: ["pth"] }];
+      const extensions =
+        key === "gptWeightsPath"
+          ? [{ name: "CKPT", extensions: ["ckpt"] }]
+          : [{ name: "PTH", extensions: ["pth"] }];
       const selected = await open({
-        title: key === "gptWeightsPath" ? "选择 GPT 模型权重 (.ckpt)" : "选择 SoVITS 模型权重 (.pth)",
+        title:
+          key === "gptWeightsPath" ? "选择 GPT 模型权重 (.ckpt)" : "选择 SoVITS 模型权重 (.pth)",
         filters: extensions,
         multiple: false,
       });
@@ -128,7 +136,9 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             className="w-full h-9 px-3 rounded-lg text-sm font-body text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none cursor-pointer"
           >
             {TTS_ENGINE_OPTIONS.map((opt) => (
-              <option key={opt.key} value={opt.key}>{opt.label}</option>
+              <option key={opt.key} value={opt.key}>
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
@@ -150,7 +160,11 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               value={config.model}
               onChange={(e) => update({ model: e.target.value })}
               className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
-              placeholder={config.engine === "dashscope" ? "cosyvoice-v2" : "加载权重后填写模型名（不影响合成请求，仅作标识）"}
+              placeholder={
+                config.engine === "dashscope"
+                  ? "cosyvoice-v2"
+                  : "加载权重后填写模型名（不影响合成请求，仅作标识）"
+              }
             />
           )}
         </div>
@@ -164,7 +178,8 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               {config.engine === "vits" && "— 说话人 id（MoeTTS speaker）"}
               {config.engine === "edge" && "— 浏览器语音名，留空自动选中文女声"}
               {config.engine === "openai" && "— 标准音色名"}
-              {config.engine === "dashscope" && "— 复刻音色 ID（先上传 10-20 秒音频创建音色）或系统音色名"}
+              {config.engine === "dashscope" &&
+                "— 复刻音色 ID（先上传 10-20 秒音频创建音色）或系统音色名"}
             </span>
           </label>
           {config.engine === "openai" ? (
@@ -174,7 +189,9 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               className="w-full h-9 px-3 rounded-lg text-sm font-body text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none cursor-pointer"
             >
               {OPENAI_TTS_VOICES.map((v) => (
-                <option key={v} value={v}>{v}</option>
+                <option key={v} value={v}>
+                  {v}
+                </option>
               ))}
             </select>
           ) : (
@@ -196,18 +213,17 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             value={config.apiUrl}
             onChange={(e) => update({ apiUrl: e.target.value })}
             className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
-            placeholder={
-              config.engine === "openai"
-                ? DEFAULT_TTS.apiUrl
-                : "http://127.0.0.1:9880"
-            }
+            placeholder={config.engine === "openai" ? DEFAULT_TTS.apiUrl : "http://127.0.0.1:9880"}
           />
           <p className="text-[10px] text-ink-ghost mt-1">
-            {config.engine === "gpt-sovits" && "GPT-SoVITS 本地服务的 HTTP API 地址（api_v2.py，POST /tts）"}
+            {config.engine === "gpt-sovits" &&
+              "GPT-SoVITS 本地服务的 HTTP API 地址（api_v2.py，POST /tts）"}
             {config.engine === "vits" && "MoeTTS / VITS 服务地址（GET /tts?text=...&id=<说话人>）"}
             {config.engine === "edge" && "无需填写，使用系统内置 Edge / 中文语音"}
-            {config.engine === "openai" && "OpenAI 兼容 / VibeVoice 服务地址（本地默认 POST /audio/speech）"}
-            {config.engine === "dashscope" && "阿里云百炼 base（国内 https://dashscope.aliyuncs.com/api/v1，国际 dashscope-intl）"}
+            {config.engine === "openai" &&
+              "OpenAI 兼容 / VibeVoice 服务地址（本地默认 POST /audio/speech）"}
+            {config.engine === "dashscope" &&
+              "阿里云百炼 base（国内 https://dashscope.aliyuncs.com/api/v1，国际 dashscope-intl）"}
           </p>
         </div>
 
@@ -222,7 +238,9 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               className="w-full h-9 px-3 rounded-lg text-sm font-mono text-ink bg-paper-warm/80 border border-paper-deep/40 focus:border-bamboo/40 focus:bg-cloud transition-all outline-none"
               placeholder="sk-..."
             />
-            <p className="text-[10px] text-ink-ghost mt-1">仅保存在本机 localStorage，用于云端 TTS 请求</p>
+            <p className="text-[10px] text-ink-ghost mt-1">
+              仅保存在本机 localStorage，用于云端 TTS 请求
+            </p>
           </div>
         )}
 
@@ -294,8 +312,9 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
             </button>
           </div>
           <p className="text-[10px] text-ink-ghost mt-1">
-            文件名格式示例：<code className="bg-paper-deep/30 px-1 rounded">【开心】今天天气真好.wav</code>
-            — 支持情绪标签自动匹配
+            文件名格式示例：
+            <code className="bg-paper-deep/30 px-1 rounded">【开心】今天天气真好.wav</code>—
+            支持情绪标签自动匹配
           </p>
         </div>
 
@@ -326,7 +345,10 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
               { emo: "生气", adj: "+10%" },
               { emo: "平静", adj: "不变" },
             ].map(({ emo, adj }) => (
-              <span key={emo} className="text-[10px] text-ink-ghost bg-paper-warm/60 px-2 py-0.5 rounded">
+              <span
+                key={emo}
+                className="text-[10px] text-ink-ghost bg-paper-warm/60 px-2 py-0.5 rounded"
+              >
                 {emo}: {adj}
               </span>
             ))}
@@ -357,17 +379,32 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
           <p className="text-xs text-ink-soft leading-relaxed">
             <span className="font-semibold text-bamboo">提示：</span>
             {config.engine === "gpt-sovits" && (
-              <>请先启动 GPT-SoVITS 的 <code className="bg-paper-deep/30 px-1 rounded">api_v2.py</code> 服务
-              并加载权重，再填写参考音频（音色），即可在左侧 AI 对话窗口听到角色朗读。</>
+              <>
+                请先启动 GPT-SoVITS 的{" "}
+                <code className="bg-paper-deep/30 px-1 rounded">api_v2.py</code> 服务
+                并加载权重，再填写参考音频（音色），即可在左侧 AI 对话窗口听到角色朗读。
+              </>
             )}
             {config.engine === "vits" && (
-              <>启动 MoeTTS 服务后，音色填说话人 id（默认 0），请求路径为 <code className="bg-paper-deep/30 px-1 rounded">GET /tts?text=...&id=&lt;说话人&gt;</code>。</>
+              <>
+                启动 MoeTTS 服务后，音色填说话人 id（默认 0），请求路径为{" "}
+                <code className="bg-paper-deep/30 px-1 rounded">
+                  GET /tts?text=...&id=&lt;说话人&gt;
+                </code>
+                。
+              </>
             )}
             {config.engine === "edge" && (
               <>使用系统内置 Edge / 中文语音，无需服务端；音色留空自动选择中文女声。</>
             )}
             {config.engine === "openai" && (
-              <>默认接本地 VibeVoice：<code className="bg-paper-deep/30 px-1 rounded">http://127.0.0.1:8001/v1</code>，请求路径为 <code className="bg-paper-deep/30 px-1 rounded">POST /audio/speech</code>。本地服务不需要 API Key。</>
+              <>
+                默认接本地 VibeVoice：
+                <code className="bg-paper-deep/30 px-1 rounded">http://127.0.0.1:8001/v1</code>
+                ，请求路径为{" "}
+                <code className="bg-paper-deep/30 px-1 rounded">POST /audio/speech</code>
+                。本地服务不需要 API Key。
+              </>
             )}
           </p>
         </div>
@@ -375,7 +412,9 @@ function TTSSettings({ config, onChange }: { config: TTSConfig; onChange: (c: TT
         {/* 操作按钮 */}
         <div className="flex items-center gap-3 pt-2 border-t border-paper-deep/20">
           <button
-            onClick={() => void speakText("你好，我是花笺的语音助手，很高兴见到你。", { emotion: "happy" })}
+            onClick={() =>
+              void speakText("你好，我是花笺的语音助手，很高兴见到你。", { emotion: "happy" })
+            }
             className="px-5 h-9 rounded-lg text-xs font-medium text-cloud bg-bamboo hover:bg-bamboo-light transition-all cursor-pointer"
           >
             试听
@@ -420,10 +459,7 @@ export function ElysiaPage() {
   };
 
   return (
-    <div
-      className="flex-1 flex flex-col min-h-0"
-      style={{ backgroundColor: "var(--color-paper)" }}
-    >
+    <div className="flex-1 flex flex-col min-h-0" style={{ backgroundColor: "var(--color-paper)" }}>
       {/* 顶部标题栏 */}
       <header className="shrink-0 flex items-center justify-between h-11 px-4 border-b border-paper-deep/20 bg-paper/80 backdrop-blur-sm">
         <h1 className="text-sm font-display font-bold text-ink tracking-wide select-none">
@@ -433,7 +469,16 @@ export function ElysiaPage() {
           className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer"
           title="设置"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
@@ -445,25 +490,23 @@ export function ElysiaPage() {
         {/* 左侧导航 */}
         <nav className="shrink-0 w-[140px] border-r border-paper-deep/20 bg-paper/50 py-3 flex flex-col gap-0.5">
           {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2.5 mx-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer text-left ${
-                  activeTab === tab.key
-                    ? "bg-bamboo-mist/70 text-bamboo"
-                    : "text-ink-soft hover:bg-paper-warm/80 hover:text-ink"
-                }`}
-              >
-                <span className="text-sm w-5 text-center shrink-0">{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2.5 mx-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer text-left ${
+                activeTab === tab.key
+                  ? "bg-bamboo-mist/70 text-bamboo"
+                  : "text-ink-soft hover:bg-paper-warm/80 hover:text-ink"
+              }`}
+            >
+              <span className="text-sm w-5 text-center shrink-0">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
           ))}
         </nav>
 
         {/* 右侧内容区 */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {renderContent()}
-        </main>
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">{renderContent()}</main>
       </div>
     </div>
   );

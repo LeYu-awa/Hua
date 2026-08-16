@@ -1,4 +1,9 @@
-import type { BongocatActionState, CompanionConfig, CompanionInputMode, CompanionSkinId } from "./types";
+import type {
+  BongocatActionState,
+  CompanionConfig,
+  CompanionInputMode,
+  CompanionSkinId,
+} from "./types";
 
 export const BUILT_IN_YUNO_SKIN_REVISION = "yuno-resource-manifest-v4";
 export const BUILT_IN_YUNO_ASSET_ROOT = "/live2d/yuno-official-no-expression/A-尤诺/img";
@@ -27,9 +32,24 @@ export const MIKU_LOCAL_BASE = "/live2d/miku";
 export const MIKU_LOCAL_MODEL_PATH = `${MIKU_LOCAL_BASE}/miku.model3.json`;
 
 export const BUILT_IN_LIVE2D_MODEL_OPTIONS = [
-  { skinId: "haru-cdn", label: "Haru", revision: "haru-local-v2", modelPath: HARU_LOCAL_MODEL_PATH },
-  { skinId: "hiyori", label: "Hiyori", revision: "hiyori-local-v1", modelPath: HIYORI_LOCAL_MODEL_PATH },
-  { skinId: "aquarius-love", label: "水瓶座之恋", revision: "aquarius-love-local-v2", modelPath: AQUARIUS_LOCAL_MODEL_PATH },
+  {
+    skinId: "haru-cdn",
+    label: "Haru",
+    revision: "haru-local-v2",
+    modelPath: HARU_LOCAL_MODEL_PATH,
+  },
+  {
+    skinId: "hiyori",
+    label: "Hiyori",
+    revision: "hiyori-local-v1",
+    modelPath: HIYORI_LOCAL_MODEL_PATH,
+  },
+  {
+    skinId: "aquarius-love",
+    label: "水瓶座之恋",
+    revision: "aquarius-love-local-v2",
+    modelPath: AQUARIUS_LOCAL_MODEL_PATH,
+  },
   { skinId: "miku", label: "Miku", revision: "miku-local-v1", modelPath: MIKU_LOCAL_MODEL_PATH },
 ] satisfies Array<{ skinId: CompanionSkinId; label: string; revision: string; modelPath: string }>;
 
@@ -58,7 +78,10 @@ export const BUILT_IN_YUNO_STANDARD_CAROUSEL_IMAGES = [
 export const BUILT_IN_YUNO_CAROUSEL_IMAGES = [
   `${BUILT_IN_YUNO_KEYBOARD_BASE}/cat.png`,
   `${BUILT_IN_YUNO_KEYBOARD_BASE}/bg.png`,
-  ...Array.from({ length: 7 }, (_, index) => `${BUILT_IN_YUNO_KEYBOARD_BASE}/keyboard/${index}.png`),
+  ...Array.from(
+    { length: 7 },
+    (_, index) => `${BUILT_IN_YUNO_KEYBOARD_BASE}/keyboard/${index}.png`,
+  ),
   ...KEYBOARD_HAND_FRAMES.map((frame) => `${BUILT_IN_YUNO_KEYBOARD_BASE}/lefthand/${frame}.png`),
   ...KEYBOARD_HAND_FRAMES.map((frame) => `${BUILT_IN_YUNO_KEYBOARD_BASE}/righthand/${frame}.png`),
   `${BUILT_IN_YUNO_KEYBOARD_BASE}/face/0.png`,
@@ -75,7 +98,10 @@ export const BUILT_IN_YUNO_GAMEPAD_CAROUSEL_IMAGES = [
   `${BUILT_IN_YUNO_GAMEPAD_BASE}/right_stick_down.png`,
   `${BUILT_IN_YUNO_GAMEPAD_BASE}/arm_L.png`,
   `${BUILT_IN_YUNO_GAMEPAD_BASE}/arm_R.png`,
-  ...Array.from({ length: 12 }, (_, index) => `${BUILT_IN_YUNO_GAMEPAD_BASE}/keyboard/${index}.png`),
+  ...Array.from(
+    { length: 12 },
+    (_, index) => `${BUILT_IN_YUNO_GAMEPAD_BASE}/keyboard/${index}.png`,
+  ),
   `${BUILT_IN_YUNO_GAMEPAD_BASE}/face/0.png`,
   `${BUILT_IN_YUNO_GAMEPAD_BASE}/face/1.png`,
   `${BUILT_IN_YUNO_GAMEPAD_BASE}/face/2.png`,
@@ -238,7 +264,9 @@ export const COMPANION_MAX_SCALE = 2;
 function sanitizeScale(scale: unknown) {
   const value = Number(scale);
   if (!Number.isFinite(value)) return DEFAULT_COMPANION_CONFIG.scale;
-  return Math.round(Math.min(COMPANION_MAX_SCALE, Math.max(COMPANION_MIN_SCALE, value)) * 100) / 100;
+  return (
+    Math.round(Math.min(COMPANION_MAX_SCALE, Math.max(COMPANION_MIN_SCALE, value)) * 100) / 100
+  );
 }
 
 function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig {
@@ -254,7 +282,10 @@ function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig 
   const isLegacyConfig = !value.skinId;
   const isBuiltInSkin = isBuiltInYunoSkin(merged.skinId);
   const builtInLive2DOption = getBuiltInLive2DModelOption(merged.skinId);
-  const isStaleBuiltInSkin = value.skinRevision !== BUILT_IN_YUNO_SKIN_REVISION && value.skinId !== "custom" && !builtInLive2DOption;
+  const isStaleBuiltInSkin =
+    value.skinRevision !== BUILT_IN_YUNO_SKIN_REVISION &&
+    value.skinId !== "custom" &&
+    !builtInLive2DOption;
   const isLegacySpriteSkin = merged.renderer === "sprite" || merged.skinId === "bongocat-classic";
 
   if (isLegacyConfig || isBuiltInSkin || isStaleBuiltInSkin || isLegacySpriteSkin) {
@@ -323,19 +354,25 @@ function normalizeBuiltInCarouselImage(image: string, _inputMode: CompanionInput
 }
 
 function normalizeInputMode(inputMode: CompanionInputMode | undefined): CompanionInputMode {
-  if (inputMode === "standard" || inputMode === "keyboard" || inputMode === "gamepad") return inputMode;
+  if (inputMode === "standard" || inputMode === "keyboard" || inputMode === "gamepad")
+    return inputMode;
   return "gamepad";
 }
 
 function isBuiltInYunoSkin(skinId: CompanionSkinId) {
-  return skinId === "a-yuno-keyboard" || skinId === "a-yuno-gamepad" || skinId === "a-yuno-standard";
+  return (
+    skinId === "a-yuno-keyboard" || skinId === "a-yuno-gamepad" || skinId === "a-yuno-standard"
+  );
 }
 
 export function getBuiltInLive2DModelOption(skinId: CompanionSkinId) {
   return BUILT_IN_LIVE2D_MODEL_OPTIONS.find((option) => option.skinId === skinId);
 }
 
-function sanitizePosition(position: Partial<CompanionConfig["position"]> | undefined, fallback: CompanionConfig["position"]) {
+function sanitizePosition(
+  position: Partial<CompanionConfig["position"]> | undefined,
+  fallback: CompanionConfig["position"],
+) {
   const x = Number(position?.x);
   const y = Number(position?.y);
   return {

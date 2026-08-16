@@ -184,6 +184,13 @@
     }
   },
   "settings": {
+    "aiIntegration": {
+      "webSearch": "Web 搜尋（SearXNG）",
+      "webSearchHint": "畫布「知識採集」與「聯網調研」透過 SearXNG 搜尋網際網路，預設已內置公共實例 https://paulgo.io，無需配置即可使用。想用更穩定的自托管實例時，在這裡改成自己的地址；清空則降級為模型離線作答。",
+      "webSearchReady": "已配置：知識採集將使用聯網搜尋結果",
+      "webSearchEmpty": "未配置：知識採集將離線作答（無來源連結）",
+      "dockerHint": "自托管方案：本倉庫提供一鍵部署 docker/searxng/docker-compose.yml（docker compose up -d 後把地址填到上面）。"
+    },
     "autoSave": {
       "externalFile": "外部檔案自動儲存",
       "note": "自動儲存筆記",

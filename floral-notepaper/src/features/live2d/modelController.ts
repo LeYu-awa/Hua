@@ -1,5 +1,8 @@
 // Type-only import only; erased at compile time, no runtime module side effects.
-import type { Live2DModel, MotionPriority as Live2DMotionPriority } from "@naari3/pixi-live2d-display/cubism5";
+import type {
+  Live2DModel,
+  MotionPriority as Live2DMotionPriority,
+} from "@naari3/pixi-live2d-display/cubism5";
 import type { Container } from "pixi.js";
 import { Assets, Cache, TextureSource, loadTextures } from "pixi.js";
 import type { EmotionIntent } from "@soullink-emotion/engine";
@@ -45,7 +48,9 @@ async function loadNormalizedModel3Json(modelUrl: string): Promise<Live2DModel3J
 
   if (json.FileReferences) {
     const expressions = Array.isArray(json.FileReferences.Expressions)
-      ? json.FileReferences.Expressions.filter((expression) => typeof expression.File === "string" && expression.File.trim().length > 0)
+      ? json.FileReferences.Expressions.filter(
+          (expression) => typeof expression.File === "string" && expression.File.trim().length > 0,
+        )
       : [];
 
     if (expressions.length > 0) {
@@ -54,7 +59,10 @@ async function loadNormalizedModel3Json(modelUrl: string): Promise<Live2DModel3J
       delete json.FileReferences.Expressions;
     }
 
-    json.FileReferences.Motions = json.FileReferences.Motions && typeof json.FileReferences.Motions === "object" ? json.FileReferences.Motions : {};
+    json.FileReferences.Motions =
+      json.FileReferences.Motions && typeof json.FileReferences.Motions === "object"
+        ? json.FileReferences.Motions
+        : {};
   }
 
   return json;
@@ -64,7 +72,9 @@ function resolveModelAssetUrl(modelUrl: string, path: string) {
   try {
     return new URL(path, modelUrl).href;
   } catch {
-    const base = modelUrl.endsWith("/") ? modelUrl : modelUrl.slice(0, modelUrl.lastIndexOf("/") + 1);
+    const base = modelUrl.endsWith("/")
+      ? modelUrl
+      : modelUrl.slice(0, modelUrl.lastIndexOf("/") + 1);
     return base + path;
   }
 }
@@ -116,7 +126,9 @@ type Live2DTextureQualitySource = TextureSource & {
 };
 
 function configureTextureQuality(live2dModel: Live2DModel) {
-  const textures = ((live2dModel as unknown as { textures?: unknown[] }).textures ?? []) as Array<{ source?: Live2DTextureQualitySource }>;
+  const textures = ((live2dModel as unknown as { textures?: unknown[] }).textures ?? []) as Array<{
+    source?: Live2DTextureQualitySource;
+  }>;
   let configured = 0;
 
   textures.forEach((texture) => {
@@ -173,8 +185,16 @@ type Live2DDrawableModelApi = {
 };
 
 type AquariusCopyrightRendererApi = {
-  drawMeshWebGL?: (drawableModel: Live2DDrawableModelApi, index: number, ...args: unknown[]) => void;
-  __aquariusOriginalDrawMeshWebGL?: (drawableModel: Live2DDrawableModelApi, index: number, ...args: unknown[]) => void;
+  drawMeshWebGL?: (
+    drawableModel: Live2DDrawableModelApi,
+    index: number,
+    ...args: unknown[]
+  ) => void;
+  __aquariusOriginalDrawMeshWebGL?: (
+    drawableModel: Live2DDrawableModelApi,
+    index: number,
+    ...args: unknown[]
+  ) => void;
   __aquariusShouldHideCopyrightTexture?: () => boolean;
 };
 
@@ -197,7 +217,9 @@ function hideMikuWatermark(core: Live2DCoreModelParameterApi | null) {
   return setParameterIfPresent(core, MIKU_WATERMARK_PARAM_ID, MIKU_WATERMARK_HIDE_VALUE);
 }
 
-function getCoreModelParameterApi(live2dModel: Live2DModel | null): Live2DCoreModelParameterApi | null {
+function getCoreModelParameterApi(
+  live2dModel: Live2DModel | null,
+): Live2DCoreModelParameterApi | null {
   return (live2dModel?.internalModel?.coreModel ?? null) as Live2DCoreModelParameterApi | null;
 }
 
@@ -233,7 +255,10 @@ function patchAquariusCopyrightTextureDraw(live2dModel: Live2DModel, shouldHide:
   if (!renderer.__aquariusOriginalDrawMeshWebGL) {
     renderer.__aquariusOriginalDrawMeshWebGL = renderer.drawMeshWebGL.bind(renderer);
     renderer.drawMeshWebGL = (drawableModel, index, ...args) => {
-      if (renderer.__aquariusShouldHideCopyrightTexture?.() && drawableModel.getDrawableTextureIndex?.(index) === AQUARIUS_COPYRIGHT_TEXTURE_INDEX) {
+      if (
+        renderer.__aquariusShouldHideCopyrightTexture?.() &&
+        drawableModel.getDrawableTextureIndex?.(index) === AQUARIUS_COPYRIGHT_TEXTURE_INDEX
+      ) {
         return;
       }
       renderer.__aquariusOriginalDrawMeshWebGL?.(drawableModel, index, ...args);
@@ -257,7 +282,12 @@ function patchTransparentCanvasDraw(live2dModel: Live2DModel, scene: Live2DScene
     const previousLive2DViewport = internalModel.viewport ? [...internalModel.viewport] : null;
     const canvas = scene.app.canvas as HTMLCanvasElement;
 
-    internalModel.viewport = [0, 0, canvas.width || Math.round(scene.app.screen.width * scene.app.renderer.resolution), canvas.height || Math.round(scene.app.screen.height * scene.app.renderer.resolution)];
+    internalModel.viewport = [
+      0,
+      0,
+      canvas.width || Math.round(scene.app.screen.width * scene.app.renderer.resolution),
+      canvas.height || Math.round(scene.app.screen.height * scene.app.renderer.resolution),
+    ];
     originalDraw(gl);
 
     if (previousLive2DViewport) internalModel.viewport = previousLive2DViewport;
@@ -295,7 +325,12 @@ function getAquariusCopyrightNoticeState(live2dModel: Live2DModel) {
   };
 }
 
-function scheduleAquariusCopyrightNoticeHide(modelUrl: string, live2dModel: Live2DModel, isCurrentModel: () => boolean, onHidden: () => void) {
+function scheduleAquariusCopyrightNoticeHide(
+  modelUrl: string,
+  live2dModel: Live2DModel,
+  isCurrentModel: () => boolean,
+  onHidden: () => void,
+) {
   if (!isAquariusModel(modelUrl)) return null;
 
   return window.setTimeout(() => {
@@ -329,10 +364,13 @@ function resetExpressionIfAvailable(live2dModel: Live2DModel) {
 function hasExpression(live2dModel: Live2DModel, expressionId: string) {
   const expressionManager = live2dModel.internalModel?.motionManager?.expressionManager;
   const definitions = (expressionManager as unknown as { definitions?: unknown[] })?.definitions;
-  return Array.isArray(definitions) && definitions.some((definition) => {
-    const item = definition as { Name?: unknown; File?: unknown };
-    return item.Name === expressionId || item.File === expressionId;
-  });
+  return (
+    Array.isArray(definitions) &&
+    definitions.some((definition) => {
+      const item = definition as { Name?: unknown; File?: unknown };
+      return item.Name === expressionId || item.File === expressionId;
+    })
+  );
 }
 
 function ensureModelVisible(live2dModel: Live2DModel, scene: Live2DScene) {
@@ -544,12 +582,19 @@ export function createLive2DModelController(
       const normalizedModelJson = await loadNormalizedModel3Json(modelUrl);
       configureLive2DTextureLoading();
       await unloadCachedModelTextures(modelUrl, normalizedModelJson);
-      const loaded = await L2DModel.from(normalizedModelJson, { autoHitTest: false, autoFocus: false, autoUpdate: false, ticker: live2dScene.app.ticker });
+      const loaded = await L2DModel.from(normalizedModelJson, {
+        autoHitTest: false,
+        autoFocus: false,
+        autoUpdate: false,
+        ticker: live2dScene.app.ticker,
+      });
 
       model = loaded as Live2DModel;
       const currentModel = model;
       configureTextureQuality(currentModel);
-      (currentModel as unknown as { setRenderer?: (renderer: unknown) => void }).setRenderer?.(live2dScene.app.renderer);
+      (currentModel as unknown as { setRenderer?: (renderer: unknown) => void }).setRenderer?.(
+        live2dScene.app.renderer,
+      );
       patchTransparentCanvasDraw(currentModel, live2dScene);
       currentModel.anchor.set(0.5, 0.5);
       // 交互由外层 React/DOM 拖动按钮负责；禁用 Pixi hitTest，避免 Pixi v8 递归 Live2D 内部对象树时抛
@@ -595,7 +640,10 @@ export function createLive2DModelController(
         mouthHandler = applyMouthValue;
         currentModel.internalModel.on("beforeModelUpdate", mouthHandler);
         if (isAquariusModel(modelUrl)) {
-          patchAquariusCopyrightTextureDraw(currentModel, () => aquariusCopyrightHidden && model === currentModel);
+          patchAquariusCopyrightTextureDraw(
+            currentModel,
+            () => aquariusCopyrightHidden && model === currentModel,
+          );
           aquariusCopyrightHandler = () => {
             if (aquariusCopyrightHidden && model === currentModel) {
               applyAquariusCopyrightNoticeHidden(currentModel);
@@ -616,9 +664,14 @@ export function createLive2DModelController(
       }
 
       startRuntimeLoop();
-      aquariusCopyrightTimer = scheduleAquariusCopyrightNoticeHide(modelUrl, currentModel, () => model === currentModel, () => {
-        aquariusCopyrightHidden = true;
-      });
+      aquariusCopyrightTimer = scheduleAquariusCopyrightNoticeHide(
+        modelUrl,
+        currentModel,
+        () => model === currentModel,
+        () => {
+          aquariusCopyrightHidden = true;
+        },
+      );
       currentModel.motion("Idle", 0, MotionPriority.IDLE).catch(() => undefined);
       scheduleIdleMotion();
     },
@@ -688,9 +741,12 @@ export function createLive2DModelController(
     playMotion(group: string, index?: number) {
       if (model) {
         clearIdleTimer();
-        void model.motion(group, index, MotionPriority.NORMAL).catch(() => undefined).finally(() => {
-          scheduleIdleMotion();
-        });
+        void model
+          .motion(group, index, MotionPriority.NORMAL)
+          .catch(() => undefined)
+          .finally(() => {
+            scheduleIdleMotion();
+          });
       }
     },
 
@@ -750,5 +806,3 @@ export function createLive2DModelController(
     },
   };
 }
-
-

@@ -22,15 +22,26 @@ function getLive2DDevicePixelRatio() {
 }
 
 function getLive2DRenderResolution(qualityScale: number) {
-  return Math.min(MAX_LIVE2D_RENDER_RESOLUTION, getLive2DDevicePixelRatio() * Math.max(qualityScale, 1));
+  return Math.min(
+    MAX_LIVE2D_RENDER_RESOLUTION,
+    getLive2DDevicePixelRatio() * Math.max(qualityScale, 1),
+  );
 }
 
 function getCanvasCssSize(canvas: HTMLCanvasElement, parent: HTMLElement) {
   const rect = parent.getBoundingClientRect();
   const canvasRect = canvas.getBoundingClientRect();
   return {
-    width: Math.max(1, Math.round(rect.width || parent.clientWidth || canvasRect.width || canvas.clientWidth || 360)),
-    height: Math.max(1, Math.round(rect.height || parent.clientHeight || canvasRect.height || canvas.clientHeight || 520)),
+    width: Math.max(
+      1,
+      Math.round(rect.width || parent.clientWidth || canvasRect.width || canvas.clientWidth || 360),
+    ),
+    height: Math.max(
+      1,
+      Math.round(
+        rect.height || parent.clientHeight || canvasRect.height || canvas.clientHeight || 520,
+      ),
+    ),
   };
 }
 
@@ -44,7 +55,10 @@ function getCanvasLogicalSize(canvas: HTMLCanvasElement, parent: HTMLElement) {
   };
 }
 
-export async function createLive2DScene(canvas: HTMLCanvasElement, qualityScale = 1): Promise<Live2DScene> {
+export async function createLive2DScene(
+  canvas: HTMLCanvasElement,
+  qualityScale = 1,
+): Promise<Live2DScene> {
   const parent = canvas.parentElement || canvas;
   let currentQualityScale = Math.max(qualityScale, 1);
   const resolution = getLive2DRenderResolution(currentQualityScale);
@@ -81,7 +95,10 @@ export async function createLive2DScene(canvas: HTMLCanvasElement, qualityScale 
 
   const resizeToParent = () => {
     const nextResolution = getLive2DRenderResolution(currentQualityScale);
-    const { cssWidth, cssHeight, logicalWidth, logicalHeight } = getCanvasLogicalSize(canvas, parent);
+    const { cssWidth, cssHeight, logicalWidth, logicalHeight } = getCanvasLogicalSize(
+      canvas,
+      parent,
+    );
     app.renderer.resize(logicalWidth, logicalHeight, nextResolution);
     canvas.style.width = `${cssWidth}px`;
     canvas.style.height = `${cssHeight}px`;

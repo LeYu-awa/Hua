@@ -36,7 +36,8 @@ export class BongocatActionCore {
     }
 
     if (event.type === "input") {
-      if (event.timestamp - this.lastMotionAt < this.sensitivity.motionCooldownMs) return this.state;
+      if (event.timestamp - this.lastMotionAt < this.sensitivity.motionCooldownMs)
+        return this.state;
       this.lastMotionAt = event.timestamp;
       const paw = this.nextTypingPaw();
       this.state = {
@@ -59,7 +60,10 @@ export class BongocatActionCore {
 
   tick(now: number) {
     if (this.state.action === "hide") return this.state;
-    if (this.state.action !== "idle" && now - this.state.lastEventAt >= this.sensitivity.idleTimeoutMs) {
+    if (
+      this.state.action !== "idle" &&
+      now - this.state.lastEventAt >= this.sensitivity.idleTimeoutMs
+    ) {
       this.state = { action: "idle", paw: "none", intensity: 0, lastEventAt: now };
     }
     return this.state;
@@ -101,7 +105,8 @@ function mapEventToAction(type: CompanionInputEvent["type"]): CompanionAction {
 }
 
 function getPawForEvent(type: CompanionInputEvent["type"]): PawState {
-  if (type === "delete" || type === "effect" || type === "moveUp" || type === "moveDown") return "both";
+  if (type === "delete" || type === "effect" || type === "moveUp" || type === "moveDown")
+    return "both";
   if (type === "moveLeft") return "left";
   if (type === "moveRight" || type === "save" || type === "complete") return "right";
   return "none";

@@ -140,7 +140,10 @@ export function MentionComposer({
   const items = activeMenu === "@" ? toolItems : noteItems;
   const safeIndex = Math.min(activeIndex, Math.max(items.length - 1, 0));
 
-  const commitMention = (kind: "@" | "#", item: string | NoteMention | (typeof TOOL_MENTIONS)[number]) => {
+  const commitMention = (
+    kind: "@" | "#",
+    item: string | NoteMention | (typeof TOOL_MENTIONS)[number],
+  ) => {
     const trigger = parseTrigger(input);
     if (!trigger || trigger.kind !== kind) return;
     const token =
@@ -229,20 +232,14 @@ export function MentionComposer({
       if (!part) return null;
       if (part.startsWith("@")) {
         return (
-          <span
-            key={index}
-            className="rounded-md bg-bamboo-mist/80 px-1 font-medium text-bamboo"
-          >
+          <span key={index} className="rounded-md bg-bamboo-mist/80 px-1 font-medium text-bamboo">
             {part}
           </span>
         );
       }
       if (part.startsWith("#")) {
         return (
-          <span
-            key={index}
-            className="rounded-md bg-canvas-card-hover px-1 font-medium text-stone"
-          >
+          <span key={index} className="rounded-md bg-canvas-card-hover px-1 font-medium text-stone">
             #{getNoteReferenceDisplayTitle(part.slice(1))}
           </span>
         );
@@ -297,7 +294,9 @@ export function MentionComposer({
                   index === safeIndex ? "bg-canvas-card-hover" : "hover:bg-paper-warm/80"
                 }`}
               >
-                <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink"># {note.title}</span>
+                <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink">
+                  # {note.title}
+                </span>
                 {note.category && (
                   <span className="shrink-0 rounded-full bg-paper-warm/70 px-1.5 py-0.5 text-[9px] text-ink-ghost">
                     {note.category}

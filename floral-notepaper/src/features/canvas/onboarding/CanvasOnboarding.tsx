@@ -1,9 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  DEMO_STEPS,
-  type DemoStepId,
-  type OnboardingPhase,
-} from "./types";
+import { DEMO_STEPS, type DemoStepId, type OnboardingPhase } from "./types";
 import { CANVAS_TEMPLATES, type CanvasTemplate, type TemplateIconKey } from "./templates";
 
 interface CanvasOnboardingProps {
@@ -186,7 +182,9 @@ function DemoCard({
         <div className="p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-semibold text-bamboo">
-              {allDone ? "基础引导完成" : `第 ${completedSteps.length + 1} / ${DEMO_STEPS.length} 步`}
+              {allDone
+                ? "基础引导完成"
+                : `第 ${completedSteps.length + 1} / ${DEMO_STEPS.length} 步`}
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -202,56 +200,73 @@ function DemoCard({
                 className="flex h-5 w-5 items-center justify-center rounded-md text-[var(--canvas-control-text)]/45 transition-colors hover:bg-[var(--canvas-accent-soft)] hover:text-[var(--canvas-control-text)]/80 cursor-pointer"
                 title="关闭引导"
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
             </div>
           </div>
 
-        {!allDone ? (
-          <>
-            <div className="mt-2 text-[14px] font-semibold text-[var(--canvas-control-text)]">
-              {current.title}
-            </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-[var(--canvas-control-text)]/70">
-              {current.desc}
-            </p>
-            <div className="mt-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                {DEMO_STEPS.map((step) => (
-                  <span
-                    key={step.id}
-                    className={`h-1.5 rounded-full transition-all ${
-                      completedSteps.includes(step.id)
-                        ? "bg-bamboo"
-                        : step.id === activeStep
-                          ? "w-5 bg-bamboo/60"
-                          : "w-1.5 bg-[var(--canvas-accent-soft)]"
-                    }`}
-                  />
-                ))}
+          {!allDone ? (
+            <>
+              <div className="mt-2 text-[14px] font-semibold text-[var(--canvas-control-text)]">
+                {current.title}
               </div>
-              <span className="text-[9px] text-[var(--canvas-control-text)]/40">自动演示中</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-bamboo text-cloud">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </span>
-              <span className="text-[13px] font-semibold text-[var(--canvas-control-text)]">
-                四项基础操作已学会
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-[var(--canvas-control-text)]/70">
-              基础操作演示完毕，稍后即可直接开始创作。
-            </p>
-          </>
-        )}
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--canvas-control-text)]/70">
+                {current.desc}
+              </p>
+              <div className="mt-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  {DEMO_STEPS.map((step) => (
+                    <span
+                      key={step.id}
+                      className={`h-1.5 rounded-full transition-all ${
+                        completedSteps.includes(step.id)
+                          ? "bg-bamboo"
+                          : step.id === activeStep
+                            ? "w-5 bg-bamboo/60"
+                            : "w-1.5 bg-[var(--canvas-accent-soft)]"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[9px] text-[var(--canvas-control-text)]/40">自动演示中</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-bamboo text-cloud">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+                <span className="text-[13px] font-semibold text-[var(--canvas-control-text)]">
+                  四项基础操作已学会
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--canvas-control-text)]/70">
+                基础操作演示完毕，稍后即可直接开始创作。
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -290,7 +305,15 @@ function TemplateDock({
             className="flex h-5 w-5 items-center justify-center rounded-md text-[var(--canvas-control-text)]/45 transition-colors hover:bg-[var(--canvas-accent-soft)] hover:text-[var(--canvas-control-text)]/75 cursor-pointer"
             title="收起模板"
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
@@ -307,7 +330,9 @@ function TemplateDock({
               className="w-full rounded-xl border border-[var(--canvas-border)] bg-[var(--canvas-accent-soft)] px-2.5 py-2 text-left transition-all hover:border-bamboo/40 hover:bg-bamboo/15 cursor-pointer"
             >
               <div className="flex items-center gap-2">
-                <span className="text-[var(--canvas-control-text)]/80">{TEMPLATE_ICONS[template.icon]}</span>
+                <span className="text-[var(--canvas-control-text)]/80">
+                  {TEMPLATE_ICONS[template.icon]}
+                </span>
                 <span className="text-[11.5px] font-medium text-[var(--canvas-control-text)]">
                   {template.title}
                 </span>
@@ -321,7 +346,9 @@ function TemplateDock({
         <div className="mt-2.5 border-t border-[var(--canvas-border)] pt-2">
           <button
             type="button"
-            onClick={() => onAskAi("请给我一份无限画布+卡片创作的入门教程，并生成一套示范卡片", true)}
+            onClick={() =>
+              onAskAi("请给我一份无限画布+卡片创作的入门教程，并生成一套示范卡片", true)
+            }
             className="w-full rounded-lg border border-bamboo/30 bg-bamboo/10 px-2 py-1.5 text-[10.5px] font-medium text-bamboo transition-colors hover:bg-bamboo/20 cursor-pointer"
           >
             生成示例卡片
@@ -333,7 +360,9 @@ function TemplateDock({
       {activeTemplate && (
         <div className="canvas-onboarding-panel mt-2 border-bamboo/30 p-3 animate-fade-in">
           <div className="flex items-center gap-2">
-            <span className="text-[var(--canvas-control-text)]/80">{TEMPLATE_ICONS[activeTemplate.icon]}</span>
+            <span className="text-[var(--canvas-control-text)]/80">
+              {TEMPLATE_ICONS[activeTemplate.icon]}
+            </span>
             <span className="text-[12px] font-semibold text-[var(--canvas-control-text)]">
               {activeTemplate.title} · 场景教程
             </span>

@@ -24,7 +24,10 @@ export function Live2DCompanionSettings() {
         renderer: "live2d" as const,
         inputMode: "keyboard" as const,
         skinId,
-        skinRevision: builtInModel?.revision ?? patch.skinRevision ?? (skinId === "custom" ? "custom" : latest.skinRevision),
+        skinRevision:
+          builtInModel?.revision ??
+          patch.skinRevision ??
+          (skinId === "custom" ? "custom" : latest.skinRevision),
         modelPath: patch.modelPath ?? builtInModel?.modelPath ?? latest.modelPath,
         carousel: {
           ...latest.carousel,
@@ -32,7 +35,9 @@ export function Live2DCompanionSettings() {
           images: [],
           currentIndex: 0,
         },
-        sensitivity: patch.sensitivity ? { ...latest.sensitivity, ...patch.sensitivity } : latest.sensitivity,
+        sensitivity: patch.sensitivity
+          ? { ...latest.sensitivity, ...patch.sensitivity }
+          : latest.sensitivity,
         motionMap: patch.motionMap ? { ...latest.motionMap, ...patch.motionMap } : latest.motionMap,
       };
       saveCompanionConfig(next);
@@ -99,11 +104,11 @@ export function Live2DCompanionSettings() {
         <section className="rounded-2xl border border-paper-deep/40 bg-cloud/70 p-5 shadow-[0_18px_48px_var(--color-shadow)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-bamboo">Live2D Companion</p>
-              <h2 className="mt-1 text-xl font-display font-bold text-ink">Live2D 本地模型</h2>
-              <p className="mt-2 max-w-2xl text-xs leading-6 text-ink-soft">
-                可自定义模型
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-bamboo">
+                Live2D Companion
               </p>
+              <h2 className="mt-1 text-xl font-display font-bold text-ink">Live2D 本地模型</h2>
+              <p className="mt-2 max-w-2xl text-xs leading-6 text-ink-soft">可自定义模型</p>
             </div>
             <label className="flex items-center gap-2 text-xs font-medium text-ink-soft">
               <input
@@ -118,10 +123,16 @@ export function Live2DCompanionSettings() {
 
         <section className="grid gap-4 rounded-2xl border border-paper-deep/40 bg-paper/80 p-5 md:grid-cols-2">
           <Field label="显示形态">
-            <div className="companion-field flex items-center text-xs text-ink-soft">主窗口内置透明层</div>
+            <div className="companion-field flex items-center text-xs text-ink-soft">
+              主窗口内置透明层
+            </div>
           </Field>
           <Field label="显示 / 隐藏">
-            <button type="button" onClick={() => update({ visible: !config.visible, mode: "embedded" })} className="companion-action-button w-full">
+            <button
+              type="button"
+              onClick={() => update({ visible: !config.visible, mode: "embedded" })}
+              className="companion-action-button w-full"
+            >
               {config.visible ? "隐藏 Live2D" : "显示 Live2D"}
             </button>
           </Field>
@@ -130,7 +141,11 @@ export function Live2DCompanionSettings() {
         <section className="space-y-4 rounded-2xl border border-paper-deep/40 bg-paper/80 p-5">
           <Field label="内置 Live2D 模型">
             <select
-              value={BUILT_IN_LIVE2D_MODEL_OPTIONS.some((option) => option.skinId === config.skinId) ? config.skinId : "custom"}
+              value={
+                BUILT_IN_LIVE2D_MODEL_OPTIONS.some((option) => option.skinId === config.skinId)
+                  ? config.skinId
+                  : "custom"
+              }
               onChange={(event) => {
                 const skinId = event.target.value as CompanionConfig["skinId"];
                 if (skinId !== "custom") useBuiltInModel(skinId);
@@ -149,18 +164,32 @@ export function Live2DCompanionSettings() {
             <div className="flex gap-2">
               <input
                 value={config.modelPath}
-                onChange={(event) => update({ modelPath: normalizeCompanionAssetPath(event.target.value), skinId: "custom" })}
+                onChange={(event) =>
+                  update({
+                    modelPath: normalizeCompanionAssetPath(event.target.value),
+                    skinId: "custom",
+                  })
+                }
                 className="companion-field flex-1 font-mono text-[11px]"
                 placeholder="/live2d/haru/Haru.model3.json"
               />
-              <button type="button" onClick={browseModel} className="companion-action-button shrink-0">
+              <button
+                type="button"
+                onClick={browseModel}
+                className="companion-action-button shrink-0"
+              >
                 浏览...
               </button>
             </div>
           </Field>
           <div className="flex flex-wrap gap-2">
             {BUILT_IN_LIVE2D_MODEL_OPTIONS.map((option) => (
-              <button key={option.skinId} type="button" onClick={() => useBuiltInModel(option.skinId)} className="companion-action-button">
+              <button
+                key={option.skinId}
+                type="button"
+                onClick={() => useBuiltInModel(option.skinId)}
+                className="companion-action-button"
+              >
                 使用 {option.label}
               </button>
             ))}
@@ -171,19 +200,63 @@ export function Live2DCompanionSettings() {
         </section>
 
         <section className="grid gap-5 rounded-2xl border border-paper-deep/40 bg-paper/80 p-5 md:grid-cols-2">
-          <Range label="大小缩放" value={config.scale} min={COMPANION_MIN_SCALE} max={COMPANION_MAX_SCALE} step={0.05} onChange={(scale) => update({ scale })} />
-          <Range label="透明度" value={config.opacity} min={0.2} max={1} step={0.05} onChange={(opacity) => update({ opacity })} />
-          <Range label="输入动作强度" value={config.sensitivity.typingIntensity} min={0.2} max={1} step={0.05} onChange={(typingIntensity) => updateSensitivity({ typingIntensity })} />
-          <Range label="鼠标跟随" value={config.sensitivity.mouseFollowStrength} min={0} max={1} step={0.05} onChange={(mouseFollowStrength) => updateSensitivity({ mouseFollowStrength })} />
-          <Range label="停顿回 idle / ms" value={config.sensitivity.idleTimeoutMs} min={600} max={4000} step={100} onChange={(idleTimeoutMs) => updateSensitivity({ idleTimeoutMs })} />
-          <Range label="动作冷却 / ms" value={config.sensitivity.motionCooldownMs} min={40} max={400} step={20} onChange={(motionCooldownMs) => updateSensitivity({ motionCooldownMs })} />
+          <Range
+            label="大小缩放"
+            value={config.scale}
+            min={COMPANION_MIN_SCALE}
+            max={COMPANION_MAX_SCALE}
+            step={0.05}
+            onChange={(scale) => update({ scale })}
+          />
+          <Range
+            label="透明度"
+            value={config.opacity}
+            min={0.2}
+            max={1}
+            step={0.05}
+            onChange={(opacity) => update({ opacity })}
+          />
+          <Range
+            label="输入动作强度"
+            value={config.sensitivity.typingIntensity}
+            min={0.2}
+            max={1}
+            step={0.05}
+            onChange={(typingIntensity) => updateSensitivity({ typingIntensity })}
+          />
+          <Range
+            label="鼠标跟随"
+            value={config.sensitivity.mouseFollowStrength}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(mouseFollowStrength) => updateSensitivity({ mouseFollowStrength })}
+          />
+          <Range
+            label="停顿回 idle / ms"
+            value={config.sensitivity.idleTimeoutMs}
+            min={600}
+            max={4000}
+            step={100}
+            onChange={(idleTimeoutMs) => updateSensitivity({ idleTimeoutMs })}
+          />
+          <Range
+            label="动作冷却 / ms"
+            value={config.sensitivity.motionCooldownMs}
+            min={40}
+            max={400}
+            step={20}
+            onChange={(motionCooldownMs) => updateSensitivity({ motionCooldownMs })}
+          />
         </section>
 
         <div className="flex items-center gap-3 border-t border-paper-deep/30 pt-4">
           <button type="button" onClick={reset} className="companion-secondary-button">
             恢复默认模型
           </button>
-          <span className="text-[11px] text-ink-ghost">配置会自动保存到本地，并实时同步到主窗口内置透明层。</span>
+          <span className="text-[11px] text-ink-ghost">
+            配置会自动保存到本地，并实时同步到主窗口内置透明层。
+          </span>
         </div>
       </div>
     </div>

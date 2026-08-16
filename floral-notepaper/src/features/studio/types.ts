@@ -1,19 +1,34 @@
-import type { GardenArticle } from '../garden/types';
+import type { GardenArticle } from "../garden/types";
 
 /** 文章编辑状态 */
-export type ArticleStatus = 'draft' | 'editing' | 'reviewing' | 'published';
+export type ArticleStatus = "draft" | "editing" | "reviewing" | "published";
 
 /** 编辑器块类型 */
-export type BlockType = 
-  | 'text' | 'heading1' | 'heading2' | 'heading3'
-  | 'image' | 'video' | 'todo' | 'divider' 
-  | 'blockquote' | 'codeBlock' | 'callout'
-  | 'topicTag' | 'emoji' | 'coverCrop' | 'database';
+export type BlockType =
+  | "text"
+  | "heading1"
+  | "heading2"
+  | "heading3"
+  | "image"
+  | "video"
+  | "todo"
+  | "divider"
+  | "blockquote"
+  | "codeBlock"
+  | "callout"
+  | "topicTag"
+  | "emoji"
+  | "coverCrop"
+  | "database";
 
 /** 创作轨迹活动类型 */
-export type ActivityAction = 
-  | 'edit' | 'create_draft' | 'collect_material' 
-  | 'add_note' | 'export_segment' | 'publish';
+export type ActivityAction =
+  | "edit"
+  | "create_draft"
+  | "collect_material"
+  | "add_note"
+  | "export_segment"
+  | "publish";
 
 /** 创作轨迹条目 */
 export interface ActivityEntry {
@@ -32,7 +47,7 @@ export interface InspirationDraft {
   userId: string;
   articleId?: string;
   content: string;
-  source: 'quick_note' | 'clipboard' | 'wechat' | 'browser';
+  source: "quick_note" | "clipboard" | "wechat" | "browser";
   sourceUrl?: string;
   isTask: boolean;
   createdAt: string;
@@ -47,7 +62,7 @@ export interface CollectedMaterial {
   summary?: string;
   coverUrl?: string;
   sourceUrl: string;
-  sourceType: 'wechat' | 'web' | 'manual';
+  sourceType: "wechat" | "web" | "manual";
   createdAt: string;
 }
 
@@ -77,13 +92,13 @@ export interface ComplianceResult {
 }
 
 export interface ComplianceIssue {
-  type: 'sensitive_word' | 'cover_size' | 'text_length' | 'tag_count' | 'image_count';
+  type: "sensitive_word" | "cover_size" | "text_length" | "tag_count" | "image_count";
   message: string;
-  severity: 'error' | 'warning';
+  severity: "error" | "warning";
 }
 
 /** 导出格式 */
-export type ExportFormat = 'xiaohongshu' | 'notion_markdown';
+export type ExportFormat = "xiaohongshu" | "notion_markdown";
 
 /** 编辑器文章元信息 */
 export interface EditorMeta {

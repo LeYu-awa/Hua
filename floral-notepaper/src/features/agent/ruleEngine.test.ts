@@ -38,8 +38,15 @@ describe("CooldownTracker", () => {
 
 describe("dedupeByKey / pairKey", () => {
   it("按 key 去重，保留首次出现", () => {
-    const items = [{ k: "x", v: 1 }, { k: "y", v: 2 }, { k: "x", v: 3 }];
-    expect(dedupeByKey(items, (i) => i.k)).toEqual([{ k: "x", v: 1 }, { k: "y", v: 2 }]);
+    const items = [
+      { k: "x", v: 1 },
+      { k: "y", v: 2 },
+      { k: "x", v: 3 },
+    ];
+    expect(dedupeByKey(items, (i) => i.k)).toEqual([
+      { k: "x", v: 1 },
+      { k: "y", v: 2 },
+    ]);
   });
 
   it("pairKey 顺序无关", () => {

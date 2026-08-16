@@ -38,8 +38,16 @@ describe("parseCommandDsl（步骤命令 DSL → 画布命令）", () => {
   });
 
   it("node:type:text → createNode，非法类型兜底 text", () => {
-    expect(parseCommandDsl("node:task:待办任务")).toEqual({ kind: "createNode", type: "task", text: "待办任务" });
-    expect(parseCommandDsl("node:bogus:x")).toEqual({ kind: "createNode", type: "text", text: "x" });
+    expect(parseCommandDsl("node:task:待办任务")).toEqual({
+      kind: "createNode",
+      type: "task",
+      text: "待办任务",
+    });
+    expect(parseCommandDsl("node:bogus:x")).toEqual({
+      kind: "createNode",
+      type: "text",
+      text: "x",
+    });
   });
 
   it("select:panto:zoomto 各命令可解析", () => {
@@ -88,14 +96,20 @@ describe("画布命令桥事件", () => {
     const listener = vi.fn();
     const unlisten = onCanvasCommand(listener);
     unlisten();
-    window.dispatchEvent(new CustomEvent(CANVAS_COMMAND_EVENT, { detail: { kind: "addZone", label: "x" } }));
+    window.dispatchEvent(
+      new CustomEvent(CANVAS_COMMAND_EVENT, { detail: { kind: "addZone", label: "x" } }),
+    );
     expect(listener).not.toHaveBeenCalled();
   });
 
   it("dispatchCanvasSnapshot → onCanvasSnapshot 收到快照", () => {
     const listener = vi.fn();
     const unlisten = onCanvasSnapshot(listener);
-    const snapshot = { documentId: "d1", nodes: [{ id: "n1", type: "card", text: "hi" }], updatedAt: 1 };
+    const snapshot = {
+      documentId: "d1",
+      nodes: [{ id: "n1", type: "card", text: "hi" }],
+      updatedAt: 1,
+    };
     dispatchCanvasSnapshot(snapshot);
     expect(listener).toHaveBeenCalledWith(snapshot);
     unlisten();

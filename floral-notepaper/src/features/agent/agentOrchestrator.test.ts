@@ -20,7 +20,16 @@ beforeEach(() => {
 });
 
 function ev(type: InkEvent["type"], timestamp: number, extra: Partial<InkEvent> = {}): InkEvent {
-  return { id: `${type}-${timestamp}`, sessionId: "s", noteId: "n", source: "main", type, index: 0, timestamp, ...extra };
+  return {
+    id: `${type}-${timestamp}`,
+    sessionId: "s",
+    noteId: "n",
+    source: "main",
+    type,
+    index: 0,
+    timestamp,
+    ...extra,
+  };
 }
 
 /** 制造高焦虑事件序列（大量删除 + 频繁光标 + 停顿） */
@@ -88,7 +97,13 @@ describe("AgentOrchestrator - onChatMessages", () => {
     queue.subscribe((c) => got.push(c));
     const orch = new AgentOrchestrator({ enabled: true, queue });
     const messages: ChatMessage[] = [
-      { id: "m1", docId: "d1", senderId: "u1", content: "我们决定先做实时同步 MVP", createdAt: 1000 },
+      {
+        id: "m1",
+        docId: "d1",
+        senderId: "u1",
+        content: "我们决定先做实时同步 MVP",
+        createdAt: 1000,
+      },
     ];
     const count = orch.onChatMessages(messages, 5000);
     expect(count).toBe(1);

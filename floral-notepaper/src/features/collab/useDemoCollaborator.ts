@@ -24,10 +24,7 @@ function randInt(min: number, max: number): number {
  * - 光标在页面范围内平滑移动
  * - 偶尔点击/选中/绘制简单形状
  */
-export function useDemoCollaborator(
-  ydoc: Y.Doc | null,
-  enabled: boolean,
-): void {
+export function useDemoCollaborator(ydoc: Y.Doc | null, enabled: boolean): void {
   const animRef = useRef<number | null>(null);
 
   useEffect(() => {

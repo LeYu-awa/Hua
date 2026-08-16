@@ -3,18 +3,30 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Note } from "../notes/types";
 
-const markdownFilters = [{ name: "Markdown", extensions: ["md"] }];
+const noteFileFilters = [
+  { name: "笔记文件", extensions: ["md", "pdf", "doc", "docx"] },
+  { name: "Markdown", extensions: ["md"] },
+  { name: "PDF", extensions: ["pdf"] },
+  { name: "Word", extensions: ["doc", "docx"] },
+];
+
+const exportFileFilters = [
+  { name: "Markdown", extensions: ["md"] },
+  { name: "PDF", extensions: ["pdf"] },
+  { name: "Word", extensions: ["doc", "docx"] },
+];
 
 interface ExportableNote {
   id: string;
   title: string;
+  fileName: string;
 }
 
 export async function importMarkdownNote(category = ""): Promise<Note | null> {
   const path = await open({
     multiple: false,
     directory: false,
-    filters: markdownFilters,
+    filters: noteFileFilters,
   });
 
   if (typeof path !== "string") {
@@ -26,8 +38,8 @@ export async function importMarkdownNote(category = ""): Promise<Note | null> {
 
 export async function exportMarkdownNote(note: ExportableNote): Promise<boolean> {
   const path = await save({
-    defaultPath: markdownFileName(note.title),
-    filters: markdownFilters,
+    defaultPath: noteFileName(note.title, note.fileName),
+    filters: exportFileFilters,
   });
 
   if (typeof path !== "string") {
@@ -38,10 +50,11 @@ export async function exportMarkdownNote(note: ExportableNote): Promise<boolean>
   return true;
 }
 
-function markdownFileName(title: string, translate: TFunction = t): string {
+function noteFileName(title: string, fileName: string, translate: TFunction = t): string {
   const safeTitle =
     safeFileStem(title) || translate("common.untitledNote", { defaultValue: "无标题笔记" });
-  return `${safeTitle}.md`;
+  const extension = fileName.match(/\.([^.\\/]+)$/)?.[0] ?? ".md";
+  return `${safeTitle}${extension}`;
 }
 
 function safeFileStem(value: string): string {

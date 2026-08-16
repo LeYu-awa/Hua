@@ -73,7 +73,10 @@ function parseNoteReferenceToken(token: string): NoteReferenceTarget {
 }
 
 /** 把 # 引用 token 解析为真实笔记目标；优先按 id 精准定位，兼容旧的 #标题 */
-export function resolveNoteReference(token: string, notes: NoteMention[]): NoteReferenceTarget | null {
+export function resolveNoteReference(
+  token: string,
+  notes: NoteMention[],
+): NoteReferenceTarget | null {
   const parsed = parseNoteReferenceToken(token);
   if (parsed.id) {
     const exactId = notes.find((note) => note.id === parsed.id);
@@ -97,7 +100,10 @@ export function resolveNoteTitle(token: string, notes: NoteMention[]): string | 
  * 将带 @/# 提及的输入转成工具执行计划。
  * 无任何提及时返回 null（交由自然语言检测 / 直接对话处理）。
  */
-export function buildToolPlanFromMentions(text: string, notes: NoteMention[]): AssistantToolPlan | null {
+export function buildToolPlanFromMentions(
+  text: string,
+  notes: NoteMention[],
+): AssistantToolPlan | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
 
@@ -114,7 +120,10 @@ export function buildToolPlanFromMentions(text: string, notes: NoteMention[]): A
   const last = matches[matches.length - 1];
   const payload = trimmed.slice((last.index ?? 0) + last[0].length).trim();
   // 去掉全部提及后的纯文本，作为无 @ 工具时的兜底参数
-  const bare = trimmed.replace(/[@#][^\s]+/g, "").replace(/\s+/g, " ").trim();
+  const bare = trimmed
+    .replace(/[@#][^\s]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   const noteTitle = noteRef?.title ?? null;
 
   if (toolToken === "搜索笔记" || toolToken === "读笔记") {

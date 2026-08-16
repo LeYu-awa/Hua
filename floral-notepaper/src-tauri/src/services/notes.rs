@@ -88,8 +88,8 @@ pub struct AppConfig {
     pub agent_nudge_threshold_ms: u32,
     #[serde(default = "default_agent_data_retention_days")]
     pub agent_data_retention_days: u32,
-    /// 自托管 SearXNG 地址（web.search 工具用）
-    #[serde(default)]
+    /// 自托管 SearXNG 地址（web.search 工具用；默认内置公共实例 https://paulgo.io，可换自托管）
+    #[serde(default = "default_searxng_url")]
     pub searxng_url: String,
 }
 
@@ -159,6 +159,8 @@ pub struct Note {
     pub updated_at: DateTime<Utc>,
     pub word_count: usize,
     pub content: String,
+    pub preview: String,
+    pub file_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -189,7 +191,7 @@ impl AppError {
     }
 
     fn unsupported_file() -> Self {
-        Self::new("unsupportedFile", "只支持导入 .md 文件")
+        Self::new("unsupportedFile", "只支持导入 .md、.pdf、.doc、.docx 文件")
     }
 
     fn category_name_empty() -> Self {
@@ -406,9 +408,12 @@ impl NoteStore {
     pub fn read_note(&self, id: &str) -> Result<Note, AppError> {
         self.ensure_storage()?;
         let metadata = self.find_metadata(id)?;
-        let content = fs::read_to_string(
-            self.note_path_in_category(&metadata.file_name, &metadata.category),
-        )?;
+        let note_path = self.note_path_in_category(&metadata.file_name, &metadata.category);
+        let content = if is_markdown_file_name(&metadata.file_name) {
+            fs::read_to_string(&note_path)?
+        } else {
+            String::new()
+        };
         Ok(Note {
             id: metadata.id,
             title: metadata.title,
@@ -418,6 +423,8 @@ impl NoteStore {
             updated_at: metadata.updated_at,
             word_count: metadata.word_count,
             content,
+            preview: metadata.preview,
+            file_path: note_path.to_string_lossy().to_string(),
         })
     }
 
@@ -443,7 +450,7 @@ impl NoteStore {
             preview: preview(&request.content),
         };
 
-        fs::write(&note_path, &request.content)?;
+        write_text_atomic(&note_path, &request.content)?;
         let mut metadata_file = self.load_metadata()?;
         metadata_file.notes.push(metadata.clone());
         self.save_metadata(&metadata_file)?;
@@ -457,6 +464,8 @@ impl NoteStore {
             updated_at: now,
             word_count,
             content: request.content,
+            preview: metadata.preview,
+            file_path: note_path.to_string_lossy().to_string(),
         })
     }
 
@@ -480,11 +489,11 @@ impl NoteStore {
         if let Some(parent) = new_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(&new_path, &request.content)?;
+        write_text_atomic(&new_path, &request.content)?;
 
         if old_file_name != new_file_name || old_category != new_category {
             let old_path = self.note_path_in_category(&old_file_name, &old_category);
-            if old_path.exists() && old_path != new_path {
+            if old_path.exists() && !paths_refer_to_same_file(&old_path, &new_path) {
                 trash::delete(&old_path)
                     .map_err(|e| AppError::new("trash", format!("移入回收站失败: {e}")))?;
             }
@@ -506,6 +515,8 @@ impl NoteStore {
             updated_at: note.updated_at,
             word_count: note.word_count,
             content: request.content,
+            preview: note.preview.clone(),
+            file_path: new_path.to_string_lossy().to_string(),
         };
 
         self.save_metadata(&metadata_file)?;
@@ -606,25 +617,74 @@ impl NoteStore {
     }
 
     pub fn import_markdown_file(&self, path: &Path, category: &str) -> Result<Note, AppError> {
-        if !is_markdown_path(path) {
+        if !is_supported_note_path(path) {
             return Err(AppError::unsupported_file());
         }
 
-        let content = fs::read_to_string(path)?;
-        let title = imported_markdown_title(path, &content);
-        self.create_note(SaveNoteRequest {
-            title,
-            content,
+        if is_markdown_path(path) {
+            let content = fs::read_to_string(path)?;
+            let title = imported_markdown_title(path, &content);
+            return self.create_note(SaveNoteRequest {
+                title,
+                content,
+                category: category.to_string(),
+            });
+        }
+
+        self.ensure_storage()?;
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+        let title = imported_file_title(path);
+        let extension = note_extension(path).ok_or_else(AppError::unsupported_file)?;
+        let file_name = self.file_name_for_extension(&id, &title, &extension);
+        let note_path = self.note_path_in_category(&file_name, category);
+        if let Some(parent) = note_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(path, &note_path)?;
+
+        let preview = imported_file_preview(&extension);
+        let metadata = NoteMetadata {
+            id: id.clone(),
+            title: title.clone(),
+            file_name: file_name.clone(),
             category: category.to_string(),
+            created_at: now,
+            updated_at: now,
+            word_count: 0,
+            preview: preview.clone(),
+        };
+
+        let mut metadata_file = self.load_metadata()?;
+        metadata_file.notes.push(metadata);
+        self.save_metadata(&metadata_file)?;
+
+        Ok(Note {
+            id,
+            title,
+            file_name,
+            category: category.to_string(),
+            created_at: now,
+            updated_at: now,
+            word_count: 0,
+            content: String::new(),
+            preview,
+            file_path: note_path.to_string_lossy().to_string(),
         })
     }
 
     pub fn export_markdown_file(&self, id: &str, path: &Path) -> Result<(), AppError> {
-        let note = self.read_note(id)?;
+        let metadata = self.find_metadata(id)?;
+        let source_path = self.note_path_in_category(&metadata.file_name, &metadata.category);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(path, note.content)?;
+        if is_markdown_file_name(&metadata.file_name) {
+            let content = fs::read_to_string(source_path)?;
+            fs::write(path, content)?;
+        } else {
+            fs::copy(source_path, path)?;
+        }
         Ok(())
     }
 
@@ -814,7 +874,7 @@ impl NoteStore {
             open_at_cursor: default_open_at_cursor(),
             providers: vec![],
             default_models: BTreeMap::new(),
-            searxng_url: String::new(),
+            searxng_url: default_searxng_url(),
             agent_enabled: default_agent_enabled(),
             agent_nudge_threshold_ms: default_agent_nudge_threshold_ms(),
             agent_data_retention_days: default_agent_data_retention_days(),
@@ -894,11 +954,16 @@ impl NoteStore {
     }
 
     fn file_name_for(&self, id: &str, title: &str) -> String {
+        self.file_name_for_extension(id, title, "md")
+    }
+
+    fn file_name_for_extension(&self, id: &str, title: &str, extension: &str) -> String {
         let safe_title = safe_file_stem(title);
+        let extension = extension.trim_start_matches('.');
         if safe_title.is_empty() {
-            format!("{id}.md")
+            format!("{id}.{extension}")
         } else {
-            format!("{id}_{safe_title}.md")
+            format!("{id}_{safe_title}.{extension}")
         }
     }
 
@@ -960,7 +1025,7 @@ impl NoteStore {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
+            if !is_supported_note_path(&path) {
                 continue;
             }
 
@@ -968,7 +1033,11 @@ impl NoteStore {
             let Some(id) = id_from_file_name(&file_name) else {
                 continue;
             };
-            let content = fs::read_to_string(&path).unwrap_or_default();
+            let content = if is_markdown_file_name(&file_name) {
+                fs::read_to_string(&path).unwrap_or_default()
+            } else {
+                String::new()
+            };
             let title = infer_title(&file_name, &content);
             let modified = entry
                 .metadata()
@@ -979,12 +1048,16 @@ impl NoteStore {
             notes.push(NoteMetadata {
                 id,
                 title,
-                file_name,
+                file_name: file_name.clone(),
                 category: category.to_string(),
                 created_at: modified,
                 updated_at: modified,
                 word_count: count_words(&content),
-                preview: preview(&content),
+                preview: if is_markdown_file_name(&file_name) {
+                    preview(&content)
+                } else {
+                    imported_file_preview(&note_extension(&path).unwrap_or_default())
+                },
             });
         }
         Ok(())
@@ -999,6 +1072,32 @@ fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), AppErro
     fs::write(&temp_path, serde_json::to_string_pretty(value)?)?;
     fs::rename(&temp_path, path)?;
     Ok(())
+}
+
+/// 笔记正文原子写：先写 .tmp 再 rename，避免崩溃/断电截断 .md。
+/// （与 write_json_atomic 一致；std::fs::rename 在 Windows 上会覆盖已存在目标）
+fn write_text_atomic(path: &Path, content: &str) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let temp_path = path.with_extension("md.tmp");
+    fs::write(&temp_path, content)?;
+    fs::rename(&temp_path, path)?;
+    Ok(())
+}
+
+/// 两个路径是否指向同一个物理文件。
+/// Windows/macOS 文件系统大小写不敏感：仅大小写变化的"重命名"实际是同一文件，
+/// 若按字节比较会误删刚写入的文件（先写新内容、再把旧路径丢进回收站 = 文件消失）。
+fn paths_refer_to_same_file(a: &Path, b: &Path) -> bool {
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    {
+        a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        a == b
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -1055,8 +1154,30 @@ fn preview(content: &str) -> String {
         .collect()
 }
 
+const SUPPORTED_NOTE_EXTENSIONS: &[&str] = &["md", "pdf", "doc", "docx"];
+
+fn note_extension(path: &Path) -> Option<String> {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+}
+
+fn is_supported_note_path(path: &Path) -> bool {
+    note_extension(path)
+        .map(|extension| SUPPORTED_NOTE_EXTENSIONS.contains(&extension.as_str()))
+        .unwrap_or(false)
+}
+
+fn is_markdown_file_name(file_name: &str) -> bool {
+    Path::new(file_name)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.eq_ignore_ascii_case("md"))
+        .unwrap_or(false)
+}
+
 fn id_from_file_name(file_name: &str) -> Option<String> {
-    let stem = file_name.strip_suffix(".md")?;
+    let stem = Path::new(file_name).file_stem()?.to_str()?;
     Some(
         stem.split_once('_')
             .map(|(id, _)| id.to_string())
@@ -1073,7 +1194,10 @@ fn infer_title(file_name: &str, content: &str) -> String {
         return title.to_string();
     }
 
-    let stem = file_name.strip_suffix(".md").unwrap_or(file_name);
+    let stem = Path::new(file_name)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(file_name);
     stem.split_once('_')
         .map(|(_, title)| title.replace('_', " "))
         .unwrap_or_default()
@@ -1104,6 +1228,24 @@ fn imported_markdown_title(path: &Path, content: &str) -> String {
         .filter(|title| !title.is_empty())
         .unwrap_or("导入笔记")
         .to_string()
+}
+
+fn imported_file_title(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|file_stem| file_stem.to_str())
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .unwrap_or("导入文件")
+        .to_string()
+}
+
+fn imported_file_preview(extension: &str) -> String {
+    match extension.to_ascii_lowercase().as_str() {
+        "pdf" => "PDF 文件".to_string(),
+        "doc" => "Word 97-2003 文档".to_string(),
+        "docx" => "Word 文档".to_string(),
+        _ => "文件".to_string(),
+    }
 }
 
 fn default_note_auto_save() -> bool {
@@ -1198,6 +1340,13 @@ fn default_agent_data_retention_days() -> u32 {
     30
 }
 
+/// 内置默认 SearXNG 公共实例：用户无需配置即可联网采集，可在设置中改为自托管实例
+pub const DEFAULT_SEARXNG_URL: &str = "https://paulgo.io";
+
+fn default_searxng_url() -> String {
+    DEFAULT_SEARXNG_URL.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1259,6 +1408,61 @@ mod tests {
         store.delete_note(&created.id).expect("delete note");
         assert!(store.read_note(&created.id).is_err());
         assert!(store.list_notes().expect("list after delete").is_empty());
+    }
+
+    #[test]
+    fn case_only_rename_keeps_note_file_alive() {
+        // 仅大小写变化的标题重命名（"Note" → "note"）：在大小写不敏感平台上
+        // 新旧路径指向同一物理文件，绝不能把刚写入的文件丢进回收站。
+        let store = NoteStore::new(test_root("case-rename"));
+        let created = store
+            .create_note(SaveNoteRequest {
+                title: "Meeting Notes".into(),
+                content: "正文 v1".into(),
+                category: String::new(),
+            })
+            .expect("create note");
+
+        let updated = store
+            .update_note(
+                &created.id,
+                SaveNoteRequest {
+                    title: "meeting notes".into(),
+                    content: "正文 v2".into(),
+                    category: String::new(),
+                },
+            )
+            .expect("update note with case-only rename");
+
+        // 元数据指向新文件名，笔记仍在列表中，磁盘文件存在且内容为 v2
+        assert_eq!(updated.title, "meeting notes");
+        assert_eq!(updated.content, "正文 v2");
+        assert!(store.read_note(&created.id).is_ok(), "笔记不应丢失");
+        let listed = store.list_notes().expect("list notes");
+        assert_eq!(listed.len(), 1, "笔记不应从列表消失");
+        let on_disk = store.note_path_in_category(&updated.file_name, &updated.category);
+        assert!(on_disk.exists(), "磁盘文件必须存在");
+        assert_eq!(
+            fs::read_to_string(&on_disk).expect("read file"),
+            "正文 v2",
+            "文件内容应为新版本（旧路径未被误删）"
+        );
+    }
+
+    #[test]
+    fn paths_refer_to_same_file_matches_case_only_difference() {
+        let a = std::path::Path::new("C:/notes/Note.md");
+        let b = std::path::Path::new("C:/notes/note.md");
+        let c = std::path::Path::new("C:/notes/Other.md");
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        {
+            assert!(paths_refer_to_same_file(a, b));
+            assert!(!paths_refer_to_same_file(a, c));
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            assert!(!paths_refer_to_same_file(a, b));
+        }
     }
 
     #[test]
@@ -1349,7 +1553,7 @@ mod tests {
             open_at_cursor: true,
             providers: Vec::new(),
             default_models: Default::default(),
-            searxng_url: String::new(),
+            searxng_url: default_searxng_url(),
             agent_enabled: false,
             agent_nudge_threshold_ms: 20_000,
             agent_data_retention_days: 30,
@@ -1548,5 +1752,42 @@ mod tests {
             fs::read_to_string(export_path).expect("read exported markdown"),
             content
         );
+    }
+
+    #[test]
+    fn imports_reads_and_exports_supported_attachment_notes() {
+        for extension in ["pdf", "doc", "docx"] {
+            let root = test_root(&format!("import-attachment-{extension}"));
+            let source_path = root.join(format!("资料.{extension}"));
+            let bytes = vec![0, 1, 2, extension.len() as u8, 255];
+            fs::write(&source_path, &bytes).expect("write source attachment");
+            let store = NoteStore::new(root.join("store"));
+
+            let imported = store
+                .import_markdown_file(&source_path, "")
+                .expect("import attachment");
+
+            assert_eq!(imported.title, "资料");
+            assert!(imported.file_name.ends_with(&format!(".{extension}")));
+            assert_eq!(imported.content, "");
+            assert_eq!(imported.word_count, 0);
+            assert_eq!(imported.preview, imported_file_preview(extension));
+            assert!(PathBuf::from(&imported.file_path).exists());
+            assert_eq!(
+                fs::read(&imported.file_path).expect("read managed attachment"),
+                bytes
+            );
+
+            let loaded = store.read_note(&imported.id).expect("read attachment note");
+            assert_eq!(loaded.content, "");
+            assert_eq!(loaded.preview, imported.preview);
+            assert_eq!(loaded.file_path, imported.file_path);
+
+            let export_path = root.join(format!("exports/资料.{extension}"));
+            store
+                .export_markdown_file(&imported.id, &export_path)
+                .expect("export attachment");
+            assert_eq!(fs::read(export_path).expect("read exported attachment"), bytes);
+        }
     }
 }

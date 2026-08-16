@@ -16,15 +16,15 @@ Floral Notepaper 当前是一个基于 Vite + React + Tauri 的桌面创作应�
 
 当前扫描到的主要超大文件包括：
 
-| 文件 | 行数 | 主要问题 |
-| --- | ---: | --- |
-| `src/components/MainWindow.tsx` | 2723 | 笔记列表、编辑器、预览、保存、设置、窗口事件、AI 情绪、图片粘贴、快捷键等职责混杂 |
-| `src/components/SettingsPage.tsx` | 2501 | 设置页内部包含偏好、模型供应商、默认模型、快捷键、统计、关于、表单控件、弹窗等多个可独立模块 |
-| `src/components/NotePad.tsx` | 862 | 独立小窗笔记编辑逻辑与主笔记编辑能力存在复用空间 |
-| `src/components/workflow/LiteGraphWorkflow.tsx` | 844 | 工作流画布 UI、节点逻辑、事件桥接、样式与业务逻辑耦合 |
-| `src/components/SettingsPanel.tsx` | 698 | 与 SettingsPage 存在设置职责重叠，需明确轻量面板与完整设置页边界 |
-| `src/components/CanvasPage.tsx` | 600 | 画布文档、节点操作、AI 建议、存储逻辑集中在单组件 |
-| `src/components/InkPlaybackPage.tsx` | 600 | 回放页面、分析视图、交互控制仍可拆分 |
+| 文件                                            | 行数 | 主要问题                                                                                     |
+| ----------------------------------------------- | ---: | -------------------------------------------------------------------------------------------- |
+| `src/components/MainWindow.tsx`                 | 2723 | 笔记列表、编辑器、预览、保存、设置、窗口事件、AI 情绪、图片粘贴、快捷键等职责混杂            |
+| `src/components/SettingsPage.tsx`               | 2501 | 设置页内部包含偏好、模型供应商、默认模型、快捷键、统计、关于、表单控件、弹窗等多个可独立模块 |
+| `src/components/NotePad.tsx`                    |  862 | 独立小窗笔记编辑逻辑与主笔记编辑能力存在复用空间                                             |
+| `src/components/workflow/LiteGraphWorkflow.tsx` |  844 | 工作流画布 UI、节点逻辑、事件桥接、样式与业务逻辑耦合                                        |
+| `src/components/SettingsPanel.tsx`              |  698 | 与 SettingsPage 存在设置职责重叠，需明确轻量面板与完整设置页边界                             |
+| `src/components/CanvasPage.tsx`                 |  600 | 画布文档、节点操作、AI 建议、存储逻辑集中在单组件                                            |
+| `src/components/InkPlaybackPage.tsx`            |  600 | 回放页面、分析视图、交互控制仍可拆分                                                         |
 
 ### 1.2 核心痛点
 
@@ -142,13 +142,13 @@ src/
 
 ### 4.1 目标用户
 
-| 用户 | 诉求 | 受影响模块 |
-| --- | --- | --- |
-| 创作者 | 快速写笔记、插入图片、预览 Markdown、保持沉浸体验 | 笔记工作台、编辑器、预览、图片模块 |
-| 高级用户 | 配置模型供应商、快捷键、主题、统计、同步 | 设置中心、账户同步、AI 配置 |
-| 多窗口用户 | 打开独立小窗、便签、Tile、不同视图 | 应用壳层、窗口模块、NotePad |
-| AI 使用者 | 聊天、共写、写作报告、情绪/建议、Live2D 反馈 | AI、伴侣、写作辅助模块 |
-| 开发者 | 独立开发一个 feature，降低冲突和回归 | 所有拆分模块 |
+| 用户       | 诉求                                              | 受影响模块                         |
+| ---------- | ------------------------------------------------- | ---------------------------------- |
+| 创作者     | 快速写笔记、插入图片、预览 Markdown、保持沉浸体验 | 笔记工作台、编辑器、预览、图片模块 |
+| 高级用户   | 配置模型供应商、快捷键、主题、统计、同步          | 设置中心、账户同步、AI 配置        |
+| 多窗口用户 | 打开独立小窗、便签、Tile、不同视图                | 应用壳层、窗口模块、NotePad        |
+| AI 使用者  | 聊天、共写、写作报告、情绪/建议、Live2D 反馈      | AI、伴侣、写作辅助模块             |
+| 开发者     | 独立开发一个 feature，降低冲突和回归              | 所有拆分模块                       |
 
 ### 4.2 关键业务流程
 
@@ -163,21 +163,21 @@ src/
 
 ## 5. 模块拆分总览
 
-| 编号 | 模块 | 优先级 | 当前主要来源 | 目标位置 | 是否可独立上线 |
-| --- | --- | --- | --- | --- | --- |
-| M01 | 应用壳层与路由视图 | P0 | `App.tsx`、`WindowFrame`、`AppSidebar` | `src/app/*` | 是 |
-| M02 | 主笔记工作台 | P0 | `MainWindow.tsx` | `features/notes/pages` + `features/notes/components` | 是 |
-| M03 | 编辑器核心与格式工具栏 | P0 | `MainWindow.tsx` 内编辑器逻辑 | `features/editor/*` 或 `features/notes/editor/*` | 是 |
-| M04 | 笔记数据与保存流程 | P0 | `features/notes/api.ts` + `MainWindow.tsx` 副作用 | `features/notes/hooks/services` | 是 |
-| M05 | 设置中心 | P1 | `SettingsPage.tsx`、`SettingsPanel.tsx` | `features/settings/pages/components/dialogs` | 是 |
-| M06 | 共享 UI 库 | P1 | `SettingsPage` 内 Card/Toggle/TextField 等、各页面重复样式 | `shared/ui` | 是 |
-| M07 | 独立小窗笔记与窗口能力 | P1 | `NotePad.tsx`、`features/windows/*` | `features/windows` + `features/notes/windows` | 是 |
-| M08 | 画布与无限画布 | P2 | `CanvasPage.tsx`、`features/infinite-canvas/*` | `features/canvas` / `features/infinite-canvas` | 是 |
-| M09 | 工作流画布 | P2 | `LiteGraphWorkflow.tsx`、`features/workflow/*` | `features/workflow/components` | 是 |
-| M10 | AI 写作与建议层 | P2 | `DeepSeekChat`、`WritingCompanion`、`features/agent/*` | `features/agent/components/hooks` | 是 |
-| M11 | 伴侣与 Live2D | P3 | `features/companion/*`、`features/live2d/*` | 保持 feature，清理边界 | 是 |
-| M12 | 账户、认证与同步 | P3 | `features/auth/*`、`features/sync/*`、`AccountPanel` | `features/auth` + `features/sync` | 是 |
-| M13 | 文档与模块治理 | P0 | 无统一标准 | `Docs/plans` + 后续 ADR | 是 |
+| 编号 | 模块                   | 优先级 | 当前主要来源                                               | 目标位置                                             | 是否可独立上线 |
+| ---- | ---------------------- | ------ | ---------------------------------------------------------- | ---------------------------------------------------- | -------------- |
+| M01  | 应用壳层与路由视图     | P0     | `App.tsx`、`WindowFrame`、`AppSidebar`                     | `src/app/*`                                          | 是             |
+| M02  | 主笔记工作台           | P0     | `MainWindow.tsx`                                           | `features/notes/pages` + `features/notes/components` | 是             |
+| M03  | 编辑器核心与格式工具栏 | P0     | `MainWindow.tsx` 内编辑器逻辑                              | `features/editor/*` 或 `features/notes/editor/*`     | 是             |
+| M04  | 笔记数据与保存流程     | P0     | `features/notes/api.ts` + `MainWindow.tsx` 副作用          | `features/notes/hooks/services`                      | 是             |
+| M05  | 设置中心               | P1     | `SettingsPage.tsx`、`SettingsPanel.tsx`                    | `features/settings/pages/components/dialogs`         | 是             |
+| M06  | 共享 UI 库             | P1     | `SettingsPage` 内 Card/Toggle/TextField 等、各页面重复样式 | `shared/ui`                                          | 是             |
+| M07  | 独立小窗笔记与窗口能力 | P1     | `NotePad.tsx`、`features/windows/*`                        | `features/windows` + `features/notes/windows`        | 是             |
+| M08  | 画布与无限画布         | P2     | `CanvasPage.tsx`、`features/infinite-canvas/*`             | `features/canvas` / `features/infinite-canvas`       | 是             |
+| M09  | 工作流画布             | P2     | `LiteGraphWorkflow.tsx`、`features/workflow/*`             | `features/workflow/components`                       | 是             |
+| M10  | AI 写作与建议层        | P2     | `DeepSeekChat`、`WritingCompanion`、`features/agent/*`     | `features/agent/components/hooks`                    | 是             |
+| M11  | 伴侣与 Live2D          | P3     | `features/companion/*`、`features/live2d/*`                | 保持 feature，清理边界                               | 是             |
+| M12  | 账户、认证与同步       | P3     | `features/auth/*`、`features/sync/*`、`AccountPanel`       | `features/auth` + `features/sync`                    | 是             |
+| M13  | 文档与模块治理         | P0     | 无统一标准                                                 | `Docs/plans` + 后续 ADR                              | 是             |
 
 ---
 
@@ -1089,21 +1089,21 @@ features/sync/
 
 ### 7.1 依赖矩阵
 
-| 模块 | 依赖 | 被依赖方 |
-| --- | --- | --- |
-| M01 应用壳层 | M12 Auth/Sync、M07 Windows | 所有页面模块 |
-| M02 主笔记工作台 | M03、M04、M06、M07、M10 | M01 |
-| M03 编辑器核心 | M06 | M02、M07 |
-| M04 笔记数据保存 | notes/importExport/images API | M02、M07、M10 |
-| M05 设置中心 | M06、M12、settings API | M01、M10、M11 |
-| M06 共享 UI | 无业务依赖 | M02、M03、M05、M08、M09、M11 |
-| M07 窗口能力 | Tauri windows API、M03、M04 | M01、M02、M11 |
-| M08 画布 | M10、canvas API | M01、M09 |
-| M09 工作流 | workflow eventBus、M10 | M01、M08 |
-| M10 AI 建议层 | M05 provider 配置、agent services | M02、M08、M09、M11 |
-| M11 伴侣/Live2D | M07、M10、M05 | M01 |
-| M12 账户同步 | Supabase、sync API | M01、M05、garden/studio/social |
-| M13 文档治理 | 无 | 所有模块 |
+| 模块             | 依赖                              | 被依赖方                       |
+| ---------------- | --------------------------------- | ------------------------------ |
+| M01 应用壳层     | M12 Auth/Sync、M07 Windows        | 所有页面模块                   |
+| M02 主笔记工作台 | M03、M04、M06、M07、M10           | M01                            |
+| M03 编辑器核心   | M06                               | M02、M07                       |
+| M04 笔记数据保存 | notes/importExport/images API     | M02、M07、M10                  |
+| M05 设置中心     | M06、M12、settings API            | M01、M10、M11                  |
+| M06 共享 UI      | 无业务依赖                        | M02、M03、M05、M08、M09、M11   |
+| M07 窗口能力     | Tauri windows API、M03、M04       | M01、M02、M11                  |
+| M08 画布         | M10、canvas API                   | M01、M09                       |
+| M09 工作流       | workflow eventBus、M10            | M01、M08                       |
+| M10 AI 建议层    | M05 provider 配置、agent services | M02、M08、M09、M11             |
+| M11 伴侣/Live2D  | M07、M10、M05                     | M01                            |
+| M12 账户同步     | Supabase、sync API                | M01、M05、garden/studio/social |
+| M13 文档治理     | 无                                | 所有模块                       |
 
 ### 7.2 推荐依赖方向
 
@@ -1276,12 +1276,12 @@ features/* -> app/*
 
 ### 10.2 测试策略
 
-| 测试类型 | 适用模块 | 要求 |
-| --- | --- | --- |
-| 纯函数单测 | M03、M04、M05、M08 | 格式命令、保存状态、provider 编辑、节点更新 |
-| Hook 测试 | M02、M04、M07、M10、M12 | 数据加载、自动保存、窗口事件、认证同步 |
-| 组件渲染测试 | M02、M05、M06 | 列表项、设置 panel、shared UI |
-| 手动回归 | 所有页面模块 | 启动、主流程、异常路径 |
+| 测试类型     | 适用模块                | 要求                                        |
+| ------------ | ----------------------- | ------------------------------------------- |
+| 纯函数单测   | M03、M04、M05、M08      | 格式命令、保存状态、provider 编辑、节点更新 |
+| Hook 测试    | M02、M04、M07、M10、M12 | 数据加载、自动保存、窗口事件、认证同步      |
+| 组件渲染测试 | M02、M05、M06           | 列表项、设置 panel、shared UI               |
+| 手动回归     | 所有页面模块            | 启动、主流程、异常路径                      |
 
 ### 10.3 上线策略
 
@@ -1367,15 +1367,15 @@ packages/
 
 ## 13. 风险与应对
 
-| 风险 | 影响 | 应对 |
-| --- | --- | --- |
-| 拆分过程引入功能回归 | 高 | 每个阶段只做结构迁移，不混入功能变化 |
-| shared UI 抽象过度 | 中 | 只抽真实复用组件，保持 props 简单 |
-| 自动保存逻辑被拆断 | 高 | 优先为保存状态机补测试，手动验收失败路径 |
-| 多窗口事件泄漏 | 中 | 窗口 hook 中集中注册/解绑事件 |
-| AI/伴侣依赖主窗口状态 | 中 | 通过 context adapter 传入上下文，不直接引用页面组件 |
-| 设置页拆分后状态同步混乱 | 中 | 使用 settings draft hook 管理局部草稿与提交 |
-| 一次性重构过大 | 高 | 严格按阶段和模块编号拆 PR |
+| 风险                     | 影响 | 应对                                                |
+| ------------------------ | ---- | --------------------------------------------------- |
+| 拆分过程引入功能回归     | 高   | 每个阶段只做结构迁移，不混入功能变化                |
+| shared UI 抽象过度       | 中   | 只抽真实复用组件，保持 props 简单                   |
+| 自动保存逻辑被拆断       | 高   | 优先为保存状态机补测试，手动验收失败路径            |
+| 多窗口事件泄漏           | 中   | 窗口 hook 中集中注册/解绑事件                       |
+| AI/伴侣依赖主窗口状态    | 中   | 通过 context adapter 传入上下文，不直接引用页面组件 |
+| 设置页拆分后状态同步混乱 | 中   | 使用 settings draft hook 管理局部草稿与提交         |
+| 一次性重构过大           | 高   | 严格按阶段和模块编号拆 PR                           |
 
 ---
 
@@ -1392,20 +1392,20 @@ packages/
 
 ## 15. 附录：建议 PR 拆分方式
 
-| PR | 内容 | 对应模块 | 验收重点 |
-| --- | --- | --- | --- |
-| PR-01 | AppShell 与 routeViews | M01 | 各入口页面可打开 |
-| PR-02 | NotesWorkspacePage + NotesSidebar | M02 | 笔记列表、搜索、分类 |
-| PR-03 | NoteEditorPane + NoteStatusBar | M02/M03 | 编辑、状态展示 |
-| PR-04 | useNoteAutosave + 保存状态机 | M04 | 自动保存、失败状态 |
-| PR-05 | NotePad 复用编辑器 | M03/M07 | 小窗编辑不回归 |
-| PR-06 | SettingsLayout + SettingsNav | M05 | 设置页分区切换 |
-| PR-07 | Providers/Models/Hotkeys panels | M05 | 模型和快捷键配置 |
-| PR-08 | shared UI 第一批 | M06 | 不含业务依赖，复用成功 |
-| PR-09 | CanvasPage 拆分 | M08 | 节点操作和保存 |
-| PR-10 | LiteGraphWorkflow 拆分 | M09 | 工作流事件与画布 |
-| PR-11 | Agent hooks/context adapter | M10 | AI 建议入口可用 |
-| PR-12 | Auth/Sync hooks | M12 | 登录态与同步可用 |
+| PR    | 内容                              | 对应模块 | 验收重点               |
+| ----- | --------------------------------- | -------- | ---------------------- |
+| PR-01 | AppShell 与 routeViews            | M01      | 各入口页面可打开       |
+| PR-02 | NotesWorkspacePage + NotesSidebar | M02      | 笔记列表、搜索、分类   |
+| PR-03 | NoteEditorPane + NoteStatusBar    | M02/M03  | 编辑、状态展示         |
+| PR-04 | useNoteAutosave + 保存状态机      | M04      | 自动保存、失败状态     |
+| PR-05 | NotePad 复用编辑器                | M03/M07  | 小窗编辑不回归         |
+| PR-06 | SettingsLayout + SettingsNav      | M05      | 设置页分区切换         |
+| PR-07 | Providers/Models/Hotkeys panels   | M05      | 模型和快捷键配置       |
+| PR-08 | shared UI 第一批                  | M06      | 不含业务依赖，复用成功 |
+| PR-09 | CanvasPage 拆分                   | M08      | 节点操作和保存         |
+| PR-10 | LiteGraphWorkflow 拆分            | M09      | 工作流事件与画布       |
+| PR-11 | Agent hooks/context adapter       | M10      | AI 建议入口可用        |
+| PR-12 | Auth/Sync hooks                   | M12      | 登录态与同步可用       |
 
 ---
 

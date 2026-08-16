@@ -7,10 +7,13 @@ export interface NoteMetadata {
   updatedAt: string;
   wordCount: number;
   preview: string;
+  filePath?: string;
 }
 
 export interface Note extends Omit<NoteMetadata, "preview"> {
   content: string;
+  preview?: string;
+  filePath?: string;
 }
 
 export interface SaveNoteRequest {
@@ -22,5 +25,6 @@ export interface SaveNoteRequest {
 export interface ExternalFile {
   id: string;
   title: string;
+  fileName: string;
   filePath: string;
 }

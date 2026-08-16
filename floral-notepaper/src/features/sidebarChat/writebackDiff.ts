@@ -9,7 +9,10 @@ export interface WritebackDiffLine {
 
 const MAX_LCS_CELLS = 250_000;
 
-export function buildLineDiff(originalContent: string, generatedContent: string): WritebackDiffLine[] {
+export function buildLineDiff(
+  originalContent: string,
+  generatedContent: string,
+): WritebackDiffLine[] {
   const originalLines = splitLines(originalContent);
   const generatedLines = splitLines(generatedContent);
   const cells = (originalLines.length + 1) * (generatedLines.length + 1);
@@ -18,8 +21,9 @@ export function buildLineDiff(originalContent: string, generatedContent: string)
     return buildFallbackDiff(originalLines, generatedLines);
   }
 
-  const dp = Array.from({ length: originalLines.length + 1 }, () =>
-    Array(generatedLines.length + 1).fill(0) as number[],
+  const dp = Array.from(
+    { length: originalLines.length + 1 },
+    () => Array(generatedLines.length + 1).fill(0) as number[],
   );
 
   for (let i = originalLines.length - 1; i >= 0; i -= 1) {

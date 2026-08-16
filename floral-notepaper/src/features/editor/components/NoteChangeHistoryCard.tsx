@@ -33,7 +33,9 @@ export function NoteChangeHistoryPage({ currentChange, history }: NoteChangeHist
           <div className="min-w-0">
             <div className="truncate text-[13px] font-semibold">历史更改</div>
             <div className="truncate text-[10px] text-[#8b857d]">
-              {activeEntry ? `${activeEntry.title || "无标题笔记"} · ${entries.length} 条记录` : "暂无修改记录"}
+              {activeEntry
+                ? `${activeEntry.title || "无标题笔记"} · ${entries.length} 条记录`
+                : "暂无修改记录"}
             </div>
           </div>
         </div>
@@ -63,7 +65,9 @@ export function NoteChangeHistoryPage({ currentChange, history }: NoteChangeHist
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-[11px] font-semibold text-[#dcd5cc]">
-                    {entry.id === "current" ? "当前未保存变更" : `历史变更 ${history.length - index + 1}`}
+                    {entry.id === "current"
+                      ? "当前未保存变更"
+                      : `历史变更 ${history.length - index + 1}`}
                   </span>
                   <span className="shrink-0 font-mono text-[10px]">
                     <span className="text-emerald-300">+{entry.additions}</span>
@@ -99,12 +103,18 @@ function ChangeDiffViewer({ entry }: { entry: NoteChangeHistoryEntry }) {
           <div
             key={`${entry.id}-${line.type}-${line.oldLine ?? ""}-${line.newLine ?? ""}-${index}`}
             className={`grid grid-cols-[42px_42px_24px_minmax(0,1fr)] gap-2 px-4 ${
-              isAdd ? "bg-emerald-500/18 text-emerald-50" : isRemove ? "bg-red-500/20 text-red-50" : "text-[#cfc8bd]"
+              isAdd
+                ? "bg-emerald-500/18 text-emerald-50"
+                : isRemove
+                  ? "bg-red-500/20 text-red-50"
+                  : "text-[#cfc8bd]"
             }`}
           >
             <span className="select-none text-right text-[#68645e]">{line.oldLine ?? ""}</span>
             <span className="select-none text-right text-[#68645e]">{line.newLine ?? ""}</span>
-            <span className={`select-none font-semibold ${isAdd ? "text-emerald-300" : isRemove ? "text-red-300" : "text-[#68645e]"}`}>
+            <span
+              className={`select-none font-semibold ${isAdd ? "text-emerald-300" : isRemove ? "text-red-300" : "text-[#68645e]"}`}
+            >
               {isAdd ? "+" : isRemove ? "-" : " "}
             </span>
             <span className="whitespace-pre-wrap break-words">{line.text || " "}</span>

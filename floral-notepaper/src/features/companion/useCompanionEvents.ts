@@ -33,7 +33,8 @@ export function useCompanionEvents(config: CompanionConfig) {
 
       const key = event.key.toLowerCase();
       const target = event.target;
-      const isTextTarget = target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement;
+      const isTextTarget =
+        target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement;
 
       if ((event.ctrlKey || event.metaKey) && key === "s") {
         event.preventDefault();
@@ -82,9 +83,12 @@ export function useCompanionEvents(config: CompanionConfig) {
 
     window.addEventListener("keydown", handleKeyDown, true);
 
-    const interval = window.setInterval(() => {
-      syncState(core.tick(Date.now()));
-    }, Math.max(180, Math.round(config.sensitivity.idleTimeoutMs / 4)));
+    const interval = window.setInterval(
+      () => {
+        syncState(core.tick(Date.now()));
+      },
+      Math.max(180, Math.round(config.sensitivity.idleTimeoutMs / 4)),
+    );
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true);

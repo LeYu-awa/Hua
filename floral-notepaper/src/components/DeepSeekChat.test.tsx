@@ -70,8 +70,12 @@ describe("DeepSeekChat — 场景九聊天沉淀", () => {
     // 点击沉淀 → 写入画布
     fireEvent.click(screen.getByText("沉淀到画布"));
     await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
-    const savedDoc = mockSave.mock.calls[0][0] as { nodes: Array<{ text: string; source?: string }> };
-    expect(savedDoc.nodes.some((n) => n.source === "agent" && n.text.includes("来自聊天"))).toBe(true);
+    const savedDoc = mockSave.mock.calls[0][0] as {
+      nodes: Array<{ text: string; source?: string }>;
+    };
+    expect(savedDoc.nodes.some((n) => n.source === "agent" && n.text.includes("来自聊天"))).toBe(
+      true,
+    );
   });
 
   it("agentEnabled=false 时不出现沉淀建议", async () => {
@@ -89,9 +93,7 @@ describe("DeepSeekChat — 场景九聊天沉淀", () => {
     const textarea = await screen.findByPlaceholderText(/输入问题/);
     fireEvent.change(textarea, { target: { value: "问题" } });
     fireEvent.keyDown(textarea, { key: "Enter" });
-    await waitFor(() =>
-      expect(screen.getByText(/实时同步 MVP/)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/实时同步 MVP/)).toBeTruthy());
     expect(screen.queryByText("沉淀到画布")).toBeNull();
   });
 });

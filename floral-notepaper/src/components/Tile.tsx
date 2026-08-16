@@ -121,14 +121,20 @@ export function Tile({
         )}
         {content ? (
           renderMarkdown ? (
-            <div style={{ color: contentColor }}>
-              <MarkdownPreview
-                content={content}
-                fontSize={fontSize}
-                renderHtml={false}
-                imageBaseDir={imageBaseDir}
-              />
-            </div>
+            <MarkdownPreview
+              content={content}
+              fontSize={fontSize}
+              renderHtml={false}
+              imageBaseDir={imageBaseDir}
+              colorVars={
+                {
+                  "--md-text": contentColor,
+                  "--md-heading": contentColor,
+                  "--md-muted": contentColor,
+                  "--md-code-text": contentColor,
+                } as React.CSSProperties
+              }
+            />
           ) : (
             <div
               className="leading-[1.8] whitespace-pre-wrap font-body"

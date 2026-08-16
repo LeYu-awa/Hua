@@ -12,9 +12,7 @@ async function getCurrentUserId(): Promise<string> {
 }
 
 /** 获取会话的文件树 */
-export async function getDocumentTree(
-  conversationId: string,
-): Promise<FileTreeNode[]> {
+export async function getDocumentTree(conversationId: string): Promise<FileTreeNode[]> {
   const { data, error } = await supabase
     .from("collab_documents")
     .select("*")
@@ -102,10 +100,7 @@ export async function getDocumentContent(
 }
 
 /** 保存文档内容 */
-export async function saveDocumentContent(
-  documentId: string,
-  content: string,
-): Promise<void> {
+export async function saveDocumentContent(documentId: string, content: string): Promise<void> {
   const userId = await getCurrentUserId();
 
   // 更新 collab_documents
@@ -130,10 +125,7 @@ export async function saveDocumentContent(
 }
 
 /** 重命名文档/文件夹 */
-export async function renameDocument(
-  documentId: string,
-  title: string,
-): Promise<void> {
+export async function renameDocument(documentId: string, title: string): Promise<void> {
   const userId = await getCurrentUserId();
 
   const { error } = await supabase
@@ -146,10 +138,7 @@ export async function renameDocument(
 
 /** 删除文档/文件夹 */
 export async function deleteDocument(documentId: string): Promise<void> {
-  const { error } = await supabase
-    .from("collab_documents")
-    .delete()
-    .eq("id", documentId);
+  const { error } = await supabase.from("collab_documents").delete().eq("id", documentId);
 
   if (error) throw new Error(error.message);
 }

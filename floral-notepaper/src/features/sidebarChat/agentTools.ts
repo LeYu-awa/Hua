@@ -102,8 +102,7 @@ export function getStreamToolCallDelta(data: unknown): ToolCallStreamDelta[] | n
     const index = (chunk as { index?: number }).index;
     if (typeof index !== "number") continue;
     const fn = (chunk as { function?: unknown }).function;
-    const fnName =
-      fn && typeof fn === "object" ? (fn as { name?: unknown }).name : undefined;
+    const fnName = fn && typeof fn === "object" ? (fn as { name?: unknown }).name : undefined;
     const fnArgs =
       fn && typeof fn === "object" ? (fn as { arguments?: unknown }).arguments : undefined;
     const id = (chunk as { id?: unknown }).id;
@@ -169,7 +168,8 @@ export function buildAgentTools(): AgentToolDefinition[] {
       type: "function",
       function: {
         name: "note.search",
-        description: "在本地笔记库中按关键词搜索笔记，返回匹配的标题/分类/摘要列表。当用户提到某篇笔记但未给出确切标题时，先用它定位。",
+        description:
+          "在本地笔记库中按关键词搜索笔记，返回匹配的标题/分类/摘要列表。当用户提到某篇笔记但未给出确切标题时，先用它定位。",
         parameters: {
           type: "object",
           properties: {
@@ -184,7 +184,8 @@ export function buildAgentTools(): AgentToolDefinition[] {
       type: "function",
       function: {
         name: "note.read",
-        description: "读取单篇本地笔记的完整内容。可通过 id（最精准）或标题关键词 query 定位。读取后你才能基于内容回答或改写。",
+        description:
+          "读取单篇本地笔记的完整内容。可通过 id（最精准）或标题关键词 query 定位。读取后你才能基于内容回答或改写。",
         parameters: {
           type: "object",
           properties: {
@@ -235,7 +236,11 @@ export function buildAgentTools(): AgentToolDefinition[] {
             id: { type: "string", description: "笔记 id（推荐）" },
             query: { type: "string", description: "按标题/关键词定位笔记" },
             content: { type: "string", description: "要写入/追加的完整内容" },
-            mode: { type: "string", enum: ["replace", "append"], description: "replace=整篇覆盖，append=追加到末尾，默认 replace" },
+            mode: {
+              type: "string",
+              enum: ["replace", "append"],
+              description: "replace=整篇覆盖，append=追加到末尾，默认 replace",
+            },
           },
           required: ["content"],
         },

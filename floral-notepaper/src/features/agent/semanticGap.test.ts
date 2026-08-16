@@ -45,12 +45,10 @@ describe("detectSemanticGaps", () => {
   it("某视角无节点覆盖时标记为缺失", async () => {
     // 第一次调用：节点向量，全部指向"技术"方向 [1,0]
     // 第二次调用：视角向量，[技术=[1,0], 用户体验=[0,1]]
-    mockedEmbedding
-      .mockResolvedValueOnce(nodes(5).map(() => [1, 0]))
-      .mockResolvedValueOnce([
-        [1, 0],
-        [0, 1],
-      ]);
+    mockedEmbedding.mockResolvedValueOnce(nodes(5).map(() => [1, 0])).mockResolvedValueOnce([
+      [1, 0],
+      [0, 1],
+    ]);
     const r = await detectSemanticGaps(nodes(5), providers, {
       minNodes: 5,
       perspectives,
@@ -63,12 +61,10 @@ describe("detectSemanticGaps", () => {
   });
 
   it("所有视角均被覆盖时无缺失", async () => {
-    mockedEmbedding
-      .mockResolvedValueOnce(nodes(5).map(() => [1, 1]))
-      .mockResolvedValueOnce([
-        [1, 1],
-        [1, 1],
-      ]);
+    mockedEmbedding.mockResolvedValueOnce(nodes(5).map(() => [1, 1])).mockResolvedValueOnce([
+      [1, 1],
+      [1, 1],
+    ]);
     const r = await detectSemanticGaps(nodes(5), providers, {
       minNodes: 5,
       perspectives,

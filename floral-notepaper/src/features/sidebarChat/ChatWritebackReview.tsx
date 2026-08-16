@@ -82,8 +82,12 @@ export function ChatWritebackReview({
                     : "text-[#9aa09a]"
               }`}
             >
-              <span className="select-none pr-1 text-right text-[#5a5f5a]">{line.oldLine ?? ""}</span>
-              <span className="select-none pr-1 text-right text-[#5a5f5a]">{line.newLine ?? ""}</span>
+              <span className="select-none pr-1 text-right text-[#5a5f5a]">
+                {line.oldLine ?? ""}
+              </span>
+              <span className="select-none pr-1 text-right text-[#5a5f5a]">
+                {line.newLine ?? ""}
+              </span>
               <span className="select-none text-center text-[#5a5f5a]">
                 {line.type === "add" ? "+" : line.type === "remove" ? "-" : ""}
               </span>

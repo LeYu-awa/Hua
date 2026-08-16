@@ -18,12 +18,12 @@
 
 ### 1.2 已确认的决策
 
-| 决策 | 结论 |
-|---|---|
-| 编排大脑位置 | **Rust 主编排**（TS 只做 UI/流式渲染） |
-| LLM 流式 | **B 混合模式**：任务/规划/工具/记忆在 Rust；LLM 对话与流式仍走前端 fetch（经 IPC 注册为 Rust 可用 provider） |
-| 画布角色 | Agent 的产出空间 + 可视化工作台 + 输入源（见 §7） |
-| 工具方向 | 组合型（流水线）+ 产出型（生成资产） |
+| 决策         | 结论                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| 编排大脑位置 | **Rust 主编排**（TS 只做 UI/流式渲染）                                                                       |
+| LLM 流式     | **B 混合模式**：任务/规划/工具/记忆在 Rust；LLM 对话与流式仍走前端 fetch（经 IPC 注册为 Rust 可用 provider） |
+| 画布角色     | Agent 的产出空间 + 可视化工作台 + 输入源（见 §7）                                                            |
+| 工具方向     | 组合型（流水线）+ 产出型（生成资产）                                                                         |
 
 ### 1.3 非目标
 
@@ -168,12 +168,12 @@ Failed → Running（Observer 重规划降级）| Failed（无法恢复）
 
 产出型工具落点之一：
 
-| 场景 | 落成节点 |
-|---|---|
-| 文章大纲 / 灵感梳理 | `card`（想法卡，text=大纲，source=task_id） |
-| 待办/下一步动作 | `task` 节点 |
-| 检索到的相关笔记/资源 | `resource` 节点 + `edge` 关联 |
-| Agent 计划的可视化 | 步骤节点 + 数据流边（text=step 摘要） |
+| 场景                  | 落成节点                                    |
+| --------------------- | ------------------------------------------- |
+| 文章大纲 / 灵感梳理   | `card`（想法卡，text=大纲，source=task_id） |
+| 待办/下一步动作       | `task` 节点                                 |
+| 检索到的相关笔记/资源 | `resource` 节点 + `edge` 关联               |
+| Agent 计划的可视化    | 步骤节点 + 数据流边（text=step 摘要）       |
 
 ### 6.2 输入源（Agent 从画布"读"）
 
@@ -206,14 +206,14 @@ Failed → Running（Observer 重规划降级）| Failed（无法恢复）
 
 ### 7.2 产出型工具（Generative Tools）
 
-| 工具 | 产出 |
-|---|---|
-| `canvas.node.create` | 画布节点（card/task/resource） |
-| `canvas.doc.create` | 新画布文档 |
-| `note.generate` | 新笔记（文章/大纲/摘要） |
-| `review.report` | 复盘报告（复用 `agent_generate_review_report`） |
-| `replay.marker` | 回放标记（复用已有） |
-| `speech.speak` | 语音播报（TTS 通道） |
+| 工具                 | 产出                                            |
+| -------------------- | ----------------------------------------------- |
+| `canvas.node.create` | 画布节点（card/task/resource）                  |
+| `canvas.doc.create`  | 新画布文档                                      |
+| `note.generate`      | 新笔记（文章/大纲/摘要）                        |
+| `review.report`      | 复盘报告（复用 `agent_generate_review_report`） |
+| `replay.marker`      | 回放标记（复用已有）                            |
+| `speech.speak`       | 语音播报（TTS 通道）                            |
 
 产出型工具一律**先预览/确认再落盘**（复用现有写回审查体验），避免 Agent 擅自生成资产。
 
@@ -245,16 +245,16 @@ pub enum AgentOutput {
 
 ### 10.1 新增 Rust 模块
 
-| 模块 | 职责 |
-|---|---|
-| `services/agent/orchestrator.rs` | Task/Step/状态机/Planner/Executor/Observer |
-| `services/agent/task_store.rs` | 任务持久化 |
-| `services/agent/tools/mod.rs` + `tools/*.rs` | AgentTool trait + 组合/产出型工具实现 |
-| `services/agent/output_bus.rs` | AgentOutput 分发 |
-| `services/agent/llm_provider.rs` | LlmProvider trait + HttpLlmProvider / HttpEmbeddingProvider |
-| `services/agent/rag.rs` + `vector_store.rs` | 分块/嵌入/余弦 top-k 检索（sqlite-vec） |
-| `services/agent/web_search.rs` | SearXNG JSON API 客户端 |
-| `services/agent/mcp_server.rs` | MCP stdio 服务器（rmcp 官方 SDK，`--mcp` 模式） |
+| 模块                                         | 职责                                                        |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| `services/agent/orchestrator.rs`             | Task/Step/状态机/Planner/Executor/Observer                  |
+| `services/agent/task_store.rs`               | 任务持久化                                                  |
+| `services/agent/tools/mod.rs` + `tools/*.rs` | AgentTool trait + 组合/产出型工具实现                       |
+| `services/agent/output_bus.rs`               | AgentOutput 分发                                            |
+| `services/agent/llm_provider.rs`             | LlmProvider trait + HttpLlmProvider / HttpEmbeddingProvider |
+| `services/agent/rag.rs` + `vector_store.rs`  | 分块/嵌入/余弦 top-k 检索（sqlite-vec）                     |
+| `services/agent/web_search.rs`               | SearXNG JSON API 客户端                                     |
+| `services/agent/mcp_server.rs`               | MCP stdio 服务器（rmcp 官方 SDK，`--mcp` 模式）             |
 
 ### 10.2 新增 IPC 命令
 
@@ -276,16 +276,16 @@ agent_task_output_subscribe           → 事件流（或统一走 Tauri emit）
 
 ## 11. 实施阶段
 
-| 阶段 | 内容 |
-|---|---|
-| Phase A | 任务协议 + `task_store` + 状态机骨架（Rust，纯数据层，可单测） ✅ |
-| Phase B | Planner（规则兜底）+ Executor（note.search/read 原子工具）+ 进度事件 + 进度面板 → **最小闭环** ✅（orchestrator.rs，102 测试通过） |
-| Phase C | 混合 LLM（IpcLlmProvider 桥）→ LLM 规划 + 生成类步骤流式 ✅（`HttpLlmProvider` + `plan_with_llm` + `parse_llm_plan` 容错，失败回退规则规划） |
-| Phase D | 组合型工具（模板流水线）+ 产出型工具（canvas.node.create / note.generate）+ 预览确认 ✅（总结/画布成文/调研流水线；写操作 requiredConfirm → AwaitingConfirm 暂停；`agent_task_confirm` + 前端确认按钮闭环） |
-| Phase E | 输出总线接通 Live2D 信号 + 语音播报 + 画布可视化 ✅（`output_bus`：`agent.live2d` / `agent.speech` / `agent.ui`，任务完成/失败自动播报） |
-| Phase F | 记忆接入（embedding 检索 + profile 注入）、画布输入源、复盘/回放 ✅（llm 步骤 `input.retrieve` 触发 RAG 检索注入；canvas.read 输入源） |
-| SearXNG | 自托管 Web 搜索落地 ✅（`web_search.rs` SearXNG JSON API + `web.search` 工具注册 + 单测） |
-| MCP | 官方 Rust SDK（rmcp 0.16）stdio 服务器 ✅（`--mcp` 启动参数；7 个工具：note_search/read/create、canvas_read/node_create、web_search、llm_generate；5 单测 + 1 子进程端到端测试） |
+| 阶段     | 内容                                                                                                                                                                                                                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase A  | 任务协议 + `task_store` + 状态机骨架（Rust，纯数据层，可单测） ✅                                                                                                                                                                                                                        |
+| Phase B  | Planner（规则兜底）+ Executor（note.search/read 原子工具）+ 进度事件 + 进度面板 → **最小闭环** ✅（orchestrator.rs，102 测试通过）                                                                                                                                                       |
+| Phase C  | 混合 LLM（IpcLlmProvider 桥）→ LLM 规划 + 生成类步骤流式 ✅（`HttpLlmProvider` + `plan_with_llm` + `parse_llm_plan` 容错，失败回退规则规划）                                                                                                                                             |
+| Phase D  | 组合型工具（模板流水线）+ 产出型工具（canvas.node.create / note.generate）+ 预览确认 ✅（总结/画布成文/调研流水线；写操作 requiredConfirm → AwaitingConfirm 暂停；`agent_task_confirm` + 前端确认按钮闭环）                                                                              |
+| Phase E  | 输出总线接通 Live2D 信号 + 语音播报 + 画布可视化 ✅（`output_bus`：`agent.live2d` / `agent.speech` / `agent.ui`，任务完成/失败自动播报）                                                                                                                                                 |
+| Phase F  | 记忆接入（embedding 检索 + profile 注入）、画布输入源、复盘/回放 ✅（llm 步骤 `input.retrieve` 触发 RAG 检索注入；canvas.read 输入源）                                                                                                                                                   |
+| SearXNG  | 自托管 Web 搜索落地 ✅（`web_search.rs` SearXNG JSON API + `web.search` 工具注册 + 单测）                                                                                                                                                                                                |
+| MCP      | 官方 Rust SDK（rmcp 0.16）stdio 服务器 ✅（`--mcp` 启动参数；7 个工具：note_search/read/create、canvas_read/node_create、web_search、llm_generate；5 单测 + 1 子进程端到端测试）                                                                                                         |
 | 产品技能 | 技能注册表落地 ✅（orchestrator `SKILLS` 静态注册表：canvas.writeup / note.summarize / research / **note.export** / **canvas.organize** / note.search；`agent_skill_list` IPC；`note.export` 落 Markdown + emit `agent.export` 事件、`canvas.organize` 网格排版；resume 上下文重建修复） |
 
 > 产品技能与工具同源：`SKILLS`（目标关键词命中 + 流水线展开）→ 工具注册表（LLM 规划器选择）→ `#[tool]`（MCP 暴露）。新增技能的四步链路见 `.trae/skills/floral-agent-mcp-dev/SKILL.md`。开发协作 SKILL 沉淀于 `.trae/skills/`（tauri-verify / export-fidelity / agent-mcp-dev / ui-refine）。

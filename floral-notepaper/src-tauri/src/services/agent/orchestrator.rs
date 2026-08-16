@@ -19,9 +19,24 @@ use crate::services::agent::vector_store::VectorStore;
 use crate::services::agent::web_search::searxng_search;
 use crate::services::canvas::{CanvasDocument, CanvasEdge, CanvasGroup, CanvasNode, CanvasStore};
 use crate::services::notes::{default_store, AppError, Note, NoteMetadata, NoteStore, SaveNoteRequest};
+use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::sync::{Arc, LazyLock, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter};
+
+/// 每个任务一把进程内异步锁：并发 agent_task_run / agent_task_confirm 对同一任务
+/// 只能有一个执行者，避免已确认的写步骤被重复执行（重复建笔记/落卡/追加）。
+static TASK_RUN_LOCKS: LazyLock<StdMutex<std::collections::HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
+    LazyLock::new(|| StdMutex::new(std::collections::HashMap::new()));
+
+fn task_run_lock(task_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+    let mut map = TASK_RUN_LOCKS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    map.entry(task_id.to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+        .clone()
+}
 
 /// 目标文本里常见的前缀（动词/祈使），规划时剥掉，剩下的是搜索词
 const LEADING_PREFIXES: &[&str] = &[
@@ -56,14 +71,21 @@ const COLLECT_WORDS: &[&str] = &["知识采集", "采集", "搜集", "搜一下"
 
 /// 从用户目标里抽搜索词：剥常见前缀/后缀，留下核心（"帮我找一下关于 RAG 的笔记" → "RAG"）
 pub fn extract_query(goal: &str) -> String {
-    let mut q = goal.trim();
-    for prefix in LEADING_PREFIXES {
-        if let Some(rest) = q.strip_prefix(prefix) {
-            q = rest.trim();
+    let mut q = goal.trim().to_string();
+    // 循环剥前缀动词："请帮我搜索 X" → 剥"请帮我" → "搜索 X" → 再剥"搜索" → "X"
+    loop {
+        let before = q.clone();
+        for prefix in LEADING_PREFIXES {
+            if let Some(rest) = q.strip_prefix(prefix) {
+                q = rest.trim().to_string();
+                break;
+            }
+        }
+        if q == before {
             break;
         }
     }
-    let mut out = q.to_string();
+    let mut out = q;
     for suffix in TRAILING_SUFFIXES {
         if out.ends_with(suffix) {
             out.truncate(out.len() - suffix.len());
@@ -157,6 +179,21 @@ fn tool_step_confirm(step_id: &str, tool: &str, input: Value) -> Step {
 
 fn llm_step(step_id: &str, input: Value) -> Step {
     step(step_id, StepKind::Llm, None, input, false)
+}
+
+/// 该步骤失败后重试是否安全：只读/幂等工具与 LLM 步骤可安全重试；
+/// 写类工具（建笔记/追加章节/建节点/批量落卡）重试可能重复落盘，禁止重试。
+fn step_retry_is_safe(step: &Step) -> bool {
+    if step.kind == StepKind::Llm {
+        return true;
+    }
+    matches!(
+        step.tool.as_deref(),
+        Some(
+            "note.search" | "note.read" | "canvas.read" | "web.search" | "llm.generate"
+                | "note.export" | "canvas.organize"
+        )
+    )
 }
 
 // ── Planner：技能注册表（Skill = 目标检测 + 流水线展开） ─────────────────────
@@ -358,16 +395,21 @@ fn group_plan(_goal: &str) -> Vec<Step> {
     ]
 }
 
-/// 从 LLM 输出解析分组 JSON（容错去掉 ```json 围栏）
+/// 从 LLM 输出里提取第一个完整 JSON 对象：忽略围栏/前后杂文，
+/// 即使 JSON 后带含 '}' 的尾巴也只解析到对象真实结束处（比"首 { 到末 }"截断更稳）。
+fn parse_first_json(text: &str) -> Result<Value, AppError> {
+    let start = text
+        .find('{')
+        .ok_or_else(|| AppError::new("jsonParse", "输出中未找到 JSON 对象"))?;
+    let mut de = serde_json::Deserializer::from_str(&text[start..]);
+    Value::deserialize(&mut de)
+        .map_err(|e| AppError::new("jsonParse", format!("JSON 解析失败：{e}")))
+}
+
+/// 从 LLM 输出解析分组 JSON（容错去掉 ```json 围栏与尾部杂文）
 pub fn parse_group_plan(text: &str) -> Result<Vec<GroupSpec>, AppError> {
-    let mut cleaned = text.trim().to_string();
-    if let Some(start) = cleaned.find('{') {
-        if let Some(end) = cleaned.rfind('}') {
-            cleaned = cleaned[start..=end].to_string();
-        }
-    }
-    let value: Value = serde_json::from_str(&cleaned)
-        .map_err(|e| AppError::new("groupParse", format!("分组结果不是合法 JSON：{e}")))?;
+    let value = parse_first_json(text)
+        .map_err(|e| AppError::new("groupParse", format!("分组结果不是合法 JSON：{}", e.message)))?;
     let groups = value
         .get("groups")
         .and_then(Value::as_array)
@@ -399,6 +441,8 @@ pub fn parse_group_plan(text: &str) -> Result<Vec<GroupSpec>, AppError> {
 }
 
 /// 把 AI 分组写回画布文档：替换旧 AI 分组（group-ai-*），更新节点归属；手动分组保留。
+/// 安全：LLM 幻觉的分组 id（画布中不存在）直接丢弃，不生成幽灵分组；
+/// 每张卡片只归属第一个包含它的分组，避免 UI 中卡片同时在多组。
 pub fn apply_ai_groups(doc: &mut CanvasDocument, specs: &[GroupSpec]) {
     for node in doc.nodes.iter_mut() {
         if node
@@ -410,15 +454,34 @@ pub fn apply_ai_groups(doc: &mut CanvasDocument, specs: &[GroupSpec]) {
         }
     }
     doc.groups.retain(|g| !g.id.starts_with("group-ai-"));
+
+    let known_ids: std::collections::HashSet<String> =
+        doc.nodes.iter().map(|node| node.id.clone()).collect();
+    let mut assigned: std::collections::HashSet<String> = std::collections::HashSet::new();
+
     for (index, spec) in specs.iter().enumerate() {
         let group_id = format!("group-ai-{index}");
+        // 过滤：只保留画布中真实存在、且尚未被其它组分配的节点
+        let valid_ids: Vec<String> = spec
+            .node_ids
+            .iter()
+            .filter(|node_id| known_ids.contains(node_id.as_str()))
+            .filter(|node_id| !assigned.contains(*node_id))
+            .cloned()
+            .collect();
+        if valid_ids.is_empty() {
+            continue; // 空组不落盘（避免幽灵分组）
+        }
+        for node_id in &valid_ids {
+            assigned.insert(node_id.clone());
+        }
         doc.groups.push(CanvasGroup {
             id: group_id.clone(),
             title: spec.title.clone(),
-            node_ids: spec.node_ids.clone(),
+            node_ids: valid_ids.clone(),
         });
         for node in doc.nodes.iter_mut() {
-            if spec.node_ids.iter().any(|nid| nid == &node.id) {
+            if valid_ids.iter().any(|node_id| node_id == &node.id) {
                 node.group = Some(group_id.clone());
             }
         }
@@ -438,7 +501,8 @@ pub fn extract_collect_query(goal: &str) -> String {
     goal.trim().to_string()
 }
 
-/// 知识采集技能：检索 → LLM 提炼知识卡 JSON → 批量落画布（确认）
+/// 知识采集技能：检索 → LLM 提炼知识卡 JSON → 批量落画布。
+/// 全自动流水线（画布是用户的学习空间）：落卡不需要用户确认，直接写回。
 fn collect_plan(goal: &str) -> Vec<Step> {
     let query = extract_collect_query(goal);
     vec![
@@ -446,10 +510,10 @@ fn collect_plan(goal: &str) -> Vec<Step> {
         llm_step(
             "k2",
             json!({
-                "promptTemplate": "你是知识提炼助手。根据下面的搜索结果，提炼 3-6 条最关键的知识点，输出严格 JSON：\n{\"cards\": [{\"text\": \"知识点（一句话）\", \"url\": \"来源链接\", \"title\": \"来源标题\"}]}\n每条知识必须能从搜索结果中找到依据，url 使用搜索结果里的真实链接。只输出 JSON，不要解释。\n\n{previousOutput}"
+                "promptTemplate": "你是知识提炼助手。根据下面的搜索结果，提炼 3-6 条最关键的知识点，输出严格 JSON：\n{\"cards\": [{\"text\": \"知识点（一句话）\", \"url\": \"来源链接\", \"title\": \"来源标题\"}]}\n每条知识必须能从搜索结果中找到依据，url 使用搜索结果里的真实链接。\n如果搜索结果为空（或提示未配置搜索、基于模型知识作答），请改为基于你自己的知识提炼 3-6 条可靠知识点，此时 url 与 title 一律留空字符串，表示无来源。\n只输出 JSON，不要解释。\n\n{previousOutput}"
             }),
         ),
-        tool_step_confirm(
+        tool_step(
             "k3",
             "canvas.batch-create",
             json!({ "canvasId": "first", "question": query }),
@@ -465,16 +529,10 @@ pub struct CollectCard {
     pub title: String,
 }
 
-/// 从 LLM 输出解析知识卡 JSON（容错去掉 ```json 围栏）
+/// 从 LLM 输出解析知识卡 JSON（容错去掉 ```json 围栏与尾部杂文）
 pub fn parse_collect_cards(text: &str) -> Result<Vec<CollectCard>, AppError> {
-    let mut cleaned = text.trim().to_string();
-    if let Some(start) = cleaned.find('{') {
-        if let Some(end) = cleaned.rfind('}') {
-            cleaned = cleaned[start..=end].to_string();
-        }
-    }
-    let value: Value = serde_json::from_str(&cleaned)
-        .map_err(|e| AppError::new("collectParse", format!("提炼结果不是合法 JSON：{e}")))?;
+    let value = parse_first_json(text)
+        .map_err(|e| AppError::new("collectParse", format!("提炼结果不是合法 JSON：{}", e.message)))?;
     let cards = value
         .get("cards")
         .and_then(Value::as_array)
@@ -508,7 +566,7 @@ fn research_plan(goal: &str) -> Vec<Step> {
         llm_step(
             "r2",
             json!({
-                "promptTemplate": "把下面的搜索结果整理成一篇 200 字以内的调研摘要：\n{previousOutput}"
+                "promptTemplate": "把下面的搜索结果整理成一篇 200 字以内的调研摘要；如果结果为空或提示搜索未配置，请基于你自己的知识作答，并注明「未联网（搜索未配置）」。\n{previousOutput}"
             }),
         ),
         tool_step_confirm(
@@ -541,9 +599,21 @@ fn organize_plan(_goal: &str) -> Vec<Step> {
 pub fn extract_node_id(goal: &str) -> Option<String> {
     let marker = "节点";
     let rest = goal.find(marker).map(|i| &goal[i + marker.len()..]).unwrap_or("");
-    rest.split(|c: char| c.is_whitespace() || c == '：' || c == ':' || c == '，' || c == ',')
-        .find(|token| !token.is_empty())
-        .map(str::to_string)
+    let tokens: Vec<&str> = rest
+        .split(|c: char| c.is_whitespace() || c == '：' || c == ':' || c == '，' || c == ',')
+        .filter(|token| !token.is_empty())
+        .collect();
+    // 优先取像节点 id 的 token（前端生成的 id 形如 node-<时间戳>-...）；
+    // 否则跳过"的/内容/里面"等虚词，避免 "扩写这个节点的内容" 解析出 id="的"
+    tokens
+        .iter()
+        .find(|token| token.contains("node-"))
+        .or_else(|| {
+            tokens
+                .iter()
+                .find(|token| !["的", "内容", "里面", "这个", "那个"].contains(token))
+        })
+        .map(|token| token.to_string())
 }
 
 /// 从扩写目标里抽节点原文（"…的内容：<原文>" 冒号之后的部分）
@@ -652,8 +722,30 @@ pub fn skill_registry() -> Vec<Skill> {
     SKILLS.to_vec()
 }
 
-/// 命中技能：按注册顺序找第一个匹配；note.search 永远兜底
+/// 结构化目标前缀（前端入口生成，格式固定）→ 直接命中对应技能。
+/// 关键词匹配有互相劫持风险（如"扩写"含"写"、writeup 的"画布+写"会误吞增强目标），
+/// 结构化格式必须优先判定。
+fn structured_skill(goal: &str) -> Option<&'static Skill> {
+    let trimmed = goal.trim_start();
+    for (marker, name) in [
+        ("整理成文", "canvas.writeup"),
+        ("知识采集", "knowledge.collect"),
+        ("续写笔记", "note.chapter"),
+        ("自动分组", "canvas.group"),
+        ("扩写节点", "canvas.node.enhance"),
+    ] {
+        if trimmed.starts_with(marker) {
+            return SKILLS.iter().find(|skill| skill.name == name);
+        }
+    }
+    None
+}
+
+/// 命中技能：结构化格式优先，再按注册顺序关键词匹配；note.search 永远兜底
 pub fn match_skill(goal: &str) -> &'static Skill {
+    if let Some(skill) = structured_skill(goal) {
+        return skill;
+    }
     SKILLS
         .iter()
         .find(|skill| (skill.matches)(goal))
@@ -677,22 +769,16 @@ pub fn tool_registry_json() -> Value {
         {"name":"canvas.node.create","description":"在画布创建文本节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","content":"string"}},
         {"name":"canvas.save","description":"把上一步 LLM 生成内容写回画布：nodeId 命中则更新该节点文本，否则追加 agent 节点（写操作，需确认）","input":{"canvasId":"string 或 \"first\"","nodeId":"string 可选"}},
         {"name":"canvas.save-groups","description":"把上一步 LLM 的分组结果写回画布（AI 自动分组，写操作，需确认）","input":{"canvasId":"string 或 \"first\""}},
-        {"name":"canvas.batch-create","description":"把上一步 LLM 提炼的知识卡批量落入画布，并落一张问题卡自动 cites 连线（知识采集，写操作，需确认）","input":{"canvasId":"string 或 \"first\"","question":"string"}},
+        {"name":"canvas.batch-create","description":"把上一步 LLM 提炼的知识卡批量落入画布，并落一张问题卡自动 cites 连线（知识采集，全自动落卡，无需确认）","input":{"canvasId":"string 或 \"first\"","question":"string"}},
         {"name":"web.search","description":"通过本地 SearXNG 搜索互联网（需确认）","input":{"query":"string","limit":"int 默认5"}},
         {"name":"llm.generate","description":"用 LLM 生成或改写文本","input":{"prompt":"string"}},
     ])
 }
 
-/// 解析 LLM 规划的 JSON 文本 → Steps（容错去掉 ```json 围栏）
+/// 解析 LLM 规划的 JSON 文本 → Steps（容错去掉 ```json 围栏与尾部杂文）
 pub fn parse_llm_plan(text: &str) -> Result<Vec<Step>, AppError> {
-    let mut cleaned = text.trim().to_string();
-    if let Some(start) = cleaned.find('{') {
-        if let Some(end) = cleaned.rfind('}') {
-            cleaned = cleaned[start..=end].to_string();
-        }
-    }
-    let value: Value = serde_json::from_str(&cleaned)
-        .map_err(|e| AppError::new("llmPlanParse", format!("LLM 规划不是合法 JSON：{e}")))?;
+    let value = parse_first_json(text)
+        .map_err(|e| AppError::new("llmPlanParse", format!("LLM 规划不是合法 JSON：{}", e.message)))?;
     let steps = value
         .get("steps")
         .and_then(Value::as_array)
@@ -745,7 +831,29 @@ pub async fn plan_with_llm(
     );
     let user = format!("用户目标：{goal}");
     let text = provider.complete_prompt(&system, &user, 1024).await?;
-    parse_llm_plan(&text)
+    let mut plan = parse_llm_plan(&text)?;
+    enforce_write_confirmation(&mut plan);
+    Ok(plan)
+}
+
+/// 安全兜底：写类工具一律强制 required_confirm=true（无论模型是否按要求标注，写前人工确认）。
+/// canvas.batch-create 例外：知识采集是全自动学习流程，落卡无需确认。
+pub fn enforce_write_confirmation(plan: &mut [Step]) {
+    for step in plan.iter_mut() {
+        if matches!(
+            step.tool.as_deref(),
+            Some(
+                "note.create"
+                    | "note.update"
+                    | "canvas.node.create"
+                    | "canvas.save"
+                    | "canvas.save-groups"
+                    | "web.search"
+            )
+        ) {
+            step.required_confirm = true;
+        }
+    }
 }
 
 // ── Executor + Observer ───────────────────────────────────────────────────────
@@ -783,6 +891,9 @@ impl<'a> TaskRunner<'a> {
     /// 执行任务。允许从 Planned / AwaitingConfirm（确认后恢复）启动；
     /// 遇到待确认步骤 → 状态置 AwaitingConfirm 并暂停返回，等 agent_task_confirm 恢复。
     pub async fn run(&self, task: &mut Task) -> Result<(), AppError> {
+        // 每个任务进程内互斥：并发 run/confirm 只能有一个执行者，防止写步骤被重复执行
+        let run_lock = task_run_lock(&task.task_id);
+        let _run_guard = run_lock.lock().await;
         if !matches!(task.status, TaskStatus::Planned | TaskStatus::AwaitingConfirm) {
             return Err(AppError::new(
                 "taskNotRunnable",
@@ -790,12 +901,31 @@ impl<'a> TaskRunner<'a> {
             ));
         }
         if task.plan.is_empty() {
-            task.plan = plan_for_goal(&task.goal);
+            // 规划策略：
+            // 1) 结构化目标（前端入口生成）与关键词命中的技能 → 走定制流水线（确定性、可测、带确认）；
+            // 2) 其余自由目标且配置了 LLM → 尝试 LLM 规划（补足规则规划覆盖不到的场景），失败回退规则；
+            // 3) 无 LLM → 规则规划（note.search 兜底）。
+            let has_curated = structured_skill(&task.goal).is_some()
+                || SKILLS
+                    .iter()
+                    .any(|skill| skill.name != "note.search" && (skill.matches)(&task.goal));
+            if has_curated {
+                task.plan = plan_for_goal(&task.goal);
+            } else if let Some(provider) = self.llm.as_ref() {
+                match plan_with_llm(provider, &task.goal).await {
+                    Ok(plan) if !plan.is_empty() => task.plan = plan,
+                    _ => task.plan = plan_for_goal(&task.goal),
+                }
+            } else {
+                task.plan = plan_for_goal(&task.goal);
+            }
         }
         self.transition(task, TaskStatus::Running)?;
 
         let mut last_hits: Vec<NoteMetadata> = Vec::new();
-        let mut outputs: HashMap<String, Value> = HashMap::new();
+        // 有序输出表：按步骤完成顺序追加，保证 {previousOutput} / last_* 取到的是
+        // 真正"最近完成"的步骤输出（HashMap 迭代顺序随机，会静默取错步骤）
+        let mut outputs: Vec<(String, Value)> = Vec::new();
         // Resume 恢复：把已完成的步骤输出装回上下文，供后续步骤
         // （note.read "top" 哨兵、note.export 取上一步笔记）使用
         for step in &task.plan {
@@ -803,7 +933,7 @@ impl<'a> TaskRunner<'a> {
                 continue;
             }
             if let Some(output) = &step.output {
-                outputs.insert(step.step_id.clone(), output.clone());
+                outputs.push((step.step_id.clone(), output.clone()));
                 if step.tool.as_deref() == Some("note.search") {
                     if let Ok(hits) = serde_json::from_value::<Vec<NoteMetadata>>(output.clone()) {
                         last_hits = hits;
@@ -839,11 +969,17 @@ impl<'a> TaskRunner<'a> {
             }
 
             self.log(task, &step_id, "开始执行")?;
+            // 步骤进入 Running 态：前端进度面板据此显示 "…" 运行指示
+            task.plan[index].status = StepStatus::Running;
+            self.tasks.update(task)?;
+            self.emit_step(task, index);
             let mut outcome = self
                 .execute_step(&task.plan[index], &task.task_id, &outputs)
                 .await;
-            // Observer：失败重试 1 次（幂等工具，重试语义安全）
-            if outcome.is_err() {
+            // Observer：失败重试 1 次。仅对只读/幂等步骤重试——
+            // 写类工具（note.create/update/chapter、canvas.node.create/batch-create 等）
+            // 首次失败可能已落盘，重试会造成重复笔记/重复落卡。
+            if outcome.is_err() && step_retry_is_safe(&task.plan[index]) {
                 outcome = self
                     .execute_step(&task.plan[index], &task.task_id, &outputs)
                     .await;
@@ -855,7 +991,7 @@ impl<'a> TaskRunner<'a> {
                     if tool_name.as_deref() == Some("note.search") {
                         last_hits = serde_json::from_value(output.clone()).unwrap_or_default();
                     }
-                    outputs.insert(step_id.clone(), output.clone());
+                    outputs.push((step_id.clone(), output.clone()));
                     task.plan[index].output = Some(output);
                     task.plan[index].status = StepStatus::Done;
                     self.log(task, &step_id, "完成")?;
@@ -905,11 +1041,11 @@ impl<'a> TaskRunner<'a> {
         &self,
         step: &Step,
         task_id: &str,
-        outputs: &HashMap<String, Value>,
+        outputs: &[(String, Value)],
     ) -> Result<Value, AppError> {
         match step.kind {
-            StepKind::Tool => self.execute_tool(step, outputs).await,
-            StepKind::Llm => self.execute_llm(step, outputs).await,
+            StepKind::Tool => self.execute_tool(step, task_id, outputs).await,
+            StepKind::Llm => self.execute_llm(step, task_id, outputs).await,
             StepKind::Confirm => Err(AppError::new(
                 "confirmStep",
                 "Confirm 步骤不能直接执行，需要用户确认",
@@ -922,7 +1058,8 @@ impl<'a> TaskRunner<'a> {
     async fn execute_tool(
         &self,
         step: &Step,
-        outputs: &HashMap<String, Value>,
+        task_id: &str,
+        outputs: &[(String, Value)],
     ) -> Result<Value, AppError> {
         match step.tool.as_deref() {
             Some("note.search") => {
@@ -959,6 +1096,13 @@ impl<'a> TaskRunner<'a> {
                     .unwrap_or("");
                 // 工具输入模板：{previousOutput} → 上游步骤输出文本（组卡成文的落盘内容）
                 let content = resolve_previous_output(raw_content, outputs);
+                if content.trim().is_empty() {
+                    // 上游 LLM 失败/未生成内容时禁止落空笔记（否则留下无意义的空笔记且任务仍 Failed）
+                    return Err(AppError::new(
+                        "emptyNoteContent",
+                        "生成内容为空，未创建笔记（请检查上游 LLM 步骤）",
+                    ));
+                }
                 let category = step
                     .input
                     .get("category")
@@ -980,8 +1124,8 @@ impl<'a> TaskRunner<'a> {
                 // 成文留痕：若上游读过画布节点（组卡成文链路），把参与节点标记 drafted_by=新笔记 id
                 if let Some(canvas) = self.canvas {
                     let node_ids: Vec<String> = outputs
-                        .values()
-                        .filter_map(|value| value.get("nodes"))
+                        .iter()
+                        .filter_map(|(_, value)| value.get("nodes"))
                         .filter_map(Value::as_array)
                         .flat_map(|nodes| {
                             nodes
@@ -1282,10 +1426,28 @@ impl<'a> TaskRunner<'a> {
                     .get("limit")
                     .and_then(Value::as_u64)
                     .unwrap_or(5) as usize;
-                let config = default_store()?.load_config()?;
-                let results = searxng_search(&config.searxng_url, query, limit).await?;
-                serde_json::to_value(&results)
-                    .map_err(|e| AppError::new("serializeSearch", format!("序列化搜索结果失败：{e}")))
+                let config = self.notes.load_config()?;
+                if config.searxng_url.trim().is_empty() {
+                    // 未配置 SearXNG：软降级而非报错——步骤照常完成并携带提示，
+                    // 下游 LLM 步骤据此改为离线作答，避免知识采集/联网调研整条任务失败。
+                    return Ok(json!({
+                        "results": [],
+                        "notice": "未配置 SearXNG 地址（设置 → AI 集成 → Web 搜索），本次基于模型自身知识作答（无来源链接）"
+                    }));
+                }
+                // 搜索实例异常（宕机/限流/禁用 JSON）同样软降级，保证知识采集永远可用
+                match searxng_search(&config.searxng_url, query, limit).await {
+                    Ok(results) => serde_json::to_value(&results).map_err(|e| {
+                        AppError::new("serializeSearch", format!("序列化搜索结果失败：{e}"))
+                    }),
+                    Err(error) => Ok(json!({
+                        "results": [],
+                        "notice": format!(
+                            "联网搜索暂不可用（{}），本次基于模型自身知识作答（无来源链接）",
+                            error.message
+                        )
+                    })),
+                }
             }
             Some("note.export") => {
                 // 产物型工具：把上一步 note.read 读到的笔记导出。
@@ -1310,7 +1472,14 @@ impl<'a> TaskRunner<'a> {
                     std::fs::create_dir_all(&export_dir).map_err(|e| {
                         AppError::new("exportWrite", format!("创建导出目录失败：{e}"))
                     })?;
-                    let path = export_dir.join(format!("{}.md", sanitize_filename(title)));
+                    // 同名文件不覆盖：追加序号（标题.md、标题-2.md、标题-3.md…）
+                    let base = sanitize_filename(title);
+                    let mut path = export_dir.join(format!("{base}.md"));
+                    let mut counter = 2;
+                    while path.exists() {
+                        path = export_dir.join(format!("{base}-{counter}.md"));
+                        counter += 1;
+                    }
                     std::fs::write(&path, format!("# {title}\n\n{content}\n")).map_err(|e| {
                         AppError::new("exportWrite", format!("写入导出文件失败：{e}"))
                     })?;
@@ -1414,7 +1583,7 @@ impl<'a> TaskRunner<'a> {
                 serde_json::to_value(&doc)
                     .map_err(|e| AppError::new("serializeCanvas", format!("序列化画布失败：{e}")))
             }
-            Some("llm.generate") => self.execute_llm(step, outputs).await,
+            Some("llm.generate") => self.execute_llm(step, task_id, outputs).await,
             Some(other) => Err(AppError::new(
                 "unknownTool",
                 format!("未知工具：{other}"),
@@ -1427,7 +1596,8 @@ impl<'a> TaskRunner<'a> {
     async fn execute_llm(
         &self,
         step: &Step,
-        outputs: &HashMap<String, Value>,
+        task_id: &str,
+        outputs: &[(String, Value)],
     ) -> Result<Value, AppError> {
         let provider = self.llm.as_ref().ok_or_else(|| {
             AppError::new(
@@ -1443,24 +1613,27 @@ impl<'a> TaskRunner<'a> {
                     .get("promptTemplate")
                     .and_then(Value::as_str)
                     .unwrap_or("请根据以下材料完成：\n{previousOutput}");
+                // 有序输出表：最后一个即"最近完成的步骤"的输出（确定性）
                 let previous = outputs
-                    .values()
                     .last()
-                    .map(output_text)
+                    .map(|(_, value)| output_text(value))
                     .unwrap_or_default();
                 template.replace("{previousOutput}", &previous)
             }
         };
-        // Phase F：RAG 记忆注入（input.retrieve 触发语义检索）
+        // Phase F：RAG 记忆注入（input.retrieve 触发语义检索）；
+        // 召回内容随输出带回前端，任务面板可展示"记忆层"（透明可观察）
+        let mut memory_context = String::new();
         if let Some(query) = step.input.get("retrieve").and_then(Value::as_str) {
             if !query.trim().is_empty() {
                 let context = self.retrieve_context(query, 5).await?;
                 if !context.is_empty() {
                     prompt = format!("相关笔记资料：\n{context}\n\n任务：\n{prompt}");
+                    memory_context = context;
                 }
             }
         }
-        output_bus::live2d(self.app, "task-llm", "thinking", 40, "思考中…");
+        output_bus::live2d(self.app, task_id, "thinking", 40, "思考中…");
         let text = provider
             .complete_prompt(
                 "你是花箴里的 AI 助手。回答要准确、简洁、贴合用户的本地笔记与画布内容，不要编造。",
@@ -1468,19 +1641,32 @@ impl<'a> TaskRunner<'a> {
                 2048,
             )
             .await?;
-        Ok(json!({ "text": text }))
+        Ok(json!({ "text": text, "context": memory_context }))
     }
 
-    /// Phase F：从向量库检索相关块拼成上下文
+    /// Phase F：从向量库检索相关块拼成上下文。
+    /// 全程 best-effort：未配置 embedding 供应商 / 检索失败时返回空串，
+    /// 绝不因记忆注入失败而拖垮整条任务（与 rag::index_source 的降级语义一致）。
     async fn retrieve_context(&self, query: &str, top_k: usize) -> Result<String, AppError> {
         let Some(vectors) = self.vectors else { return Ok(String::new()) };
-        let config = default_store()?.load_config()?;
-        let endpoint = resolve_endpoint(&config)?;
-        let provider = crate::services::agent::llm_provider::HttpEmbeddingProvider::new(endpoint)?;
+        let Ok(config) = default_store().and_then(|store| store.load_config()) else {
+            return Ok(String::new());
+        };
+        let Ok(endpoint) = resolve_endpoint(&config) else {
+            return Ok(String::new());
+        };
+        let Ok(provider) = crate::services::agent::llm_provider::HttpEmbeddingProvider::new(endpoint)
+        else {
+            return Ok(String::new());
+        };
         let model = provider.model().to_string();
-        let chunks = rag::retrieve(vectors, &model, query, top_k, |text| provider.embed(text))
-            .await?;
-        Ok(rag::build_context(&chunks, 1500))
+        match rag::retrieve(vectors, &model, query, top_k, |text| provider.embed(text)).await {
+            Ok(chunks) => Ok(rag::build_context(&chunks, 1500)),
+            Err(error) => {
+                log::debug!("[memory] 检索记忆上下文失败（已跳过注入）: {}", error.message);
+                Ok(String::new())
+            }
+        }
     }
 
     /// Output 步骤（Phase E）：分发到输出总线
@@ -1565,6 +1751,30 @@ impl<'a> TaskRunner<'a> {
 
     /// 汇总执行结果，写进 context.summary
     fn build_summary(&self, task: &Task, last_hits: &[NoteMetadata]) -> String {
+        // 知识采集：canvas.batch-create 自带落卡汇总（已采集 N 条知识卡）
+        if let Some(summary) = task
+            .plan
+            .iter()
+            .find(|step| step.tool.as_deref() == Some("canvas.batch-create"))
+            .and_then(|step| step.output.as_ref())
+            .and_then(|out| out.get("summary"))
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+        {
+            return summary.to_string();
+        }
+        // 新建笔记成功：报告笔记标题（总结/成文/调研等）
+        if let Some(title) = task
+            .plan
+            .iter()
+            .find(|step| step.tool.as_deref() == Some("note.create"))
+            .and_then(|step| step.output.as_ref())
+            .and_then(|out| out.get("title"))
+            .and_then(Value::as_str)
+            .filter(|t| !t.is_empty())
+        {
+            return format!("已生成笔记《{title}》");
+        }
         let read_title = task
             .plan
             .iter()
@@ -1594,14 +1804,12 @@ impl<'a> TaskRunner<'a> {
 }
 
 /// 从 outputs 里找最近一次 note.read 读到的笔记（Note JSON 含 title + content）
-fn last_read_note(outputs: &HashMap<String, Value>) -> Result<Value, AppError> {
-    let mut found: Vec<Value> = outputs
+fn last_read_note(outputs: &[(String, Value)]) -> Result<Value, AppError> {
+    outputs
         .iter()
-        .filter(|(_, value)| value.get("title").is_some() && value.get("content").is_some())
+        .rev()
+        .find(|(_, value)| value.get("title").is_some() && value.get("content").is_some())
         .map(|(_, value)| value.clone())
-        .collect();
-    found
-        .pop()
         .ok_or_else(|| AppError::new("noNoteRead", "导出前需要先读取笔记（note.read）"))
 }
 
@@ -1620,7 +1828,7 @@ fn sanitize_filename(name: &str) -> String {
 }
 
 /// 从 outputs 里找最近一次 note.search 命中的第一条 id（供 "top" 哨兵）
-fn last_search_hit(outputs: &HashMap<String, Value>, current_step: &str) -> Result<String, AppError> {
+fn last_search_hit(outputs: &[(String, Value)], current_step: &str) -> Result<String, AppError> {
     outputs
         .iter()
         .filter(|(id, _)| id.as_str() != current_step)
@@ -1688,12 +1896,11 @@ fn output_text(value: &Value) -> String {
 
 /// 工具输入模板：{previousOutput} → 上游步骤输出文本（组卡成文的落盘内容）。
 /// 输出为空时原样返回（避免把空内容写进笔记）。
-pub fn resolve_previous_output(raw: &str, outputs: &HashMap<String, Value>) -> String {
+pub fn resolve_previous_output(raw: &str, outputs: &[(String, Value)]) -> String {
     if raw.contains("{previousOutput}") {
         let previous = outputs
-            .values()
             .last()
-            .map(output_text)
+            .map(|(_, value)| output_text(value))
             .unwrap_or_default();
         raw.replace("{previousOutput}", &previous)
     } else {
@@ -1702,10 +1909,11 @@ pub fn resolve_previous_output(raw: &str, outputs: &HashMap<String, Value>) -> S
 }
 
 /// 从 outputs 里取最近一次 LLM 生成文本（扩写/润色链路中只有 LLM 步骤产出 {text}）
-fn last_llm_output_text(outputs: &HashMap<String, Value>) -> Option<String> {
+fn last_llm_output_text(outputs: &[(String, Value)]) -> Option<String> {
     outputs
-        .values()
-        .find_map(|v| v.get("text").and_then(Value::as_str))
+        .iter()
+        .rev()
+        .find_map(|(_, value)| value.get("text").and_then(Value::as_str))
         .map(str::to_string)
 }
 
@@ -1791,7 +1999,11 @@ pub async fn agent_task_create_and_run(
     goal: String,
 ) -> Result<Task, AppError> {
     let mut task = Task::new(
-        format!("task-{}", chrono::Utc::now().timestamp_millis()),
+        format!(
+            "task-{}-{}",
+            chrono::Utc::now().timestamp_millis(),
+            uuid::Uuid::new_v4().simple().to_string().chars().take(6).collect::<String>()
+        ),
         goal,
     );
     store.create(&task)?;
@@ -1833,11 +2045,29 @@ pub async fn agent_task_confirm(
     let mut task = store
         .get(&task_id)?
         .ok_or_else(|| AppError::new("taskNotFound", format!("任务 {task_id} 不存在")))?;
+    // 安全校验：只有暂停等待确认的任务可以确认，且 step 必须是当前暂停的待确认步骤
+    if task.status != TaskStatus::AwaitingConfirm {
+        return Err(AppError::new(
+            "taskNotAwaitingConfirm",
+            format!("任务处于 {:?}，无法确认步骤", task.status),
+        ));
+    }
+    let awaiting_step = task.plan.iter().find(|s| {
+        s.required_confirm
+            && !s.confirmed
+            && !matches!(s.status, StepStatus::Done | StepStatus::Cancelled | StepStatus::Failed)
+    });
+    if !awaiting_step.is_some_and(|s| s.step_id == step_id) {
+        return Err(AppError::new(
+            "stepNotAwaiting",
+            format!("步骤 {step_id} 不是当前待确认步骤"),
+        ));
+    }
     let step = task
         .plan
         .iter_mut()
         .find(|step| step.step_id == step_id)
-        .ok_or_else(|| AppError::new("stepNotFound", format!("步骤 {step_id} 不存在")))?;
+        .expect("awaiting_step 已确认存在");
     step.confirmed = true;
     if !ok {
         step.status = StepStatus::Cancelled;
@@ -1932,6 +2162,35 @@ mod tests {
         assert_eq!(extract_query("检索 向量检索 相关笔记"), "向量检索");
         assert_eq!(extract_query("帮我搜索 gsap 相关内容"), "gsap");
         assert_eq!(extract_query(""), "");
+    }
+
+    #[test]
+    fn extract_query_strips_multiple_leading_verbs() {
+        // 连续动词前缀要剥干净："请帮我搜索 X" → 先剥"请帮我"再剥"搜索"
+        assert_eq!(extract_query("请帮我搜索 Tauri"), "Tauri");
+        assert_eq!(extract_query("帮我搜索 RAG"), "RAG");
+        assert_eq!(extract_query("帮我查找一下向量检索"), "向量检索");
+    }
+
+    #[test]
+    fn extract_node_id_skips_junk_tokens() {
+        // 前端格式：node- 前缀 id
+        assert_eq!(extract_node_id("扩写节点 node-123 的内容：原文").as_deref(), Some("node-123"));
+        // 无 node 前缀时取首个非虚词 token
+        assert_eq!(extract_node_id("扩写节点 n1 的内容：原文").as_deref(), Some("n1"));
+        // "扩写这个节点的内容：X" 不应解析出 id="的"
+        assert_ne!(extract_node_id("扩写这个节点的内容：原文").as_deref(), Some("的"));
+    }
+
+    #[test]
+    fn parse_first_json_ignores_trailing_garbage_with_braces() {
+        let value = parse_first_json(
+            "```json\n{\"cards\": [{\"text\": \"a\"}]}\n``` 以及补充说明：注意结尾 } 别被吃掉",
+        )
+        .unwrap();
+        assert_eq!(value["cards"][0]["text"], "a");
+        // 无 JSON 时明确报错而非乱截
+        assert!(parse_first_json("没有 JSON 内容").is_err());
     }
 
     #[test]
@@ -2100,7 +2359,11 @@ mod tests {
         task.plan = vec![
             tool_step("s1", "note.search", json!({"query": "RAG", "limit": 5})),
             tool_step("s2", "note.read", json!({"id": "top"})),
-            tool_step_confirm("s3", "note.create", json!({"title": "确认测试"})),
+            tool_step_confirm(
+                "s3",
+                "note.create",
+                json!({"title": "确认测试", "content": "{previousOutput}"}),
+            ),
         ];
         tasks.update(&task).unwrap();
 
@@ -2164,13 +2427,13 @@ mod tests {
 
     #[test]
     fn last_search_hit_resolves_top_id() {
-        let mut outputs = HashMap::new();
-        outputs.insert(
+        let mut outputs: Vec<(String, Value)> = Vec::new();
+        outputs.push((
             "s1".to_string(),
             json!([{"id": "n1", "title": "a"}, {"id": "n2", "title": "b"}]),
-        );
+        ));
         assert_eq!(last_search_hit(&outputs, "s2").unwrap(), "n1");
-        assert!(last_search_hit(&HashMap::new(), "s2").is_err());
+        assert!(last_search_hit(&Vec::new(), "s2").is_err());
     }
 
     // ── 技能注册表 ──────────────────────────────────────────────────────────
@@ -2609,17 +2872,33 @@ mod tests {
 
     #[test]
     fn resolve_previous_output_substitutes_llm_text() {
-        let mut outputs = HashMap::new();
-        outputs.insert(
-            "w2".into(),
-            json!({ "text": "这是生成的成文内容" }),
-        );
+        let mut outputs: Vec<(String, Value)> = Vec::new();
+        outputs.push(("w2".into(), json!({ "text": "这是生成的成文内容" })));
         let resolved = resolve_previous_output("{previousOutput}", &outputs);
         assert_eq!(resolved, "这是生成的成文内容");
 
         // 无占位符 → 原样返回；空输出 → 空替换不报错
         assert_eq!(resolve_previous_output("固定内容", &outputs), "固定内容");
-        assert_eq!(resolve_previous_output("{previousOutput}", &HashMap::new()), "");
+        assert_eq!(resolve_previous_output("{previousOutput}", &Vec::new()), "");
+    }
+
+    #[test]
+    fn resolve_previous_output_takes_most_recent_completed_step() {
+        // 有序输出表必须取"最后完成的步骤"，而非 HashMap 随机顺序
+        let outputs = vec![
+            ("k1".to_string(), json!({"results": [], "notice": "搜索不可用"})),
+            ("k2".to_string(), json!({"text": "LLM 提炼结果"})),
+        ];
+        assert_eq!(
+            resolve_previous_output("{previousOutput}", &outputs),
+            "LLM 提炼结果"
+        );
+        // 无 LLM 文本时回退到上一步原始输出
+        let raw_only = vec![("k1".to_string(), json!([{"id": "n1", "title": "a"}]))];
+        assert_eq!(
+            resolve_previous_output("{previousOutput}", &raw_only),
+            r#"[{"id":"n1","title":"a"}]"#
+        );
     }
 
     #[test]
@@ -2851,6 +3130,66 @@ mod tests {
     }
 
     #[test]
+    fn apply_ai_groups_drops_ghost_ids_and_dedupes_across_groups() {
+        let dir = temp_dir("ai_groups_safe");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut doc = CanvasDocument {
+            id: "c-safe".into(),
+            note_id: None,
+            co_write_session_id: None,
+            nodes: vec![
+                CanvasNode { id: "n1".into(), text: "A".into(), ..CanvasNode::default() },
+                CanvasNode { id: "n2".into(), text: "B".into(), ..CanvasNode::default() },
+            ],
+            edges: vec![],
+            groups: vec![],
+        };
+        // LLM 幻觉 id "ghost" 必须被丢弃；n1 同时出现在两组 → 只归第一组
+        apply_ai_groups(
+            &mut doc,
+            &[
+                GroupSpec { title: "第一组".into(), node_ids: vec!["n1".into(), "ghost".into()] },
+                GroupSpec { title: "第二组".into(), node_ids: vec!["n1".into(), "n2".into()] },
+            ],
+        );
+        assert_eq!(doc.groups.len(), 2);
+        assert_eq!(doc.groups[0].node_ids, vec!["n1"]);
+        assert_eq!(doc.groups[1].node_ids, vec!["n2"], "n1 已归第一组，不重复出现");
+        let n1_group = doc.nodes.iter().find(|n| n.id == "n1").unwrap().group.clone();
+        assert_eq!(n1_group.as_deref(), Some("group-ai-0"));
+        // 全部为幻觉 id → 不生成幽灵分组
+        let mut doc2 = CanvasDocument {
+            id: "c-safe2".into(),
+            note_id: None,
+            co_write_session_id: None,
+            nodes: vec![],
+            edges: vec![],
+            groups: vec![],
+        };
+        apply_ai_groups(&mut doc2, &[GroupSpec { title: "空组".into(), node_ids: vec!["ghost".into()] }]);
+        assert!(doc2.groups.is_empty(), "全幻觉分组不应落盘");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn enforce_write_confirmation_forces_confirm_on_write_tools() {
+        let mut plan = vec![
+            tool_step("p1", "note.search", json!({"query": "x"})),
+            tool_step("p2", "note.create", json!({"title": "t"})),
+            tool_step("p3", "web.search", json!({"query": "q"})),
+            tool_step("p4", "canvas.read", json!({})),
+            llm_step("p5", json!({})),
+        ];
+        enforce_write_confirmation(&mut plan);
+        assert!(!plan[0].required_confirm, "只读工具不强制确认");
+        assert!(plan[1].required_confirm, "note.create 必须确认");
+        assert!(plan[2].required_confirm, "web.search 必须确认");
+        assert!(!plan[3].required_confirm);
+        assert!(!plan[4].required_confirm, "LLM 步骤不强制确认");
+    }
+
+    #[test]
     fn plan_for_goal_expands_group_pipeline() {
         let plan = plan_for_goal("自动分组画布卡片");
         assert_eq!(plan.len(), 3);
@@ -2911,7 +3250,8 @@ mod tests {
         assert!(plan[1].kind == StepKind::Llm);
         assert!(plan[1].input["promptTemplate"].as_str().unwrap().contains("cards"));
         assert_eq!(plan[2].tool.as_deref(), Some("canvas.batch-create"));
-        assert!(plan[2].required_confirm);
+        // 知识采集是全自动流水线：落卡步骤不再要求用户确认
+        assert!(!plan[2].required_confirm);
         assert_eq!(plan[2].input["question"], "怎么学习番茄工作法");
     }
 
@@ -2973,5 +3313,58 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(temp_dir("collect_tasks"));
         let _ = std::fs::remove_dir_all(temp_dir("collect_notes"));
+    }
+
+    #[test]
+    fn runner_web_search_soft_degrades_without_searxng_or_when_unreachable() {
+        // web.search 必须软降级：未配置 SearXNG / 实例连不上时都返回 Done + 空 results + notice，
+        // 整条任务继续执行，而不是 "回答失败"。（配置写在 runner 注入的 notes store 里，无全局 env 竞态）
+        let notes = notes_store("web_search_notes");
+        let tasks = task_store("web_search_tasks");
+
+        // 场景 1：未配置 SearXNG（用户清空地址）
+        {
+            let mut cfg = notes.load_config().unwrap();
+            cfg.searxng_url = String::new();
+            notes.save_config(cfg).unwrap();
+        }
+        let mut task = Task::new("t-ws-unconfigured", "知识采集：番茄工作法");
+        task.plan = vec![tool_step(
+            "k1",
+            "web.search",
+            json!({ "query": "番茄工作法", "limit": 6 }),
+        )];
+        tasks.create(&task).unwrap();
+        let test_runner = runner(&tasks, &notes);
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        let out = task.plan[0].output.as_ref().expect("web.search 有输出");
+        assert_eq!(out["results"].as_array().map(Vec::len), Some(0));
+        assert!(out["notice"].as_str().unwrap_or_default().contains("未配置"));
+
+        // 场景 2：配置了地址但实例连不上（端口 1 → 立即连接拒绝）
+        {
+            let mut cfg = notes.load_config().unwrap();
+            cfg.searxng_url = "http://127.0.0.1:1".to_string();
+            notes.save_config(cfg).unwrap();
+        }
+        let mut task = Task::new("t-ws-down", "知识采集：番茄工作法");
+        task.plan = vec![tool_step(
+            "k1",
+            "web.search",
+            json!({ "query": "番茄工作法", "limit": 6 }),
+        )];
+        tasks.create(&task).unwrap();
+        let test_runner = runner(&tasks, &notes);
+        tauri::async_runtime::block_on(test_runner.run(&mut task)).unwrap();
+        assert_eq!(task.status, TaskStatus::Done);
+        assert_eq!(task.plan[0].status, StepStatus::Done);
+        let out = task.plan[0].output.as_ref().expect("web.search 有输出");
+        assert_eq!(out["results"].as_array().map(Vec::len), Some(0));
+        assert!(out["notice"].as_str().unwrap_or_default().contains("暂不可用"));
+
+        let _ = std::fs::remove_dir_all(temp_dir("web_search_tasks"));
+        let _ = std::fs::remove_dir_all(temp_dir("web_search_notes"));
     }
 }

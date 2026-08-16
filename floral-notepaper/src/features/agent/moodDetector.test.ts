@@ -56,7 +56,9 @@ describe("assessAnxiety", () => {
   it("只统计滑动窗口内的事件", () => {
     const now = 1_000_000;
     // 窗口外的大量删除不应计入
-    const old = Array.from({ length: 50 }, (_, i) => ev("delete", now - 600_000 + i * 100, { length: 9 }));
+    const old = Array.from({ length: 50 }, (_, i) =>
+      ev("delete", now - 600_000 + i * 100, { length: 9 }),
+    );
     const r = assessAnxiety(old, DEFAULT_BASELINE, now);
     expect(r.index).toBe(0);
   });

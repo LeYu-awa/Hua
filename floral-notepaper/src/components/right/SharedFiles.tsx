@@ -43,18 +43,21 @@ export function SharedFiles({ conversationId, onDragStart }: SharedFilesProps) {
     }
   }, [conversationId, newName, newIsFolder]);
 
-  const handleDelete = useCallback(async (docId: string) => {
-    if (!window.confirm("确定删除？")) return;
-    try {
-      await deleteDocument(docId);
-      if (conversationId) {
-        const tree = await getDocumentTree(conversationId);
-        setDocuments(tree);
+  const handleDelete = useCallback(
+    async (docId: string) => {
+      if (!window.confirm("确定删除？")) return;
+      try {
+        await deleteDocument(docId);
+        if (conversationId) {
+          const tree = await getDocumentTree(conversationId);
+          setDocuments(tree);
+        }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [conversationId]);
+    },
+    [conversationId],
+  );
 
   const renderNode = (node: FileTreeNode, depth: number = 0) => (
     <div key={node.id}>
@@ -63,30 +66,49 @@ export function SharedFiles({ conversationId, onDragStart }: SharedFilesProps) {
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         draggable={!node.is_folder}
         onDragStart={(e) => {
-          e.dataTransfer.setData("text/plain", JSON.stringify({
-            type: "collab-doc",
-            docId: node.id,
-            title: node.title,
-          }));
+          e.dataTransfer.setData(
+            "text/plain",
+            JSON.stringify({
+              type: "collab-doc",
+              docId: node.id,
+              title: node.title,
+            }),
+          );
           onDragStart?.(node.id, node.title);
         }}
       >
         {node.is_folder ? (
-          <svg className="w-3 h-3 text-ink-faint shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            className="w-3 h-3 text-ink-faint shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
         ) : (
-          <svg className="w-3 h-3 text-ink-faint shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            className="w-3 h-3 text-ink-faint shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
           </svg>
         )}
         <span className="text-[10px] truncate flex-1">
-          {node.title}{node.is_folder ? "/" : ".md"}
+          {node.title}
+          {node.is_folder ? "/" : ".md"}
         </span>
         {!node.is_folder && (
           <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(node.id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(node.id);
+            }}
             className="opacity-0 group-hover:opacity-100 text-[8px] text-ink-faint hover:text-red-400 transition-all cursor-pointer"
           >
             ×
@@ -100,7 +122,9 @@ export function SharedFiles({ conversationId, onDragStart }: SharedFilesProps) {
   if (!conversationId) {
     return (
       <div className="flex-1 flex items-center justify-center text-[10px] text-ink-faint px-2 text-center leading-relaxed">
-        选择对话后<br />显示共享文件
+        选择对话后
+        <br />
+        显示共享文件
       </div>
     );
   }
@@ -109,13 +133,21 @@ export function SharedFiles({ conversationId, onDragStart }: SharedFilesProps) {
     <div className="flex-1 flex flex-col min-h-0">
       <div className="shrink-0 flex items-center gap-1 px-2 py-1.5 border-b border-paper-deep/20">
         <button
-          onClick={() => { setNewIsFolder(false); setNewName(""); setShowNew(true); }}
+          onClick={() => {
+            setNewIsFolder(false);
+            setNewName("");
+            setShowNew(true);
+          }}
           className="px-1.5 py-0.5 rounded text-[9px] text-ink-ghost hover:text-ink hover:bg-paper-warm/60 transition-colors cursor-pointer"
         >
           + 文档
         </button>
         <button
-          onClick={() => { setNewIsFolder(true); setNewName(""); setShowNew(true); }}
+          onClick={() => {
+            setNewIsFolder(true);
+            setNewName("");
+            setShowNew(true);
+          }}
           className="px-1.5 py-0.5 rounded text-[9px] text-ink-ghost hover:text-ink hover:bg-paper-warm/60 transition-colors cursor-pointer"
         >
           + 文件夹

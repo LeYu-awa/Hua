@@ -122,7 +122,10 @@ export function canvasDocumentToWorkflowDocument(doc: CanvasDocument): WorkflowD
     flags: {},
     order: index,
     mode: 0,
-    inputs: node.type === "card" ? [{ name: "text", type: "text", link: linkByTarget.get(node.id) ?? null }] : [],
+    inputs:
+      node.type === "card"
+        ? [{ name: "text", type: "text", link: linkByTarget.get(node.id) ?? null }]
+        : [],
     outputs: [{ name: "text", type: "text", links: linksBySource.get(node.id) ?? [] }],
     shape: "round",
     properties: {

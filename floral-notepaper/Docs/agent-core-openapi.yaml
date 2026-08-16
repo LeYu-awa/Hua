@@ -16,15 +16,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RawEvent'
+              $ref: "#/components/schemas/RawEvent"
       responses:
-        '200':
+        "200":
           description: 标准化事件，若被过滤则返回 filtered=true
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/StandardizedEvent'
+                  - $ref: "#/components/schemas/StandardizedEvent"
                   - type: object
                     properties:
                       filtered:
@@ -53,14 +53,14 @@ paths:
           in: query
           schema: { type: integer, minimum: 0, default: 0 }
       responses:
-        '200':
+        "200":
           description: 标准化事件列表
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/StandardizedEvent'
+                  $ref: "#/components/schemas/StandardizedEvent"
   /canvas/index:
     post:
       summary: 增量更新画布节点索引
@@ -70,9 +70,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CanvasChange'
+              $ref: "#/components/schemas/CanvasChange"
       responses:
-        '204': { description: 已更新 }
+        "204": { description: 已更新 }
     get:
       summary: 查询画布节点索引
       operationId: queryCanvasIndex
@@ -96,14 +96,14 @@ paths:
           in: query
           schema: { type: number }
       responses:
-        '200':
+        "200":
           description: 命中的画布节点索引
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/CanvasNodeIndex'
+                  $ref: "#/components/schemas/CanvasNodeIndex"
   /embeddings:
     post:
       summary: 生成并缓存文本向量
@@ -119,12 +119,12 @@ paths:
                 text: { type: string }
                 dimension: { type: integer, minimum: 1, default: 768 }
       responses:
-        '200':
+        "200":
           description: 向量记录
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EmbeddingRecord'
+                $ref: "#/components/schemas/EmbeddingRecord"
   /embeddings/search:
     post:
       summary: 向量相似度 Top-N 查询
@@ -142,14 +142,14 @@ paths:
                   items: { type: number }
                 topN: { type: integer, minimum: 1, default: 5 }
       responses:
-        '200':
+        "200":
           description: 相似文本结果
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SimilarityResult'
+                  $ref: "#/components/schemas/SimilarityResult"
   /rules/evaluate:
     post:
       summary: 执行规则匹配流水线
@@ -165,16 +165,16 @@ paths:
                 events:
                   type: array
                   items:
-                    $ref: '#/components/schemas/StandardizedEvent'
+                    $ref: "#/components/schemas/StandardizedEvent"
       responses:
-        '200':
+        "200":
           description: 触发指令列表
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/TriggerInstruction'
+                  $ref: "#/components/schemas/TriggerInstruction"
   /llm/invoke:
     post:
       summary: 组装 Prompt 并调用 LLM
@@ -184,14 +184,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LlmRequest'
+              $ref: "#/components/schemas/LlmRequest"
       responses:
-        '200':
+        "200":
           description: 标准化洞察
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StructuredInsight'
+                $ref: "#/components/schemas/StructuredInsight"
   /insights/dispatch:
     post:
       summary: 分发结构化洞察到 UI、Live2D、回放库和复盘报告
@@ -201,16 +201,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StructuredInsight'
+              $ref: "#/components/schemas/StructuredInsight"
       responses:
-        '200':
+        "200":
           description: 各渠道转换后的 payload
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RoutedInsightPayload'
+                  $ref: "#/components/schemas/RoutedInsightPayload"
   /profiles/{userId}:
     get:
       summary: 查询用户画像
@@ -221,12 +221,12 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: 用户画像
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserProfile'
+                $ref: "#/components/schemas/UserProfile"
     put:
       summary: 新增或更新用户画像
       operationId: upsertUserProfile
@@ -248,12 +248,12 @@ paths:
                   type: object
                   additionalProperties: { type: string }
       responses:
-        '200':
+        "200":
           description: 用户画像
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserProfile'
+                $ref: "#/components/schemas/UserProfile"
   /replay/markers:
     post:
       summary: 从事件和洞察生成回放关键帧
@@ -269,22 +269,22 @@ paths:
                 events:
                   type: array
                   items:
-                    $ref: '#/components/schemas/StandardizedEvent'
+                    $ref: "#/components/schemas/StandardizedEvent"
                 insights:
                   type: array
                   items:
-                    $ref: '#/components/schemas/StructuredInsight'
+                    $ref: "#/components/schemas/StructuredInsight"
                 config:
-                  $ref: '#/components/schemas/ReplayMarkerConfig'
+                  $ref: "#/components/schemas/ReplayMarkerConfig"
       responses:
-        '200':
+        "200":
           description: 回放关键帧列表
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ReplayKeyframe'
+                  $ref: "#/components/schemas/ReplayKeyframe"
   /live2d/signals:
     post:
       summary: 入队 Live2D 动作信号
@@ -294,9 +294,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Live2DSignal'
+              $ref: "#/components/schemas/Live2DSignal"
       responses:
-        '202': { description: 已入队 }
+        "202": { description: 已入队 }
   /live2d/heartbeat:
     post:
       summary: 更新 Live2D 心跳状态
@@ -311,12 +311,12 @@ paths:
               properties:
                 connected: { type: boolean }
       responses:
-        '200':
+        "200":
           description: 当前连接和队列状态
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HeartbeatStatus'
+                $ref: "#/components/schemas/HeartbeatStatus"
 components:
   schemas:
     RawEvent:
@@ -326,7 +326,7 @@ components:
         eventType: { type: string }
         timestamp: { type: string, format: date-time }
         source:
-          $ref: '#/components/schemas/EventSource'
+          $ref: "#/components/schemas/EventSource"
         payload: { type: object, additionalProperties: true }
     EventSource:
       type: object
@@ -354,7 +354,7 @@ components:
       properties:
         kind: { type: string, enum: [upsert, delete] }
         node:
-          $ref: '#/components/schemas/CanvasNodeInput'
+          $ref: "#/components/schemas/CanvasNodeInput"
         nodeId: { type: string }
     CanvasNodeInput:
       type: object
@@ -363,7 +363,7 @@ components:
         nodeId: { type: string }
         nodeType: { type: string }
         position:
-          $ref: '#/components/schemas/CanvasPosition'
+          $ref: "#/components/schemas/CanvasPosition"
         richText: { type: string }
         annotation: { type: string }
         note: { type: string }
@@ -371,10 +371,10 @@ components:
         relations:
           type: array
           items:
-            $ref: '#/components/schemas/CanvasRelation'
+            $ref: "#/components/schemas/CanvasRelation"
     CanvasNodeIndex:
       allOf:
-        - $ref: '#/components/schemas/CanvasNodeInput'
+        - $ref: "#/components/schemas/CanvasNodeInput"
         - type: object
           properties:
             text: { type: string }
@@ -452,7 +452,11 @@ components:
     RoutedInsightPayload:
       type: object
       properties:
-        channel: { type: string, enum: [uiRealtime, live2DSignal, replayLibrary, reviewReport, fallbackLog] }
+        channel:
+          {
+            type: string,
+            enum: [uiRealtime, live2DSignal, replayLibrary, reviewReport, fallbackLog],
+          }
         content: { type: object, additionalProperties: true }
     UserProfile:
       type: object

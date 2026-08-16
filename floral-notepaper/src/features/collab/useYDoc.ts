@@ -65,8 +65,7 @@ export function useYDoc({ documentId }: UseYDocOptions): UseYDocResult {
       // 1. 获取当前用户信息
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id ?? "anonymous";
-      const userName =
-        userData.user?.email?.split("@")[0] ?? "用户" + userId.slice(0, 4);
+      const userName = userData.user?.email?.split("@")[0] ?? "用户" + userId.slice(0, 4);
 
       // 2. 从 DB 加载已有内容
       let initialContent = "";
@@ -120,27 +119,24 @@ export function useYDoc({ documentId }: UseYDocOptions): UseYDocResult {
   }, [documentId]);
 
   // ---- 设置内容（来自 textarea onChange） ----
-  const setContent = useCallback(
-    (value: string) => {
-      const p = providerRef.current;
-      if (!p) {
-        setContentState(value);
-        return;
-      }
-
-      isLocalChange.current = true;
-      const yText = p.doc.getText("content");
-      const oldValue = yText.toString();
-      if (oldValue !== value) {
-        // 全量替换（简单有效）
-        yText.delete(0, oldValue.length);
-        yText.insert(0, value);
-      }
+  const setContent = useCallback((value: string) => {
+    const p = providerRef.current;
+    if (!p) {
       setContentState(value);
-      isLocalChange.current = false;
-    },
-    [],
-  );
+      return;
+    }
+
+    isLocalChange.current = true;
+    const yText = p.doc.getText("content");
+    const oldValue = yText.toString();
+    if (oldValue !== value) {
+      // 全量替换（简单有效）
+      yText.delete(0, oldValue.length);
+      yText.insert(0, value);
+    }
+    setContentState(value);
+    isLocalChange.current = false;
+  }, []);
 
   // ---- 自动持久化到 DB（防抖 2 秒） ----
   useEffect(() => {

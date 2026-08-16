@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  cosineSimilarity,
-  hasEmbeddingProvider,
-  spatialDistance,
-} from "./embeddingService";
+import { cosineSimilarity, hasEmbeddingProvider, spatialDistance } from "./embeddingService";
 import type { ProviderConfig } from "../settings/types";
 
 describe("cosineSimilarity", () => {

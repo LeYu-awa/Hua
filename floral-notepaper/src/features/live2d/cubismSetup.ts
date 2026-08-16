@@ -55,10 +55,16 @@ function loadCubismCoreScript(): Promise<void> {
   if (hasCubism5Core()) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-live2d-cubism-core="true"]');
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[data-live2d-cubism-core="true"]',
+    );
     if (existing) {
       existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Live2DCubismCore script load failed")), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Live2DCubismCore script load failed")),
+        { once: true },
+      );
       return;
     }
 
@@ -108,12 +114,19 @@ export async function ensureCubismCore(): Promise<void> {
     });
 
     if (!hasCubism5Core()) {
-      reportCubismDebug("C", "cubismSetup.ts:ensureCubismCore", "Cubism Core v5 global missing after script load", {
-        hasCore: hasCubismCore(),
-        coreVersion: getCubismCoreVersion(),
-        coreMajorVersion: getCubismCoreMajorVersion(),
-      });
-      throw new Error(`Live2DCubismCore v5 is not available (current major: ${getCubismCoreMajorVersion() ?? "unknown"})`);
+      reportCubismDebug(
+        "C",
+        "cubismSetup.ts:ensureCubismCore",
+        "Cubism Core v5 global missing after script load",
+        {
+          hasCore: hasCubismCore(),
+          coreVersion: getCubismCoreVersion(),
+          coreMajorVersion: getCubismCoreMajorVersion(),
+        },
+      );
+      throw new Error(
+        `Live2DCubismCore v5 is not available (current major: ${getCubismCoreMajorVersion() ?? "unknown"})`,
+      );
     }
 
     reportCubismDebug("A", "cubismSetup.ts:ensureCubismCore", "importing cubism5 runtime");

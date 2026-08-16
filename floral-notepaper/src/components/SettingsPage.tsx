@@ -37,6 +37,7 @@ const AccountPanel = lazy(() =>
 type SettingsSection =
   | "preferences"
   | "providers"
+  | "aiIntegration"
   | "defaultModels"
   | "hotkeys"
   | "account"
@@ -56,6 +57,7 @@ interface SectionDef {
 const SECTIONS: SectionDef[] = [
   { key: "preferences", label: "偏好设置", icon: "monitor" },
   { key: "providers", label: "供应商", icon: "boxes" },
+  { key: "aiIntegration", label: "AI 集成", icon: "sparkle" },
   { key: "defaultModels", label: "默认模型", icon: "heart" },
   { key: "hotkeys", label: "快捷键", icon: "keyboard" },
   { key: "account", label: "账户", icon: "user" },
@@ -360,6 +362,8 @@ function SectionContent({
       return <PreferencesPanel config={config} onChange={onConfigChange} />;
     case "providers":
       return <ProvidersPanel providers={providers} onProvidersChange={onProvidersChange} />;
+    case "aiIntegration":
+      return <AiIntegrationPanel config={config} onChange={onConfigChange} />;
     case "defaultModels":
       return <DefaultModelsPanel config={config} providers={providers} onChange={onConfigChange} />;
     case "hotkeys":
@@ -866,7 +870,9 @@ function providerTemplate(template: string): ProviderConfig {
       apiKey: "",
       baseUrl: "https://generativelanguage.googleapis.com",
       apiPath: "",
-      models: [{ modelId: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", modelTypes: ["chat"] }],
+      models: [
+        { modelId: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", modelTypes: ["chat"] },
+      ],
     };
   if (n === "claude")
     return {
@@ -877,7 +883,9 @@ function providerTemplate(template: string): ProviderConfig {
       apiKey: "",
       baseUrl: "https://api.anthropic.com",
       apiPath: "/v1/messages",
-      models: [{ modelId: "claude-sonnet-4", displayName: "Claude Sonnet 4", modelTypes: ["chat"] }],
+      models: [
+        { modelId: "claude-sonnet-4", displayName: "Claude Sonnet 4", modelTypes: ["chat"] },
+      ],
     };
   if (n === "deepseek")
     return {
@@ -889,8 +897,16 @@ function providerTemplate(template: string): ProviderConfig {
       baseUrl: "https://api.deepseek.com",
       apiPath: "/v1/chat/completions",
       models: [
-        { modelId: "deepseek-v4-pro", displayName: "DeepSeek V4 Pro", modelTypes: ["chat", "reason"] },
-        { modelId: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash", modelTypes: ["chat", "reason"] },
+        {
+          modelId: "deepseek-v4-pro",
+          displayName: "DeepSeek V4 Pro",
+          modelTypes: ["chat", "reason"],
+        },
+        {
+          modelId: "deepseek-v4-flash",
+          displayName: "DeepSeek V4 Flash",
+          modelTypes: ["chat", "reason"],
+        },
       ],
     };
   return {
@@ -903,7 +919,11 @@ function providerTemplate(template: string): ProviderConfig {
     apiPath: "/chat/completions",
     models: [
       { modelId: "gpt-4.1-mini", displayName: "GPT-4.1 Mini", modelTypes: ["chat"] },
-      { modelId: "text-embedding-3-small", displayName: "text-embedding-3-small", modelTypes: ["embedding"] },
+      {
+        modelId: "text-embedding-3-small",
+        displayName: "text-embedding-3-small",
+        modelTypes: ["embedding"],
+      },
     ],
   };
 }
@@ -1231,9 +1251,7 @@ function ModelRow({
                 type="button"
                 onClick={() => {
                   const current = model.modelTypes ?? [];
-                  const next = active
-                    ? current.filter((t) => t !== type)
-                    : [...current, type];
+                  const next = active ? current.filter((t) => t !== type) : [...current, type];
                   onUpdate({ ...model, modelTypes: next });
                 }}
                 className={`px-2 h-6 rounded-md text-[10px] border transition-colors cursor-pointer ${
@@ -1514,6 +1532,55 @@ function AddModelDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   2.5 AI 集成 panel（Web 搜索 / 知识采集）
+   ══════════════════════════════════════ */
+function AiIntegrationPanel({
+  config,
+  onChange,
+}: {
+  config: AppConfig;
+  onChange: (c: AppConfig) => void;
+}) {
+  const { t } = useTranslation();
+  const searxngUrl = config.searxngUrl ?? "";
+
+  return (
+    <ScrollFrame>
+      <Card title={t("settings.aiIntegration.webSearch", { defaultValue: "Web 搜索（SearXNG）" })}>
+        <p className="text-[10px] leading-relaxed text-ink-ghost mb-3">
+          {t("settings.aiIntegration.webSearchHint", {
+            defaultValue:
+              "画布「知识采集」与「联网调研」通过 SearXNG 搜索互联网，默认已内置公共实例 https://paulgo.io，无需配置即可使用。想用更稳定的自托管实例时，在这里改成自己的地址；清空则降级为模型离线作答。",
+          })}
+        </p>
+        <TextField
+          label="SearXNG URL"
+          value={searxngUrl}
+          onChange={(v) => onChange({ ...config, searxngUrl: v.trim() })}
+          placeholder="https://paulgo.io"
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${searxngUrl.trim() ? "bg-bamboo" : "bg-amber-400"}`}
+          />
+          <span className="text-[10px] text-ink-ghost">
+            {searxngUrl.trim()
+              ? t("settings.aiIntegration.webSearchReady", { defaultValue: "已配置：知识采集将使用联网搜索结果" })
+              : t("settings.aiIntegration.webSearchEmpty", { defaultValue: "未配置：知识采集将离线作答（无来源链接）" })}
+          </span>
+        </div>
+        <p className="mt-3 text-[10px] leading-relaxed text-ink-ghost/70">
+          {t("settings.aiIntegration.dockerHint", {
+            defaultValue:
+              "自托管方案：本仓库提供一键部署 docker/searxng/docker-compose.yml（docker compose up -d 后把地址填到上面）。",
+          })}
+        </p>
+      </Card>
+    </ScrollFrame>
   );
 }
 

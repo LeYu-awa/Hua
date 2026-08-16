@@ -47,7 +47,16 @@ function EmbeddedBongoCompanionLayer() {
   const state = useCompanionEvents(config);
   const latestPositionRef = useRef(config.position);
 
-  useEffect(() => subscribeCompanionConfig((next) => setConfig((current) => ({ ...next, position: dragStart ? current.position : next.position }))), [dragStart]);
+  useEffect(
+    () =>
+      subscribeCompanionConfig((next) =>
+        setConfig((current) => ({
+          ...next,
+          position: dragStart ? current.position : next.position,
+        })),
+      ),
+    [dragStart],
+  );
   useEffect(() => {
     latestPositionRef.current = config.position;
   }, [config.position]);
@@ -85,7 +94,8 @@ function EmbeddedBongoCompanionLayer() {
     };
   }, [dragStart]);
 
-  if (!config.enabled || config.mode !== "embedded" || !config.visible || state.action === "hide") return null;
+  if (!config.enabled || config.mode !== "embedded" || !config.visible || state.action === "hide")
+    return null;
 
   return (
     <BongoCompanionFigure
@@ -135,7 +145,8 @@ function FloatingBongoCompanionLayer() {
   }, []);
 
   if (config.renderer === "live2d") return null;
-  if (!config.enabled || config.mode !== "floating" || !config.visible || state.action === "hide") return null;
+  if (!config.enabled || config.mode !== "floating" || !config.visible || state.action === "hide")
+    return null;
 
   return (
     <BongoCompanionFigure
@@ -162,7 +173,14 @@ function BongoCompanionFigure({
   onPointerDown: PointerEventHandler<HTMLDivElement>;
 }) {
   if (isBuiltInYunoSprite(config)) {
-    return <YunoSpriteCompanionFigure config={config} state={state} surface={surface} onPointerDown={onPointerDown} />;
+    return (
+      <YunoSpriteCompanionFigure
+        config={config}
+        state={state}
+        surface={surface}
+        onPointerDown={onPointerDown}
+      />
+    );
   }
 
   const motionLabel = getMotionLabel(config, state);
@@ -179,7 +197,10 @@ function BongoCompanionFigure({
       }}
       aria-label="Bongocat 写作陪伴"
     >
-      <div className={`bongo-companion-card action-${state.action} paw-${state.paw}`} onPointerDown={onPointerDown}>
+      <div
+        className={`bongo-companion-card action-${state.action} paw-${state.paw}`}
+        onPointerDown={onPointerDown}
+      >
         <div className="bongo-companion-glow" />
         <div className="bongo-companion-ear left" />
         <div className="bongo-companion-ear right" />
@@ -219,7 +240,12 @@ function YunoSpriteCompanionFigure({
   const carouselImage = useCompanionCarouselImage(config, assetBase);
 
   if (config.inputMode === "standard") {
-    const standardCarouselImage = carouselImage && !carouselImage.includes("/standard/hand/") && carouselImage !== `${assetBase}/cat.png` ? carouselImage : null;
+    const standardCarouselImage =
+      carouselImage &&
+      !carouselImage.includes("/standard/hand/") &&
+      carouselImage !== `${assetBase}/cat.png`
+        ? carouselImage
+        : null;
 
     return (
       <aside
@@ -233,11 +259,31 @@ function YunoSpriteCompanionFigure({
         }}
         aria-label="尤诺 Bongocat 写作陪伴"
       >
-        <div className={`yuno-companion-card action-${state.action} paw-${state.paw}`} onPointerDown={onPointerDown}>
-          <CompanionImage src={`${assetBase}/cat.png`} className="yuno-companion-frame yuno-cat-frame" eager />
-          <CompanionImage src={`${assetBase}/mousebg.png`} className="yuno-companion-frame yuno-standard-base-frame" eager />
-          {standardCarouselImage ? <CompanionImage src={standardCarouselImage} className="yuno-companion-frame yuno-carousel-frame" /> : null}
-          <CompanionImage src={`${assetBase}/hand/${standardHandFrame}.png`} className="yuno-companion-frame yuno-standard-hand-frame" eager />
+        <div
+          className={`yuno-companion-card action-${state.action} paw-${state.paw}`}
+          onPointerDown={onPointerDown}
+        >
+          <CompanionImage
+            src={`${assetBase}/cat.png`}
+            className="yuno-companion-frame yuno-cat-frame"
+            eager
+          />
+          <CompanionImage
+            src={`${assetBase}/mousebg.png`}
+            className="yuno-companion-frame yuno-standard-base-frame"
+            eager
+          />
+          {standardCarouselImage ? (
+            <CompanionImage
+              src={standardCarouselImage}
+              className="yuno-companion-frame yuno-carousel-frame"
+            />
+          ) : null}
+          <CompanionImage
+            src={`${assetBase}/hand/${standardHandFrame}.png`}
+            className="yuno-companion-frame yuno-standard-hand-frame"
+            eager
+          />
           <div className="bongo-motion-tag">{motionLabel}</div>
         </div>
       </aside>
@@ -256,23 +302,62 @@ function YunoSpriteCompanionFigure({
       }}
       aria-label="尤诺 Bongocat 写作陪伴"
     >
-      <div className={`yuno-companion-card action-${state.action} paw-${state.paw}`} onPointerDown={onPointerDown}>
-        <CompanionImage src={`${assetBase}/cat.png`} className="yuno-companion-frame yuno-cat-frame" eager />
+      <div
+        className={`yuno-companion-card action-${state.action} paw-${state.paw}`}
+        onPointerDown={onPointerDown}
+      >
+        <CompanionImage
+          src={`${assetBase}/cat.png`}
+          className="yuno-companion-frame yuno-cat-frame"
+          eager
+        />
         {carouselImage && carouselImage !== `${assetBase}/cat.png` ? (
-          <CompanionImage src={carouselImage} className="yuno-companion-frame yuno-carousel-frame" />
+          <CompanionImage
+            src={carouselImage}
+            className="yuno-companion-frame yuno-carousel-frame"
+          />
         ) : null}
-        <CompanionImage src={`${assetBase}/bg.png`} className="yuno-companion-frame yuno-keyboard-frame" eager />
-        <CompanionImage src={`${assetBase}/lefthand/${frames.left}.png`} className="yuno-companion-frame yuno-hand-frame" eager />
-        <CompanionImage src={`${assetBase}/righthand/${frames.right}.png`} className="yuno-companion-frame yuno-hand-frame" eager />
+        <CompanionImage
+          src={`${assetBase}/bg.png`}
+          className="yuno-companion-frame yuno-keyboard-frame"
+          eager
+        />
+        <CompanionImage
+          src={`${assetBase}/lefthand/${frames.left}.png`}
+          className="yuno-companion-frame yuno-hand-frame"
+          eager
+        />
+        <CompanionImage
+          src={`${assetBase}/righthand/${frames.right}.png`}
+          className="yuno-companion-frame yuno-hand-frame"
+          eager
+        />
         <div className="bongo-motion-tag">{motionLabel}</div>
       </div>
     </aside>
   );
 }
 
-function CompanionImage({ src, className, eager = false }: { src: string; className: string; eager?: boolean }) {
+function CompanionImage({
+  src,
+  className,
+  eager = false,
+}: {
+  src: string;
+  className: string;
+  eager?: boolean;
+}) {
   const resolvedSrc = useResolvedImageSrc(src);
-  return <img src={resolvedSrc} alt="" draggable={false} loading={eager ? "eager" : "lazy"} decoding="async" className={className} />;
+  return (
+    <img
+      src={resolvedSrc}
+      alt=""
+      draggable={false}
+      loading={eager ? "eager" : "lazy"}
+      decoding="async"
+      className={className}
+    />
+  );
 }
 
 function getMotionLabel(config: CompanionConfig, state: BongocatActionState) {
@@ -347,7 +432,8 @@ function getYunoKeyboardFrames(state: BongocatActionState, step = 0) {
     return { left: frame, right: frame };
   }
   if (state.action === "save") return { left: 0, right: confirmTap[step % confirmTap.length] };
-  if (state.action === "complete") return { left: tap[step % tap.length], right: confirmTap[step % confirmTap.length] };
+  if (state.action === "complete")
+    return { left: tap[step % tap.length], right: confirmTap[step % confirmTap.length] };
   return { left: 0, right: 0 };
 }
 
@@ -378,7 +464,8 @@ function getYunoStandardHandSequence(state: BongocatActionState) {
   if (state.action === "delete" || state.action === "effect") return range(60, 79);
   if (state.action === "moveLeft") return range(30, 44);
   if (state.action === "moveRight") return range(45, 59);
-  if (state.action === "moveUp" || state.action === "save" || state.action === "complete") return range(80, 89);
+  if (state.action === "moveUp" || state.action === "save" || state.action === "complete")
+    return range(80, 89);
   if (state.action === "moveDown") return range(70, 79);
   return [0];
 }
@@ -394,8 +481,13 @@ function getYunoSpriteAssetBase(config: CompanionConfig) {
 }
 
 function useCompanionCarouselImage(config: CompanionConfig, assetBase: string) {
-  const images = useMemo(() => getRenderableCarouselImages(config.carousel.images, assetBase, config.inputMode), [assetBase, config.carousel.images, config.inputMode]);
-  const [index, setIndex] = useState(() => clamp(config.carousel.currentIndex, 0, Math.max(images.length - 1, 0)));
+  const images = useMemo(
+    () => getRenderableCarouselImages(config.carousel.images, assetBase, config.inputMode),
+    [assetBase, config.carousel.images, config.inputMode],
+  );
+  const [index, setIndex] = useState(() =>
+    clamp(config.carousel.currentIndex, 0, Math.max(images.length - 1, 0)),
+  );
 
   useEffect(() => {
     setIndex((current) => clamp(current, 0, Math.max(images.length - 1, 0)));
@@ -403,9 +495,12 @@ function useCompanionCarouselImage(config: CompanionConfig, assetBase: string) {
 
   useEffect(() => {
     if (!config.carousel.enabled || images.length <= 1) return;
-    const interval = window.setInterval(() => {
-      setIndex((current) => getNextCarouselIndex(current, images.length, config.carousel.order));
-    }, Math.max(600, config.carousel.intervalMs));
+    const interval = window.setInterval(
+      () => {
+        setIndex((current) => getNextCarouselIndex(current, images.length, config.carousel.order));
+      },
+      Math.max(600, config.carousel.intervalMs),
+    );
     return () => window.clearInterval(interval);
   }, [config.carousel.enabled, config.carousel.intervalMs, config.carousel.order, images.length]);
 
@@ -414,7 +509,11 @@ function useCompanionCarouselImage(config: CompanionConfig, assetBase: string) {
   return currentImage;
 }
 
-function getRenderableCarouselImages(images: string[], _assetBase: string, inputMode: CompanionConfig["inputMode"]) {
+function getRenderableCarouselImages(
+  images: string[],
+  _assetBase: string,
+  inputMode: CompanionConfig["inputMode"],
+) {
   const source = images.length > 0 ? images : getBuiltInYunoCarouselImages(inputMode);
   const normalized = source
     .map(normalizeCompanionAssetPath)
@@ -431,15 +530,23 @@ function normalizeCarouselImageForMode(image: string, _assetBase: string) {
 function isRenderableImageAsset(image: string) {
   if (!image) return false;
   if (image.startsWith("data:") || image.startsWith("blob:")) return true;
-  if (image.includes("/cat_model/") || image.endsWith(".model3.json") || image.endsWith(".json")) return false;
+  if (image.includes("/cat_model/") || image.endsWith(".model3.json") || image.endsWith(".json"))
+    return false;
   return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i.test(image);
 }
 
 function useCarouselImagePreload(images: string[], currentIndex: number, enabled: boolean) {
   useEffect(() => {
     if (!enabled || images.length <= 1) return;
-    const preloadIndexes = [currentIndex, (currentIndex + 1) % images.length, (currentIndex + 2) % images.length];
-    const idle = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1));
+    const preloadIndexes = [
+      currentIndex,
+      (currentIndex + 1) % images.length,
+      (currentIndex + 2) % images.length,
+    ];
+    const idle =
+      window.requestIdleCallback ??
+      ((callback: IdleRequestCallback) =>
+        window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1));
     const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
     const idleId = idle(() => {
       preloadIndexes.forEach((imageIndex) => preloadDecodedImage(images[imageIndex]));
@@ -493,7 +600,11 @@ function isBuiltInYunoSprite(config: CompanionConfig) {
   );
 }
 
-function getNextCarouselIndex(current: number, length: number, order: CompanionConfig["carousel"]["order"]) {
+function getNextCarouselIndex(
+  current: number,
+  length: number,
+  order: CompanionConfig["carousel"]["order"],
+) {
   if (length <= 1) return 0;
   if (order === "reverse") return (current - 1 + length) % length;
   if (order === "random") {

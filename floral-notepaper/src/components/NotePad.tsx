@@ -10,6 +10,7 @@ import {
   countNoteChars,
   formatShortDate,
   getDisplayTitle,
+  getFileExtension,
   metadataFromNote,
 } from "../features/notes/noteUtils";
 import { listen } from "@tauri-apps/api/event";
@@ -273,7 +274,8 @@ export function NotePad({
         setTileColorMode(mode);
         setTileColorRaw(normalizeTileColor(raw));
         setTileColor(resolveTileColor(mode, raw));
-        if (event.payload.surfaceFontSize != null) setSurfaceFontSize(event.payload.surfaceFontSize);
+        if (event.payload.surfaceFontSize != null)
+          setSurfaceFontSize(event.payload.surfaceFontSize);
         if (event.payload.tileRenderMarkdown != null)
           setTileRenderMarkdown(event.payload.tileRenderMarkdown);
       });
@@ -452,6 +454,11 @@ export function NotePad({
     setErrorMessage(null);
     try {
       const note = await getNote(noteId);
+      const extension = getFileExtension(note.fileName).toLowerCase();
+      if (extension && extension !== ".md") {
+        await openNoteInEditor(note.id);
+        return;
+      }
       applyNote(note);
       await switchSurfaceMode("pad");
     } catch (error) {

@@ -31,7 +31,7 @@ export interface GardenFolder {
   userId: string;
   parentId?: string;
   articleIds: string[];
-  type: 'folder' | 'project';
+  type: "folder" | "project";
   createdAt: number;
   updatedAt: number;
 }

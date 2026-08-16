@@ -189,7 +189,9 @@ export async function generateWritingReport(
   } catch (err) {
     // LLM 调用失败或解析失败：向上抛出真实错误，而不是静默返回 null
     throw new Error(
-      err instanceof Error ? `生成复盘报告失败：${err.message}` : `生成复盘报告失败：${String(err)}`,
+      err instanceof Error
+        ? `生成复盘报告失败：${err.message}`
+        : `生成复盘报告失败：${String(err)}`,
     );
   }
 }
@@ -262,8 +264,7 @@ async function buildHistoricalComparison(
   const match = await findSimilarHistoricalDoc(currentText, history, providers);
   if (!match || match.similarity < 0.6) return "";
   const delta = currentDeleteRatio - match.doc.deleteRatio;
-  const trend =
-    delta < -3 ? "有所下降" : delta > 3 ? "有所上升" : "基本持平";
+  const trend = delta < -3 ? "有所下降" : delta > 3 ? "有所上升" : "基本持平";
   return `
 
 历史同类文档对比（供参考，请自然融入 insights）：

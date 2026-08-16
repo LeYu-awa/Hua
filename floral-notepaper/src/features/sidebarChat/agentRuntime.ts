@@ -223,11 +223,12 @@ function formatToolResponse(response: AssistantToolResponse) {
 
   if (response.tool === "web.search") {
     const results = Array.isArray(data.results)
-      ? data.results.filter((item): item is WebSearchResult =>
-          isRecord(item) &&
-          typeof item.title === "string" &&
-          typeof item.url === "string" &&
-          typeof item.snippet === "string",
+      ? data.results.filter(
+          (item): item is WebSearchResult =>
+            isRecord(item) &&
+            typeof item.title === "string" &&
+            typeof item.url === "string" &&
+            typeof item.snippet === "string",
         )
       : [];
     const sources = formatSearchSources(results);

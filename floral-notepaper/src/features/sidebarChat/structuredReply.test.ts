@@ -52,7 +52,9 @@ describe("parseStructuredReply（ai-2 四大模块解析）", () => {
   });
 
   it("四大模块按顺序且不缺失：缺失的模块由渲染层兜底（解析仍成功）", () => {
-    const reply = parseStructuredReply(`## ① 操作步骤\n1. [新建卡片](cards:1)\n\n## ② 创作规划\n- 目标：说明`);
+    const reply = parseStructuredReply(
+      `## ① 操作步骤\n1. [新建卡片](cards:1)\n\n## ② 创作规划\n- 目标：说明`,
+    );
     expect(reply).not.toBeNull();
     expect(reply!.steps).toHaveLength(1);
     expect(reply!.plan).toHaveLength(1);
@@ -109,6 +111,9 @@ describe("buildContextGraph（④ 上下文关联图谱）", () => {
 describe("applyPlanMarkersToCanvas", () => {
   it("把创作规划转换成画布预留位置命令", () => {
     const command = applyPlanMarkersToCanvas([{ label: "灵感区", detail: "收集想法" }]);
-    expect(command).toEqual({ kind: "applyPlan", markers: [{ label: "灵感区", detail: "收集想法" }] });
+    expect(command).toEqual({
+      kind: "applyPlan",
+      markers: [{ label: "灵感区", detail: "收集想法" }],
+    });
   });
 });

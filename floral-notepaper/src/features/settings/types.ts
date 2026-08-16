@@ -63,4 +63,6 @@ export interface AppConfig {
   agentNudgeThresholdMs?: number;
   /** Agent 数据保留天数，默认 30 */
   agentDataRetentionDays?: number;
+  /** SearXNG 搜索地址（画布知识采集 / 联网调研的 web.search 工具用；默认内置公共实例 https://paulgo.io） */
+  searxngUrl?: string;
 }

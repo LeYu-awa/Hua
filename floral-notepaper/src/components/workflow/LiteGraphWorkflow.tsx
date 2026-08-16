@@ -8,7 +8,8 @@ import {
 } from "@comfyorg/litegraph";
 import type { NodeProperty } from "@comfyorg/litegraph/dist/LGraphNode";
 import "@comfyorg/litegraph/style.css";
-import { createEmptyWorkflowDocument,
+import {
+  createEmptyWorkflowDocument,
   WORKFLOW_NODE_DEFINITIONS,
   type WorkflowDocument,
   type WorkflowNodeDefinition,
@@ -66,8 +67,6 @@ const WORKFLOW_HOVER_LINE_HEIGHT = 16;
 
 let registered = false;
 
-
-
 export function LiteGraphWorkflow({
   workflow,
   documentId,
@@ -82,14 +81,18 @@ export function LiteGraphWorkflow({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const graphRef = useRef<LGraph | null>(null);
   const graphCanvasRef = useRef<LGraphCanvas | null>(null);
-  const workflowRef = useRef<WorkflowDocument>(workflow ?? createEmptyWorkflowDocument(documentId, noteId));
+  const workflowRef = useRef<WorkflowDocument>(
+    workflow ?? createEmptyWorkflowDocument(documentId, noteId),
+  );
   const onChangeRef = useRef(onChange);
   const onAgentSyncRef = useRef(onAgentSync);
   const didFitInitialViewRef = useRef(false);
   const changeTimerRef = useRef<number | null>(null);
   const [selectedNode, setSelectedNode] = useState<SelectedNodeState | null>(null);
   const [validation, setValidation] = useState<WorkflowValidationResult | null>(null);
-  const [status, setStatus] = useState<string>(conversationId ? "LiteGraph 工作流已就绪" : "选择对话后可同步 Agent 事件");
+  const [status, setStatus] = useState<string>(
+    conversationId ? "LiteGraph 工作流已就绪" : "选择对话后可同步 Agent 事件",
+  );
 
   const initialWorkflow = useMemo(
     () => workflow ?? createEmptyWorkflowDocument(documentId, noteId),
@@ -136,8 +139,7 @@ export function LiteGraphWorkflow({
     try {
       graph.configure(initialWorkflow.graph as SerialisableGraph);
       normaliseGraphNodes(graph);
-    } catch {
-    }
+    } catch {}
 
     graphCanvas.onNodeSelected = (node) => setSelectedNode(readSelectedNode(node));
     graphCanvas.onNodeDeselected = () => setSelectedNode(null);
@@ -174,7 +176,12 @@ export function LiteGraphWorkflow({
   }, [initialWorkflow, readonly, scheduleChange]);
 
   const addNode = useCallback(
-    (definition: WorkflowNodeDefinition, x = 80, y = 80, overrides: Record<string, unknown> = {}) => {
+    (
+      definition: WorkflowNodeDefinition,
+      x = 80,
+      y = 80,
+      overrides: Record<string, unknown> = {},
+    ) => {
       if (readonly) return;
       const graph = graphRef.current;
       if (!graph) return;
@@ -201,14 +208,18 @@ export function LiteGraphWorkflow({
       const workflowNode = readWorkflowDragPayload(event);
 
       if (workflowNode) {
-        const definition = WORKFLOW_NODE_DEFINITIONS.find((item) => item.type === workflowNode.type);
+        const definition = WORKFLOW_NODE_DEFINITIONS.find(
+          (item) => item.type === workflowNode.type,
+        );
         if (definition) addNode(definition, pos[0], pos[1]);
         return;
       }
 
       const documentPayload = readDocumentDragPayload(event);
       if (documentPayload) {
-        const definition = WORKFLOW_NODE_DEFINITIONS.find((item) => item.type === "floral/document");
+        const definition = WORKFLOW_NODE_DEFINITIONS.find(
+          (item) => item.type === "floral/document",
+        );
         if (definition) {
           addNode(definition, pos[0], pos[1], {
             title: documentPayload.title,
@@ -221,9 +232,18 @@ export function LiteGraphWorkflow({
   );
 
   const handleSave = useCallback(async () => {
+    if (!onSave) {
+      // 未接入持久化时如实提示，避免"已保存"假象（编辑内容仅存在于本次会话）
+      setStatus("未接入保存：编辑内容仅保留在当前会话");
+      return;
+    }
     emitChange();
-    await onSave?.(workflowRef.current);
-    setStatus("工作流已保存");
+    try {
+      await onSave(workflowRef.current);
+      setStatus("工作流已保存");
+    } catch (error) {
+      setStatus(`保存失败：${String(error)}`);
+    }
   }, [emitChange, onSave]);
 
   const handleValidate = useCallback(async () => {
@@ -231,7 +251,9 @@ export function LiteGraphWorkflow({
     try {
       const result = await validateWorkflow(workflowRef.current);
       setValidation(result);
-      setStatus(result.valid ? "工作流校验通过" : `校验失败：${result.issues[0]?.message ?? "未知错误"}`);
+      setStatus(
+        result.valid ? "工作流校验通过" : `校验失败：${result.issues[0]?.message ?? "未知错误"}`,
+      );
     } catch (error) {
       setStatus(`校验失败：${String(error)}`);
     }
@@ -242,7 +264,9 @@ export function LiteGraphWorkflow({
     try {
       const result = await runWorkflow(workflowRef.current);
       setValidation(result);
-      setStatus(result.valid ? "工作流已提交执行" : `运行拦截：${result.issues[0]?.message ?? "校验失败"}`);
+      setStatus(
+        result.valid ? "工作流已提交执行" : `运行拦截：${result.issues[0]?.message ?? "校验失败"}`,
+      );
     } catch (error) {
       setStatus(`运行失败：${String(error)}`);
     }
@@ -285,7 +309,13 @@ export function LiteGraphWorkflow({
           onSave={handleSave}
           onRun={handleRun}
         />
-        <canvas ref={canvasRef} className="litegraph-workflow__canvas" />
+        {/* tabIndex 使画布可聚焦：litegraph 的 Delete/Backspace 删除、Ctrl+C/V 复制粘贴、
+            Ctrl+Z 撤销等键盘操作只绑定在 canvas 上，不可聚焦时全部失效 */}
+        <canvas
+          ref={canvasRef}
+          tabIndex={1}
+          className="litegraph-workflow__canvas"
+        />
       </div>
       {showPanels && (
         <WorkflowInspectorPanel selectedNode={selectedNode} onChange={updateSelectedProperty} />
@@ -353,9 +383,15 @@ function WorkflowToolbar({
 }) {
   return (
     <div className="litegraph-workflow__toolbar">
-      <button type="button" onClick={onValidate}>预览校验</button>
-      <button type="button" onClick={onSave}>保存</button>
-      <button type="button" onClick={onRun} className="litegraph-workflow__run">运行</button>
+      <button type="button" onClick={onValidate}>
+        预览校验
+      </button>
+      <button type="button" onClick={onSave}>
+        保存
+      </button>
+      <button type="button" onClick={onRun} className="litegraph-workflow__run">
+        运行
+      </button>
       <span className={validation?.valid === false ? "is-error" : ""}>{status}</span>
     </div>
   );
@@ -386,7 +422,10 @@ function WorkflowInspectorPanel({
           {Object.entries(selectedNode.properties).map(([key, value]) => (
             <div key={key}>
               <label>{key}</label>
-              <textarea value={String(value ?? "")} onChange={(event) => onChange(key, event.target.value)} />
+              <textarea
+                value={String(value ?? "")}
+                onChange={(event) => onChange(key, event.target.value)}
+              />
             </div>
           ))}
         </div>
@@ -486,7 +525,10 @@ function observeThemeChanges(graph: LGraph, graphCanvas: LGraphCanvas) {
     graphCanvas.setDirty(true, true);
   };
   const observer = new MutationObserver(apply);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme", "class"],
+  });
   return observer;
 }
 
@@ -540,7 +582,11 @@ function applyNodeStyle(node: LGraphNode, definition?: WorkflowNodeDefinition) {
 }
 
 function toLiteGraphShape(shape?: string): LiteGraphNodeShape {
-  return shape === "default" || shape === "circle" || shape === "round" || shape === "card" || shape === "box"
+  return shape === "default" ||
+    shape === "circle" ||
+    shape === "round" ||
+    shape === "card" ||
+    shape === "box"
     ? shape
     : "round";
 }
@@ -568,7 +614,10 @@ function drawReadableNodeText(this: LGraphNode, ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-function drawWorkflowBackground(ctx: CanvasRenderingContext2D, visibleArea?: [number, number, number, number]) {
+function drawWorkflowBackground(
+  ctx: CanvasRenderingContext2D,
+  visibleArea?: [number, number, number, number],
+) {
   const theme = getWorkflowTheme();
   const [left, top, width, height] = normaliseVisibleArea(visibleArea, ctx.canvas);
   const right = left + width;
@@ -576,7 +625,17 @@ function drawWorkflowBackground(ctx: CanvasRenderingContext2D, visibleArea?: [nu
 
   ctx.save();
   drawGridLines(ctx, left, top, right, bottom, WORKFLOW_GRID_SIZE, theme.nodeBorder, 0.24, 1);
-  drawGridDots(ctx, left, top, right, bottom, WORKFLOW_DOT_GRID_SIZE, theme.widgetMuted, 0.22, 1.35);
+  drawGridDots(
+    ctx,
+    left,
+    top,
+    right,
+    bottom,
+    WORKFLOW_DOT_GRID_SIZE,
+    theme.widgetMuted,
+    0.22,
+    1.35,
+  );
   ctx.restore();
 }
 
@@ -593,7 +652,16 @@ function normaliseVisibleArea(
     ];
   }
 
-  const area = visibleArea as { 0?: unknown; 1?: unknown; 2?: unknown; 3?: unknown; x?: unknown; y?: unknown; width?: unknown; height?: unknown } | null;
+  const area = visibleArea as {
+    0?: unknown;
+    1?: unknown;
+    2?: unknown;
+    3?: unknown;
+    x?: unknown;
+    y?: unknown;
+    width?: unknown;
+    height?: unknown;
+  } | null;
   return [
     Number(area?.x ?? area?.[0]) || 0,
     Number(area?.y ?? area?.[1]) || 0,
@@ -674,8 +742,14 @@ function drawWorkflowNodeHover(graphCanvas: LGraphCanvas) {
   const y = graphY * scale + graphCanvas.ds.offset[1] * scale + 14;
   const width = WORKFLOW_HOVER_MAX_WIDTH;
   const height = 20 + lines.length * WORKFLOW_HOVER_LINE_HEIGHT;
-  const clampedX = Math.min(Math.max(12, x), Math.max(12, graphCanvas.canvas.clientWidth - width - 12));
-  const clampedY = Math.min(Math.max(12, y), Math.max(12, graphCanvas.canvas.clientHeight - height - 12));
+  const clampedX = Math.min(
+    Math.max(12, x),
+    Math.max(12, graphCanvas.canvas.clientWidth - width - 12),
+  );
+  const clampedY = Math.min(
+    Math.max(12, y),
+    Math.max(12, graphCanvas.canvas.clientHeight - height - 12),
+  );
 
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -691,7 +765,12 @@ function drawWorkflowNodeHover(graphCanvas: LGraphCanvas) {
   ctx.font = `12px ${LiteGraph.NODE_FONT || "HarmonyOS Sans SC"}`;
   ctx.textBaseline = "top";
   lines.forEach((line, index) => {
-    ctx.fillText(line, clampedX + 12, clampedY + 10 + index * WORKFLOW_HOVER_LINE_HEIGHT, width - 24);
+    ctx.fillText(
+      line,
+      clampedX + 12,
+      clampedY + 10 + index * WORKFLOW_HOVER_LINE_HEIGHT,
+      width - 24,
+    );
   });
   ctx.restore();
 }
@@ -720,10 +799,17 @@ function drawRoundedRect(
 
 function getNodePreviewText(node: LGraphNode): string {
   const properties = node.properties ?? {};
-  return String(properties.text ?? properties.title ?? properties.prompt ?? node.title ?? "").trim();
+  return String(
+    properties.text ?? properties.title ?? properties.prompt ?? node.title ?? "",
+  ).trim();
 }
 
-function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+function wrapCanvasText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
   const words = text.replace(/\s+/g, " ").split(" ").filter(Boolean);
   if (words.length === 0) return [];
   const lines: string[] = [];
@@ -742,12 +828,17 @@ function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
 
   if (current && lines.length < maxLines) lines.push(current);
   if (lines.length === maxLines && words.join(" ") !== lines.join(" ")) {
-    lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, Math.max(0, lines[maxLines - 1].length - 1))}…`;
+    lines[maxLines - 1] =
+      `${lines[maxLines - 1].slice(0, Math.max(0, lines[maxLines - 1].length - 1))}…`;
   }
   return lines;
 }
 
-function fitInitialView(graph: LGraph, graphCanvas: LGraphCanvas, didFitRef: React.MutableRefObject<boolean>) {
+function fitInitialView(
+  graph: LGraph,
+  graphCanvas: LGraphCanvas,
+  didFitRef: React.MutableRefObject<boolean>,
+) {
   if (didFitRef.current) return;
   const width = graphCanvas.canvas.clientWidth || graphCanvas.canvas.width;
   const height = graphCanvas.canvas.clientHeight || graphCanvas.canvas.height;
@@ -772,10 +863,15 @@ function fitInitialView(graph: LGraph, graphCanvas: LGraphCanvas, didFitRef: Rea
   const verticalPadding = isMobileCanvas ? 92 : 144;
   const availableWidth = Math.max(1, width - horizontalPadding);
   const availableHeight = Math.max(1, height - verticalPadding);
-  const fitScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height, maxInitialScale);
+  const fitScale = Math.min(
+    availableWidth / bounds.width,
+    availableHeight / bounds.height,
+    maxInitialScale,
+  );
   const scale = Math.min(maxInitialScale, Math.max(minInitialScale, fitScale));
   const targetX = horizontalPadding / 2 + Math.max(0, (availableWidth - bounds.width * scale) / 2);
-  const targetY = (isMobileCanvas ? 72 : 92) + Math.max(0, (availableHeight - bounds.height * scale) / 2);
+  const targetY =
+    (isMobileCanvas ? 72 : 92) + Math.max(0, (availableHeight - bounds.height * scale) / 2);
 
   graphCanvas.ds.scale = scale;
   graphCanvas.ds.offset = [targetX / scale - bounds.left, targetY / scale - bounds.top];
@@ -810,7 +906,9 @@ function getGraphBounds(nodes: LGraphNode[]) {
 
 function installLiteGraphDialogManager() {
   const manageDialogs = () => {
-    const dialogs = Array.from(document.querySelectorAll<HTMLElement>(".graphdialog, .litegraph .dialog"));
+    const dialogs = Array.from(
+      document.querySelectorAll<HTMLElement>(".graphdialog, .litegraph .dialog"),
+    );
     for (const dialog of dialogs.slice(0, -1)) dialog.remove();
     const activeDialog = dialogs[dialogs.length - 1];
     if (!activeDialog) return;
@@ -830,7 +928,9 @@ function installLiteGraphDialogManager() {
   manageDialogs();
   return () => {
     observer.disconnect();
-    document.querySelectorAll<HTMLElement>(".litegraph-workflow__managed-dialog").forEach((dialog) => dialog.remove());
+    document
+      .querySelectorAll<HTMLElement>(".litegraph-workflow__managed-dialog")
+      .forEach((dialog) => dialog.remove());
   };
 }
 
@@ -848,7 +948,9 @@ function serializeWorkflow(
   };
 }
 
-function toNodeProperties(properties: Record<string, unknown>): Record<string, NodeProperty | undefined> {
+function toNodeProperties(
+  properties: Record<string, unknown>,
+): Record<string, NodeProperty | undefined> {
   return Object.fromEntries(
     Object.entries(properties).map(([key, value]) => [key, toNodeProperty(value)]),
   );
@@ -896,10 +998,17 @@ function resizeCanvas(canvas: HTMLCanvasElement, graphCanvas: LGraphCanvas) {
   graphCanvas.setDirty(true, true);
 }
 
-function screenToGraph(graphCanvas: LGraphCanvas, clientX: number, clientY: number): [number, number] {
+function screenToGraph(
+  graphCanvas: LGraphCanvas,
+  clientX: number,
+  clientY: number,
+): [number, number] {
   const rect = graphCanvas.canvas.getBoundingClientRect();
   const ds = graphCanvas.ds;
-  return [(clientX - rect.left) / ds.scale - ds.offset[0], (clientY - rect.top) / ds.scale - ds.offset[1]];
+  return [
+    (clientX - rect.left) / ds.scale - ds.offset[0],
+    (clientY - rect.top) / ds.scale - ds.offset[1],
+  ];
 }
 
 function readWorkflowDragPayload(event: React.DragEvent<HTMLDivElement>): DragNodePayload | null {
@@ -913,7 +1022,9 @@ function readWorkflowDragPayload(event: React.DragEvent<HTMLDivElement>): DragNo
   }
 }
 
-function readDocumentDragPayload(event: React.DragEvent<HTMLDivElement>): Record<string, unknown> | null {
+function readDocumentDragPayload(
+  event: React.DragEvent<HTMLDivElement>,
+): Record<string, unknown> | null {
   const raw = event.dataTransfer.getData("text/plain");
   if (!raw) return null;
   try {

@@ -58,9 +58,7 @@ describe("WritingCompanion — 场景四焦虑关怀", () => {
   });
 
   it("无 alert 且未到停顿阈值时不打扰", () => {
-    render(
-      <WritingCompanion enabled thresholdMs={20_000} lastActivityAt={Date.now()} />,
-    );
+    render(<WritingCompanion enabled thresholdMs={20_000} lastActivityAt={Date.now()} />);
     // 刚活动过、无 alert → 角落无提示
     expect(screen.queryByRole("status")).toBeNull();
   });

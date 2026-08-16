@@ -211,7 +211,15 @@ function RangeSelector({
   );
 }
 
-function RangeChip({ label, selected, onTap }: { label: string; selected: boolean; onTap: () => void }) {
+function RangeChip({
+  label,
+  selected,
+  onTap,
+}: {
+  label: string;
+  selected: boolean;
+  onTap: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -292,7 +300,9 @@ function MetricsGrid({
           key={metric.label}
           className="h-[72px] px-[14px] py-[13px] rounded-[13px] bg-paper-warm/60 flex flex-col justify-center"
         >
-          <span className="text-[21px] font-bold text-ink leading-none truncate">{metric.value}</span>
+          <span className="text-[21px] font-bold text-ink leading-none truncate">
+            {metric.value}
+          </span>
           <span className="text-[11px] text-ink-faint leading-none mt-[7px]">{metric.label}</span>
         </div>
       ))}
@@ -341,7 +351,10 @@ function UsageTrendChart({
             {data.map((day, index) => (
               <div
                 key={day.date}
-                style={{ width: metrics.width, marginRight: index < data.length - 1 ? metrics.gap : 0 }}
+                style={{
+                  width: metrics.width,
+                  marginRight: index < data.length - 1 ? metrics.gap : 0,
+                }}
                 className="h-[4px] rounded-full bg-paper-deep/50"
               />
             ))}
@@ -519,7 +532,10 @@ function CustomRangeDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/48" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/48"
+      onClick={onCancel}
+    >
       <div
         className="bg-cloud rounded-[22px] w-[540px] max-w-[90vw] px-[22px] pt-[20px] pb-[22px] shadow-xl border border-paper-deep"
         onClick={(event) => event.stopPropagation()}
@@ -530,7 +546,14 @@ function CustomRangeDialog({
             className="w-[28px] h-[28px] flex items-center justify-center rounded-full hover:bg-paper-warm text-ink-faint"
             onClick={onCancel}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -609,7 +632,15 @@ function DateField({
   );
 }
 
-function DialogButton({ label, filled, onTap }: { label: string; filled: boolean; onTap: () => void }) {
+function DialogButton({
+  label,
+  filled,
+  onTap,
+}: {
+  label: string;
+  filled: boolean;
+  onTap: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   return (
@@ -664,7 +695,14 @@ function CalendarMonth({ selected, onSelect }: { selected: Date; onSelect: (date
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-paper-deep text-ink-ghost cursor-pointer"
           onClick={() => setViewMonth(new Date(year, month - 1, 1))}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -675,7 +713,14 @@ function CalendarMonth({ selected, onSelect }: { selected: Date; onSelect: (date
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-paper-deep text-ink-ghost cursor-pointer"
           onClick={() => setViewMonth(new Date(year, month + 1, 1))}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
@@ -683,7 +728,10 @@ function CalendarMonth({ selected, onSelect }: { selected: Date; onSelect: (date
 
       <div className="grid grid-cols-7 mb-1">
         {["日", "一", "二", "三", "四", "五", "六"].map((label) => (
-          <div key={label} className="text-center text-[11px] text-ink-ghost leading-[28px] font-medium">
+          <div
+            key={label}
+            className="text-center text-[11px] text-ink-ghost leading-[28px] font-medium"
+          >
             {label}
           </div>
         ))}

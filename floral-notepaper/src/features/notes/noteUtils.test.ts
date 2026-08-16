@@ -32,10 +32,11 @@ const notes: NoteMetadata[] = [
 ];
 
 describe("note utilities", () => {
-  it("uses title, preview, then untitled fallback for display title", () => {
-    expect(getDisplayTitle(notes[0])).toBe("读书笔记");
-    expect(getDisplayTitle(notes[1])).toBe("周末采购清单");
-    expect(getDisplayTitle({ ...notes[1], preview: "" })).toBe("无标题笔记");
+  it("uses title, preview, then untitled fallback for display title with extension", () => {
+    expect(getDisplayTitle(notes[0])).toBe("读书笔记.md");
+    expect(getDisplayTitle(notes[1])).toBe("周末采购清单.md");
+    expect(getDisplayTitle({ ...notes[1], preview: "" })).toBe("无标题笔记.md");
+    expect(getDisplayTitle({ ...notes[0], title: "资料.pdf", fileName: "1.pdf" })).toBe("资料.pdf");
   });
 
   it("builds compact previews and counts non-whitespace characters", () => {

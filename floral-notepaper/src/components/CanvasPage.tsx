@@ -588,10 +588,6 @@ export function CanvasPage({
   // ── AI 自动分组：一键按语义把画布卡片分成泳道 ─────────────────────────────
   const [groupTaskGoal, setGroupTaskGoal] = useState<string | null>(null);
   const [groupTaskVersion, setGroupTaskVersion] = useState(0);
-  // ── 知识采集（P1）：画布内提问条 → AI 检索提炼 → 知识卡落画布 ─────────────
-  const [collectInput, setCollectInput] = useState("");
-  const [collectGoal, setCollectGoal] = useState<string | null>(null);
-  const [collectVersion, setCollectVersion] = useState(0);
   // ── 卡片增强（P0-1）：分组/泳道折叠 + resource 笔记列表 ────────────────────
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [noteOptions, setNoteOptions] = useState<{ id: string; title: string; preview: string }[]>([]);
@@ -650,6 +646,13 @@ export function CanvasPage({
     },
     [viewState],
   );
+
+  /** 视口坐标 → 画布容器坐标（右键菜单/连线菜单定位用；容器相对原点在标题栏与侧栏之后） */
+  const toContainerPoint = useCallback((clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return { x: clientX, y: clientY };
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
 
   const selectedIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
   const marqueeRect = useMemo(
@@ -951,6 +954,8 @@ export function CanvasPage({
     setWriteupOpen(false);
     setWriteupGoal(goal);
     setWriteupVersion((v) => v + 1);
+    // 提议已生效：收起横幅，避免与底部任务面板 Dock 互相遮挡
+    setWriteupProposalDismissed(true);
   }, []);
 
   /** 章节续写：成文落盘后接着写下一章（goal 编码笔记 id + 标题，Rust note.chapter 技能） */
@@ -964,15 +969,6 @@ export function CanvasPage({
     setGroupTaskGoal("自动分组画布卡片");
     setGroupTaskVersion((v) => v + 1);
   }, []);
-
-  /** 知识采集提问：输入问题 → AI 检索提炼 → 知识卡落画布 */
-  const handleCollectAsk = useCallback(() => {
-    const question = collectInput.trim();
-    if (!question) return;
-    setCollectGoal(`知识采集：${question}`);
-    setCollectVersion((v) => v + 1);
-    setCollectInput("");
-  }, [collectInput]);
 
   /** 卡片尺寸调整（Obsidian 风格）：右下角拖拽，pointermove 直接改尺寸，up 时打脏标记 */
   const resizeStateRef = useRef<{
@@ -1030,33 +1026,12 @@ export function CanvasPage({
     };
   }, []);
 
-  // 知识采集落卡完成（agent.task → Done）后重载画布，同步新落的知识卡
+  // 属性面板跟随选中节点：切到另一张卡片时关闭旧面板，避免编辑错卡片
   useEffect(() => {
-    if (!collectGoal) return;
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    onAgentTask((task) => {
-      if (disposed || task.goal !== collectGoal || task.status !== "Done") return;
-      getCanvasDocument(documentId)
-        .then((loaded) => {
-          if (disposed) return;
-          undoStackRef.current = [];
-          redoStackRef.current = [];
-          dragStartSnapshotRef.current = null;
-          dirtyRef.current = false;
-          docRef.current = normalizeDoc(loaded);
-          setDoc(docRef.current);
-          setHistoryState({ canUndo: false, canRedo: false });
-        })
-        .catch(() => {});
-    }).then((fn) => {
-      unlisten = fn;
-    });
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [collectGoal, documentId]);
+    if (nodeMetaPanelId && selectedNodeId && selectedNodeId !== nodeMetaPanelId) {
+      setNodeMetaPanelId(null);
+    }
+  }, [nodeMetaPanelId, selectedNodeId]);
 
   // ── P1-3：画布导出 PNG（自包含 SVG → 2x 光栅化 → 下载） ───────────────────
   const handleExportPng = useCallback(async () => {
@@ -1322,10 +1297,11 @@ export function CanvasPage({
         setLinkSourceNodeId(null);
         return;
       }
-      setPendingEdge({ from: linkSourceNodeId, to: nodeId, x: clientX, y: clientY });
+      const point = toContainerPoint(clientX, clientY);
+      setPendingEdge({ from: linkSourceNodeId, to: nodeId, x: point.x, y: point.y });
       setLinkSourceNodeId(null);
     },
-    [linkSourceNodeId],
+    [linkSourceNodeId, toContainerPoint],
   );
 
   const deleteNodes = useCallback(
@@ -1342,6 +1318,8 @@ export function CanvasPage({
       setSelectedNodeIds([]);
       setEditingNodeId(null);
       setNodeContextMenu(null);
+      setPendingEdge(null);
+      setNodeMetaPanelId((current) => (current && idSet.has(current) ? null : current));
       setLinkSourceNodeId((current) => (current && idSet.has(current) ? null : current));
       trackCanvasEvent("canvas_shape_removed", { nodeIds: ids, count: ids.length });
     },
@@ -1392,9 +1370,10 @@ export function CanvasPage({
       const selected = selectedIdSet.has(nodeId) ? selectedNodeIds : [nodeId];
       setSelectedNodeId(nodeId);
       setSelectedNodeIds(selected);
-      setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId });
+      const point = toContainerPoint(e.clientX, e.clientY);
+      setNodeContextMenu({ x: point.x, y: point.y, nodeId });
     },
-    [selectedIdSet, selectedNodeIds],
+    [selectedIdSet, selectedNodeIds, toContainerPoint],
   );
 
   const confirmBatchDelete = useCallback(() => {
@@ -2035,10 +2014,15 @@ export function CanvasPage({
     );
   }
 
+  // 底部任务面板是否打开：面板统一排进底部 Dock 互不遮挡；打开时提问条停靠右下
+  const panelsOpen = Boolean(
+    enhanceGoal || writeupGoal || chapterGoal || groupTaskGoal,
+  );
+
   return (
     <div className="canvas-home-surface flex-1 flex flex-col min-h-0 relative overflow-hidden select-none">
-      {/* 工具栏 */}
-      <div className="canvas-toolbar-pro absolute top-4 left-4 z-10 flex items-center gap-2">
+      {/* 工具栏：flex-wrap 允许窄窗口换行而非溢出裁切；z-20 避免被右上操作条压盖 */}
+      <div className="canvas-toolbar-pro absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => addNode("knowledge")}
@@ -2240,35 +2224,6 @@ export function CanvasPage({
         )}
       </div>
 
-      {/* 知识采集提问条：问 AI → 检索提炼 → 知识卡落画布（画布原生对话入口，底部居中避免遮挡顶部工具栏） */}
-      <div className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-paper-deep/25 bg-paper/95 px-3 py-2 shadow-[0_12px_36px_-16px_rgba(0,0,0,0.35)] backdrop-blur">
-        <span className="text-[11px] text-ink-ghost whitespace-nowrap">
-          {t("canvas.collectAskLabel", { defaultValue: "问 AI" })}
-        </span>
-        <input
-          value={collectInput}
-          onChange={(e) => setCollectInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleCollectAsk();
-            }
-          }}
-          placeholder={t("canvas.collectPlaceholder", {
-            defaultValue: "想了解什么？例如：怎么学习番茄工作法",
-          })}
-          className="w-[280px] rounded-lg border border-paper-deep/20 bg-paper px-2.5 py-1.5 text-[12px] text-ink outline-none placeholder:text-ink-ghost/45 focus:border-bamboo/40"
-        />
-        <button
-          type="button"
-          onClick={handleCollectAsk}
-          disabled={!collectInput.trim()}
-          className="rounded-lg bg-bamboo px-3 py-1.5 text-[11px] font-medium text-paper hover:bg-bamboo/90 disabled:opacity-50 cursor-pointer"
-        >
-          {t("canvas.collectAsk", { defaultValue: "采集" })}
-        </button>
-      </div>
-
       {selectedNodeId && (
         <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
           {selectedNodeIds.length > 1 && (
@@ -2339,105 +2294,91 @@ export function CanvasPage({
         </div>
       )}
 
-      {enhanceGoal && (
-        <div className="absolute bottom-4 left-4 z-30 w-[320px]">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="canvas-panel-title">
-              {t("canvas.enhancePanel", { defaultValue: "节点扩写" })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setEnhanceGoal(null)}
-              className="canvas-icon-button canvas-button-ghost"
-              aria-label={t("common.close", { defaultValue: "关闭" })}
-            >
-              <CloseIcon />
-            </button>
-          </div>
-          <TaskProgressPanel key={enhanceVersion} goal={enhanceGoal} />
-        </div>
-      )}
+      {/* 底部任务面板 Dock：所有任务面板统一排布在一行，互不遮挡；
+          面板过多时横向滚动（右侧预留提问条停靠位，避免 UI 叠在一起） */}
+      {panelsOpen && (
+        <div className="absolute bottom-4 left-4 right-[460px] z-30 flex items-end gap-3 overflow-x-auto pb-1">
+          {enhanceGoal && (
+            <div className="w-[320px] shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="canvas-panel-title">
+                  {t("canvas.enhancePanel", { defaultValue: "节点扩写" })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEnhanceGoal(null)}
+                  className="canvas-icon-button canvas-button-ghost"
+                  aria-label={t("common.close", { defaultValue: "关闭" })}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <TaskProgressPanel key={enhanceVersion} goal={enhanceGoal} />
+            </div>
+          )}
 
-      {writeupGoal && (
-        <div className="absolute bottom-4 left-4 z-30 w-[360px]">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="canvas-panel-title">
-              {t("canvas.writeupPanel", { defaultValue: "组卡成文" })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setWriteupGoal(null)}
-              className="canvas-icon-button canvas-button-ghost"
-              aria-label={t("common.close", { defaultValue: "关闭" })}
-            >
-              <CloseIcon />
-            </button>
-          </div>
-          <TaskProgressPanel
-            key={writeupVersion}
-            goal={writeupGoal}
-            onContinueChapter={handleContinueChapter}
-          />
-        </div>
-      )}
+          {writeupGoal && (
+            <div className="w-[360px] shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="canvas-panel-title">
+                  {t("canvas.writeupPanel", { defaultValue: "组卡成文" })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setWriteupGoal(null)}
+                  className="canvas-icon-button canvas-button-ghost"
+                  aria-label={t("common.close", { defaultValue: "关闭" })}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <TaskProgressPanel
+                key={writeupVersion}
+                goal={writeupGoal}
+                onContinueChapter={handleContinueChapter}
+              />
+            </div>
+          )}
 
-      {/* 章节续写面板：成文落盘后接着写下一章 */}
-      {chapterGoal && (
-        <div className="absolute bottom-4 left-[420px] z-30 w-[320px]">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="canvas-panel-title">
-              {t("canvas.chapterPanel", { defaultValue: "章节续写" })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setChapterGoal(null)}
-              className="canvas-icon-button canvas-button-ghost"
-              aria-label={t("common.close", { defaultValue: "关闭" })}
-            >
-              <CloseIcon />
-            </button>
-          </div>
-          <TaskProgressPanel key={chapterVersion} goal={chapterGoal} />
-        </div>
-      )}
+          {/* 章节续写面板：成文落盘后接着写下一章 */}
+          {chapterGoal && (
+            <div className="w-[320px] shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="canvas-panel-title">
+                  {t("canvas.chapterPanel", { defaultValue: "章节续写" })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setChapterGoal(null)}
+                  className="canvas-icon-button canvas-button-ghost"
+                  aria-label={t("common.close", { defaultValue: "关闭" })}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <TaskProgressPanel key={chapterVersion} goal={chapterGoal} />
+            </div>
+          )}
 
-      {/* AI 自动分组面板：按语义把画布卡片分成泳道 */}
-      {groupTaskGoal && (
-        <div className="absolute bottom-4 left-4 z-30 w-[320px]">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="canvas-panel-title">
-              {t("canvas.aiGroupPanel", { defaultValue: "AI 自动分组" })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setGroupTaskGoal(null)}
-              className="canvas-icon-button canvas-button-ghost"
-              aria-label={t("common.close", { defaultValue: "关闭" })}
-            >
-              <CloseIcon />
-            </button>
-          </div>
-          <TaskProgressPanel key={groupTaskVersion} goal={groupTaskGoal} />
-        </div>
-      )}
-
-      {/* 知识采集面板：问 AI → 检索提炼 → 知识卡落画布 */}
-      {collectGoal && (
-        <div className="absolute bottom-4 left-[420px] z-30 w-[360px]">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="canvas-panel-title">
-              {t("canvas.collectPanel", { defaultValue: "知识采集" })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setCollectGoal(null)}
-              className="canvas-icon-button canvas-button-ghost"
-              aria-label={t("common.close", { defaultValue: "关闭" })}
-            >
-              <CloseIcon />
-            </button>
-          </div>
-          <TaskProgressPanel key={collectVersion} goal={collectGoal} />
+          {/* AI 自动分组面板：按语义把画布卡片分成泳道 */}
+          {groupTaskGoal && (
+            <div className="w-[320px] shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="canvas-panel-title">
+                  {t("canvas.aiGroupPanel", { defaultValue: "AI 自动分组" })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setGroupTaskGoal(null)}
+                  className="canvas-icon-button canvas-button-ghost"
+                  aria-label={t("common.close", { defaultValue: "关闭" })}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <TaskProgressPanel key={groupTaskVersion} goal={groupTaskGoal} />
+            </div>
+          )}
         </div>
       )}
 
@@ -2445,7 +2386,16 @@ export function CanvasPage({
       {pendingEdge && (
         <div
           className="absolute z-50 min-w-[130px] rounded-xl border border-paper-deep/30 bg-paper/95 p-1.5 text-[12px] text-ink-soft shadow-xl backdrop-blur"
-          style={{ left: Math.min(pendingEdge.x, window.innerWidth - 150), top: pendingEdge.y }}
+          style={{
+            left: Math.min(
+              pendingEdge.x,
+              (svgRef.current?.clientWidth ?? window.innerWidth) - 150,
+            ),
+            top: Math.min(
+              pendingEdge.y,
+              (svgRef.current?.clientHeight ?? window.innerHeight) - 220,
+            ),
+          }}
           onMouseDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
@@ -2522,7 +2472,7 @@ export function CanvasPage({
             patchNode(metaNode.id, { fields: { ...current, [key]: value } });
           };
           return (
-            <div className="absolute right-4 top-20 z-30 w-[260px] rounded-2xl border border-paper-deep/25 bg-paper/95 p-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
+            <div className="absolute right-4 top-20 z-40 w-[260px] rounded-2xl border border-paper-deep/25 bg-paper/95 p-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
               <div className="flex items-center justify-between mb-2">
                 <select
                   value={metaNode.type}
@@ -2694,7 +2644,11 @@ export function CanvasPage({
         })()}
 
       {saveStatus !== "idle" && saveStatus !== "saving" && (
-        <div className="absolute bottom-4 right-4 z-20 px-3 py-1.5 rounded-full bg-paper/90 border border-paper-deep/30 text-[10px] text-ink-faint shadow-sm">
+        <div
+          className={`absolute z-20 px-3 py-1.5 rounded-full bg-paper/90 border border-paper-deep/30 text-[10px] text-ink-faint shadow-sm ${
+            panelsOpen ? "bottom-[74px] right-4" : "bottom-4 right-4"
+          }`}
+        >
           {saveStatus === "saved"
             ? t("canvas.saveDone", { defaultValue: "画布已保存" })
             : t("canvas.saveFailed", { defaultValue: "保存失败，请稍后重试" })}
@@ -2893,6 +2847,8 @@ export function CanvasPage({
           setEditingNodeId(null);
           setLinkSourceNodeId(null);
           setNodeContextMenu(null);
+          setPendingEdge(null);
+          setNodeMetaPanelId(null);
         }}
       >
         {/* 固定事件层：整屏透明，点击空白开始平移 */}
@@ -3360,7 +3316,16 @@ export function CanvasPage({
       {nodeContextMenu && (
         <div
           className="absolute z-40 min-w-[170px] rounded-xl border border-paper-deep/30 bg-paper/95 p-1.5 text-[12px] text-ink-soft shadow-xl backdrop-blur"
-          style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}
+          style={{
+            left: Math.min(
+              nodeContextMenu.x,
+              (svgRef.current?.clientWidth ?? window.innerWidth) - 180,
+            ),
+            top: Math.min(
+              nodeContextMenu.y,
+              (svgRef.current?.clientHeight ?? window.innerHeight) - 260,
+            ),
+          }}
           onMouseDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
@@ -3578,8 +3543,8 @@ export function CanvasPage({
         );
       })()}
 
-      {/* 常驻快捷操作提示（ob-3） */}
-      <CanvasQuickHelp />
+      {/* 常驻快捷操作提示（ob-3）；任务面板打开时隐藏，避免与底部 Dock 遮挡 */}
+      {!panelsOpen && <CanvasQuickHelp />}
     </div>
   );
 }

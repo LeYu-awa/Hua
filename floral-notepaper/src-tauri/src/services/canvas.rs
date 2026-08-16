@@ -113,8 +113,13 @@ impl CanvasStore {
         let path = self.doc_path(&doc.id);
         let json = serde_json::to_string_pretty(&doc)
             .map_err(|e| AppError::new("serialization", format!("序列化 canvas 失败: {e}")))?;
-        fs::write(&path, json)
+        // 原子写：先写 .tmp 再 rename，避免崩溃/断电把画布文件写成半截 JSON
+        // （损坏的文档会被 list() 跳过，导致"first"画布凭空消失）
+        let temp_path = path.with_extension("json.tmp");
+        fs::write(&temp_path, json)
             .map_err(|e| AppError::new("io", format!("写入 canvas 失败: {e}")))?;
+        fs::rename(&temp_path, &path)
+            .map_err(|e| AppError::new("io", format!("提交 canvas 写入失败: {e}")))?;
 
         Ok(doc)
     }

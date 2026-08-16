@@ -123,7 +123,10 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
     setNotice("");
     setSubmitting(true);
     try {
-      if ((mode === "login" || mode === "register" || mode === "forgotPassword") && !isValidEmail(trimmedEmail)) {
+      if (
+        (mode === "login" || mode === "register" || mode === "forgotPassword") &&
+        !isValidEmail(trimmedEmail)
+      ) {
         setError("请输入有效邮箱");
         return;
       }
@@ -442,7 +445,9 @@ export function AccountPanel({ config, onConfigChange }: AccountPanelProps) {
 
             {mode === "resetPassword" && (
               <div>
-                <label className="block text-[10px] font-mono text-ink-faint mb-1">确认新密码</label>
+                <label className="block text-[10px] font-mono text-ink-faint mb-1">
+                  确认新密码
+                </label>
                 <input
                   type="password"
                   value={confirmPassword}

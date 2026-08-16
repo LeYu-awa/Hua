@@ -9,7 +9,15 @@ vi.mock("../features/canvas/api", () => ({
       id: "canvas-demo",
       noteId: "demo",
       nodes: [
-        { id: "1", type: "text", x: 0, y: 0, width: 200, height: 80, text: "人物关系：A 与 B 的冲突" },
+        {
+          id: "1",
+          type: "text",
+          x: 0,
+          y: 0,
+          width: 200,
+          height: 80,
+          text: "人物关系：A 与 B 的冲突",
+        },
         { id: "2", type: "text", x: 0, y: 0, width: 200, height: 80, text: "场景设定：雨夜车站" },
       ],
       edges: [],

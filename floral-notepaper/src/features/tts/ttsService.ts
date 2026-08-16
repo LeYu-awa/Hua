@@ -8,9 +8,10 @@ import { synthesizeWithConfig, type TtsContext } from "./ttsClient";
  * - 合成失败（本地服务未启动等）返回 false，供 UI 提示
  */
 
-type WebKitWindow = Window & typeof globalThis & {
-  webkitAudioContext?: typeof AudioContext;
-};
+type WebKitWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
@@ -81,9 +82,7 @@ function startMouthDriver(audio: HTMLAudioElement, ctx: AudioContext) {
     // 低通平滑，滤掉音节间的瞬时抖动
     smoothRms += (rms - smoothRms) * 0.5;
 
-    const target = smoothRms > MOUTH_RMS_THRESHOLD
-      ? Math.min(MOUTH_MAX, smoothRms * 5)
-      : 0;
+    const target = smoothRms > MOUTH_RMS_THRESHOLD ? Math.min(MOUTH_MAX, smoothRms * 5) : 0;
 
     if (target >= value) {
       // attack：指数逼近
@@ -164,7 +163,10 @@ function waitForAudioEnd(audio: HTMLAudioElement): Promise<void> {
 }
 
 export function isSpeechPlaying(): boolean {
-  return Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended) || Boolean(window.speechSynthesis?.speaking);
+  return (
+    Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended) ||
+    Boolean(window.speechSynthesis?.speaking)
+  );
 }
 
 export function subscribeSpeechState(callback: (playing: boolean) => void) {
@@ -213,7 +215,10 @@ export async function speakText(
   const run = () => speakTextNow(text, options);
   if (options.interrupt !== false) return run();
   const queued = playbackQueue.then(run, run);
-  playbackQueue = queued.then(() => undefined, () => undefined);
+  playbackQueue = queued.then(
+    () => undefined,
+    () => undefined,
+  );
   return queued;
 }
 

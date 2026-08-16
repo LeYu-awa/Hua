@@ -3,9 +3,11 @@
 ## 一、功能定义
 
 ### 一句话描述
+
 桌面上显示一个 Live2D 植物拟人动漫角色（花灵），根据写作状态反馈动画情绪，支持 AI 语音朗读和对话。
 
 ### 用户场景
+
 1. 打开花箴，桌面出现一株梅花花灵，轻轻摇晃
 2. 开始写作，花灵变得开心，花瓣飘落
 3. 暂停写作超过 5 分钟，花灵打盹
@@ -20,6 +22,7 @@
 ### 2.1 Live2D 渲染：Cubism SDK for Web
 
 **为什么选 Live2D Cubism SDK**
+
 - 原生支持呼吸、眨眼、物理演算
 - 可通过参数控制表情和动作（mood → animation mapping）
 - 有免费授权用于小规模项目
@@ -34,17 +37,18 @@
 ```tsx
 // src/features/live2d/Live2DModel.tsx
 interface Live2DModelProps {
-  modelPath: string;       // .model3.json 文件路径
-  mood: HanalingMood;      // 当前情绪
-  isWriting: boolean;      // 是否正在写作
+  modelPath: string; // .model3.json 文件路径
+  mood: HanalingMood; // 当前情绪
+  isWriting: boolean; // 是否正在写作
   isFriendVisiting: boolean;
-  onTap?: () => void;      // 点击交互
+  onTap?: () => void; // 点击交互
 }
 ```
 
 **角色模型方案**
 
 用户提到通过 ChatGPT 生成角色。流程：
+
 1. ChatGPT/DALL-E 生成花灵角色立绘（正面、侧面、表情差分）
 2. 使用 Live2D Cubism Editor 绑定网格和参数
 3. 或者先用开源 Live2D 模型占位（如免费的猫娘模型），后续替换
@@ -52,6 +56,7 @@ interface Live2DModelProps {
 **短期替代方案**
 
 如果暂时没有 Live2D 模型，先用 **CSS 动画 + Lottie** 实现简易版本：
+
 - 用 CSS keyframes 做呼吸/摇摆动画
 - 用 Lottie 做开花/特效动画
 - 接口保持一致，后续可直接替换为 Live2D
@@ -83,9 +88,9 @@ interface Live2DModelProps {
 
 **两层设计**
 
-| 层级 | 功能 | 技术 | 成本 |
-|------|------|------|------|
-| 基础 TTS | 朗读文档 | `window.speechSynthesis`（系统自带） | 免费 |
+| 层级     | 功能         | 技术                                        | 成本                |
+| -------- | ------------ | ------------------------------------------- | ------------------- |
+| 基础 TTS | 朗读文档     | `window.speechSynthesis`（系统自带）        | 免费                |
 | 云端 TTS | 花灵角色配音 | GPT-SoVITS HTTP API / Edge TTS / OpenAI TTS | 本地免费 / API 费用 |
 
 **GPT-SoVITS 集成（已配置 UI）**
@@ -98,12 +103,12 @@ interface Live2DModelProps {
 
 **情绪-语速映射**（已在 TTS 配置页实现）
 
-| 情绪 | 语速调整 | 参考音频标签 |
-|------|---------|------------|
-| 开心 | +15% | 【开心】*.wav |
-| 难过 | -15% | 【难过】*.wav |
-| 生气 | +10% | 【生气】*.wav |
-| 平静 | 不变 | 【平静】*.wav |
+| 情绪 | 语速调整 | 参考音频标签   |
+| ---- | -------- | -------------- |
+| 开心 | +15%     | 【开心】\*.wav |
+| 难过 | -15%     | 【难过】\*.wav |
+| 生气 | +10%     | 【生气】\*.wav |
+| 平静 | 不变     | 【平静】\*.wav |
 
 ### 2.4 语音对话（后续阶段）
 
@@ -119,13 +124,13 @@ interface Live2DModelProps {
 
 对应 PRD 中五种植物：
 
-| 花灵 | 物种 | 性格 | 配色 |
-|------|------|------|------|
-| 梅 | 梅花 | 清冷坚韧 | 粉白 #F5E6E8 |
-| 竹 | 竹子 | 正直静默 | 翠绿 #7D9B76 |
-| 兰 | 兰花 | 幽雅知性 | 淡紫 #C4B5D4 |
-| 菊 | 菊花 | 恬淡从容 | 暖金 #E8D5A3 |
-| 莲 | 睡莲 | 纯净神秘 | 青白 #D4E8E8 |
+| 花灵 | 物种 | 性格     | 配色         |
+| ---- | ---- | -------- | ------------ |
+| 梅   | 梅花 | 清冷坚韧 | 粉白 #F5E6E8 |
+| 竹   | 竹子 | 正直静默 | 翠绿 #7D9B76 |
+| 兰   | 兰花 | 幽雅知性 | 淡紫 #C4B5D4 |
+| 菊   | 菊花 | 恬淡从容 | 暖金 #E8D5A3 |
+| 莲   | 睡莲 | 纯净神秘 | 青白 #D4E8E8 |
 
 ### 3.2 情绪-动画映射
 
@@ -133,11 +138,11 @@ interface Live2DModelProps {
 type HanalingMood = "happy" | "neutral" | "sleepy" | "excited" | "worried";
 
 const moodAnimations: Record<HanalingMood, string> = {
-  happy:    "idle_happy",     // 微笑、轻微摇摆
-  neutral:  "idle_neutral",   // 安静站立、偶尔眨眼
-  sleepy:   "idle_sleepy",    // 打哈欠、低头、闭眼
-  excited:  "idle_excited",   // 跳跃、花瓣特效
-  worried:  "idle_worried",   // 叶片微枯、低头
+  happy: "idle_happy", // 微笑、轻微摇摆
+  neutral: "idle_neutral", // 安静站立、偶尔眨眼
+  sleepy: "idle_sleepy", // 打哈欠、低头、闭眼
+  excited: "idle_excited", // 跳跃、花瓣特效
+  worried: "idle_worried", // 叶片微枯、低头
 };
 ```
 
@@ -173,13 +178,13 @@ last_active_at timestamptz       -- 最后活跃时间
 
 ```ts
 interface TTSConfig {
-  engine: string;           // 引擎选择
-  model: string;            // 模型 ID
-  apiUrl: string;           // API 地址
-  gptWeightsPath: string;   // GPT 权重路径
-  sovitsWeightsPath: string;// SoVITS 权重路径
-  refAudioDir: string;      // 参考音频目录
-  defaultSpeed: number;     // 默认语速 (0.5-2.0)
+  engine: string; // 引擎选择
+  model: string; // 模型 ID
+  apiUrl: string; // API 地址
+  gptWeightsPath: string; // GPT 权重路径
+  sovitsWeightsPath: string; // SoVITS 权重路径
+  refAudioDir: string; // 参考音频目录
+  defaultSpeed: number; // 默认语速 (0.5-2.0)
 }
 ```
 
@@ -187,15 +192,15 @@ interface TTSConfig {
 
 ## 五、实现步骤
 
-| 阶段 | 任务 | 状态 |
-|------|------|------|
-| **Phase 3a** | Live2D Cubism SDK 集成 + 基础渲染 | 📋 |
-| **Phase 3b** | 情绪状态机 + 动画映射 | 📋 |
-| **Phase 3c** | 桌面浮动窗口（Tauri WebviewWindow） | 📋 |
-| **Phase 3d** | 花灵-主窗口通信（IPC） | 📋 |
-| **Phase 4a** | TTS 朗读文档功能 | 📋 |
-| **Phase 4b** | GPT-SoVITS API 集成（TTS 配置页已完成） | 📋 |
-| **Phase 4c** | 语音对话（唤醒词 + STT + TTS） | 📋 |
+| 阶段         | 任务                                    | 状态 |
+| ------------ | --------------------------------------- | ---- |
+| **Phase 3a** | Live2D Cubism SDK 集成 + 基础渲染       | 📋   |
+| **Phase 3b** | 情绪状态机 + 动画映射                   | 📋   |
+| **Phase 3c** | 桌面浮动窗口（Tauri WebviewWindow）     | 📋   |
+| **Phase 3d** | 花灵-主窗口通信（IPC）                  | 📋   |
+| **Phase 4a** | TTS 朗读文档功能                        | 📋   |
+| **Phase 4b** | GPT-SoVITS API 集成（TTS 配置页已完成） | 📋   |
+| **Phase 4c** | 语音对话（唤醒词 + STT + TTS）          | 📋   |
 
 ---
 

@@ -74,14 +74,19 @@ function StepsSection({ steps }: { steps: StructuredReply["steps"] }) {
   return (
     <ol className="space-y-2">
       {steps.map((step, index) => (
-        <li key={`${index}-${step.label}`} className="rounded-lg border border-paper-deep/15 bg-paper-warm/40 px-2.5 py-2">
+        <li
+          key={`${index}-${step.label}`}
+          className="rounded-lg border border-paper-deep/15 bg-paper-warm/40 px-2.5 py-2"
+        >
           <div className="flex items-start gap-2">
             <span className="mt-0.5 shrink-0 flex h-4 w-4 items-center justify-center rounded-full bg-bamboo/15 text-[9px] font-semibold text-bamboo">
               {index + 1}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[11.5px] leading-relaxed text-ink-soft">{step.label}</p>
-              {step.detail && <p className="mt-0.5 text-[10px] leading-relaxed text-ink-ghost">{step.detail}</p>}
+              {step.detail && (
+                <p className="mt-0.5 text-[10px] leading-relaxed text-ink-ghost">{step.detail}</p>
+              )}
             </div>
           </div>
           {step.command && (
@@ -107,7 +112,13 @@ function StepsSection({ steps }: { steps: StructuredReply["steps"] }) {
 }
 
 /** ② 创作规划：与画布预留位置标记同步展示 */
-function PlanSection({ plan, onReask }: { plan: StructuredReply["plan"]; onReask: (text: string) => void }) {
+function PlanSection({
+  plan,
+  onReask,
+}: {
+  plan: StructuredReply["plan"];
+  onReask: (text: string) => void;
+}) {
   const [applied, setApplied] = useState(false);
   if (plan.length === 0) return <EmptyModule />;
 
@@ -183,7 +194,10 @@ function ContextSection({
   const visibleSections = useMemo(
     () =>
       sections
-        .map((section) => ({ ...section, items: section.items.filter((item) => !removed.has(item.id)) }))
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !removed.has(item.id)),
+        }))
         .filter((section) => section.items.length > 0),
     [sections, removed],
   );
@@ -220,7 +234,9 @@ function ContextSection({
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-medium text-ink-soft">{item.label}</p>
                   {item.value && (
-                    <p className="mt-0.5 text-[10px] leading-relaxed text-ink-faint break-all">{item.value}</p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-ink-faint break-all">
+                      {item.value}
+                    </p>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

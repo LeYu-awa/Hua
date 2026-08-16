@@ -45,9 +45,7 @@ const GROUP_COLORS = ["#2a6a42", "#b8555a", "#b8860b", "#4a8db7"];
 /** 计算相似度矩阵 */
 function similarityMatrix(vectors: number[][]): number[][] {
   const n = vectors.length;
-  const matrix: number[][] = Array.from({ length: n }, () =>
-    Array.from({ length: n }, () => 0),
-  );
+  const matrix: number[][] = Array.from({ length: n }, () => Array.from({ length: n }, () => 0));
   for (let i = 0; i < n; i++) {
     matrix[i][i] = 1;
     for (let j = i + 1; j < n; j++) {
@@ -126,7 +124,10 @@ export async function detectConsensus(
 
   let vectors: number[][];
   try {
-    vectors = await callEmbedding(providers, valid.map((o) => o.text.slice(0, 400)));
+    vectors = await callEmbedding(
+      providers,
+      valid.map((o) => o.text.slice(0, 400)),
+    );
   } catch {
     return null;
   }

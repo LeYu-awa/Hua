@@ -8,10 +8,10 @@
 
 当前 `src` 下已无超过 2000 行的代码文件。本轮治理前的超限文件如下：
 
-| 文件 | 治理前行数 | 治理后行数 | 类型 | 状态 |
-| --- | ---: | ---: | --- | --- |
-| `src/components/MainWindow.tsx` | 2723 | 1759 | 核心笔记工作台页面 | 已拆分至阈值以下 |
-| `src/components/SettingsPage.tsx` | 2501 | 1817 | 设置中心页面 | 已拆分至阈值以下 |
+| 文件                              | 治理前行数 | 治理后行数 | 类型               | 状态             |
+| --------------------------------- | ---------: | ---------: | ------------------ | ---------------- |
+| `src/components/MainWindow.tsx`   |       2723 |       1759 | 核心笔记工作台页面 | 已拆分至阈值以下 |
+| `src/components/SettingsPage.tsx` |       2501 |       1817 | 设置中心页面       | 已拆分至阈值以下 |
 
 其他接近高复杂度的文件包括 `NotePad.tsx`、`LiteGraphWorkflow.tsx`、`SettingsPanel.tsx`、`StatsPanel.tsx`、`CanvasPage.tsx`、`InkPlaybackPage.tsx`，但暂未超过 2000 行，应在 P0/P1 拆分稳定后按功能域继续治理。
 
@@ -41,15 +41,15 @@
 
 ### 3.2 拆分后的子模块
 
-| 子模块 | 目标路径 | 职责 | 状态 |
-| --- | --- | --- | --- |
-| Markdown 命令 | `src/features/editor/commands/markdownCommands.ts` | 粗体、斜体、标题、列表、引用、代码、公式、颜色常量、撤销/重做命令 | 已完成 |
-| 编辑器工作区 | `src/features/editor/components/NoteEditorWorkspace.tsx` | 顶部编辑操作栏、标题区、编辑/预览/分栏、图片粘贴、状态栏、AI 入口 | 已完成 |
-| 笔记工作台页面 | `src/features/notes/pages/NotesWorkspacePage.tsx` | 主页面组合与笔记上下文装配 | 后续 |
-| 笔记侧栏 | `src/features/notes/components/NotesSidebar.tsx` | 搜索、分类、笔记列表、右键菜单入口 | 后续 |
-| 保存流程 | `src/features/notes/hooks/useNoteAutosave.ts` | dirty/saving/saved/error 状态机和保存防抖 | 后续 |
-| 多窗口桥接 | `src/features/windows/hooks/usePinnedTiles.ts` | Tile 打开、关闭、取消固定状态同步 | 后续 |
-| AI 扩展区 | `src/features/agent/components/*` | DeepSeekChat、连接建议、情绪指示器的页面级装配 | 后续 |
+| 子模块         | 目标路径                                                 | 职责                                                              | 状态   |
+| -------------- | -------------------------------------------------------- | ----------------------------------------------------------------- | ------ |
+| Markdown 命令  | `src/features/editor/commands/markdownCommands.ts`       | 粗体、斜体、标题、列表、引用、代码、公式、颜色常量、撤销/重做命令 | 已完成 |
+| 编辑器工作区   | `src/features/editor/components/NoteEditorWorkspace.tsx` | 顶部编辑操作栏、标题区、编辑/预览/分栏、图片粘贴、状态栏、AI 入口 | 已完成 |
+| 笔记工作台页面 | `src/features/notes/pages/NotesWorkspacePage.tsx`        | 主页面组合与笔记上下文装配                                        | 后续   |
+| 笔记侧栏       | `src/features/notes/components/NotesSidebar.tsx`         | 搜索、分类、笔记列表、右键菜单入口                                | 后续   |
+| 保存流程       | `src/features/notes/hooks/useNoteAutosave.ts`            | dirty/saving/saved/error 状态机和保存防抖                         | 后续   |
+| 多窗口桥接     | `src/features/windows/hooks/usePinnedTiles.ts`           | Tile 打开、关闭、取消固定状态同步                                 | 后续   |
+| AI 扩展区      | `src/features/agent/components/*`                        | DeepSeekChat、连接建议、情绪指示器的页面级装配                    | 后续   |
 
 ### 3.3 已执行拆分
 
@@ -103,17 +103,17 @@ NotesWorkspacePage -> selectedNoteId -> usePinnedTiles
 
 ### 4.2 拆分后的子模块
 
-| 子模块 | 目标路径 | 职责 |
-| --- | --- | --- |
-| 设置页容器 | `src/features/settings/pages/SettingsPage.tsx` | 左侧导航、当前 section、右侧内容装配 |
-| 偏好面板 | `src/features/settings/components/PreferencesPanel.tsx` | 主题、语言、背景、字号、默认视图 |
-| 供应商面板 | `src/features/settings/components/ProvidersPanel.tsx` | 供应商列表与详情切换 |
-| 供应商弹窗 | `src/features/settings/dialogs/AddProviderDialog.tsx` | 新增供应商 |
-| 模型弹窗 | `src/features/settings/dialogs/AddModelDialog.tsx` | 新增模型 |
-| 快捷键面板 | `src/features/settings/components/HotkeysPanel.tsx` | 快捷键录制与校验 |
-| 统计面板 | `src/features/settings/components/StatsPanel.tsx` | 统计和热力图 |
-| 账户面板 | `src/components/AccountPanel.tsx` → 后续迁移 `src/features/auth/components/AccountPanel.tsx` | 登录、注册、个人信息、同步 |
-| 表单 UI | `src/shared/ui/*` | Card、ToggleRow、RangeRow、TextField、Dialog |
+| 子模块     | 目标路径                                                                                     | 职责                                         |
+| ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 设置页容器 | `src/features/settings/pages/SettingsPage.tsx`                                               | 左侧导航、当前 section、右侧内容装配         |
+| 偏好面板   | `src/features/settings/components/PreferencesPanel.tsx`                                      | 主题、语言、背景、字号、默认视图             |
+| 供应商面板 | `src/features/settings/components/ProvidersPanel.tsx`                                        | 供应商列表与详情切换                         |
+| 供应商弹窗 | `src/features/settings/dialogs/AddProviderDialog.tsx`                                        | 新增供应商                                   |
+| 模型弹窗   | `src/features/settings/dialogs/AddModelDialog.tsx`                                           | 新增模型                                     |
+| 快捷键面板 | `src/features/settings/components/HotkeysPanel.tsx`                                          | 快捷键录制与校验                             |
+| 统计面板   | `src/features/settings/components/StatsPanel.tsx`                                            | 统计和热力图                                 |
+| 账户面板   | `src/components/AccountPanel.tsx` → 后续迁移 `src/features/auth/components/AccountPanel.tsx` | 登录、注册、个人信息、同步                   |
+| 表单 UI    | `src/shared/ui/*`                                                                            | Card、ToggleRow、RangeRow、TextField、Dialog |
 
 ### 4.3 数据流
 
@@ -179,12 +179,12 @@ src/
 
 ## 6. 测试策略
 
-| 模块 | 测试类型 | 核心覆盖 |
-| --- | --- | --- |
-| `markdownCommands` | 纯函数单测 | 包裹选区、多行列表/引用、标题循环、代码块、公式、Tile 文案 |
-| `AppShell/routeViews` | 组件渲染测试 | 特殊窗口、主视图切换、登录受限视图 |
-| 未来 `useNoteAutosave` | Hook/状态机测试 | dirty、saving、saved、error、防抖保存 |
-| 未来 Settings panels | 组件测试 | 配置变更回调、供应商编辑、快捷键校验 |
+| 模块                   | 测试类型        | 核心覆盖                                                   |
+| ---------------------- | --------------- | ---------------------------------------------------------- |
+| `markdownCommands`     | 纯函数单测      | 包裹选区、多行列表/引用、标题循环、代码块、公式、Tile 文案 |
+| `AppShell/routeViews`  | 组件渲染测试    | 特殊窗口、主视图切换、登录受限视图                         |
+| 未来 `useNoteAutosave` | Hook/状态机测试 | dirty、saving、saved、error、防抖保存                      |
+| 未来 Settings panels   | 组件测试        | 配置变更回调、供应商编辑、快捷键校验                       |
 
 ## 7. 后续拆分顺序
 

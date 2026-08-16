@@ -53,13 +53,18 @@ for (const { modelsRoot: root, modelsBaseUrl, modelDir, displayName } of JOBS) {
       force: true,
     });
     const profilePath = path.join(root, modelDir, "soullink.profile.json");
-    console.log(`[soullink-profiles] ${modelDir}: generated=${result.generated} reason=${result.reason} provider=${result.provider}`);
+    console.log(
+      `[soullink-profiles] ${modelDir}: generated=${result.generated} reason=${result.reason} provider=${result.provider}`,
+    );
     console.log(`[soullink-profiles] ${modelDir}: -> ${path.relative(projectRoot, profilePath)}`);
     for (const note of result.notes) {
       console.log(`[soullink-profiles] ${modelDir}: note: ${note}`);
     }
   } catch (err) {
-    console.error(`[soullink-profiles] ${modelDir}: FAILED`, err instanceof Error ? err.message : err);
+    console.error(
+      `[soullink-profiles] ${modelDir}: FAILED`,
+      err instanceof Error ? err.message : err,
+    );
     process.exitCode = 1;
   }
 }

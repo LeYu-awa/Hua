@@ -1,17 +1,22 @@
-import { useStudioStore } from '../stores/useStudioStore';
-import type { GardenArticle } from '../../garden/types';
+import { useStudioStore } from "../stores/useStudioStore";
+import type { GardenArticle } from "../../garden/types";
 
 interface KanbanBoardProps {
   onSelectArticle: (article: GardenArticle) => void;
 }
 
 export function KanbanBoard({ onSelectArticle }: KanbanBoardProps) {
-  const kanbanColumns = useStudioStore((s: { kanbanColumns: import('../types').KanbanColumn[] }) => s.kanbanColumns);
+  const kanbanColumns = useStudioStore(
+    (s: { kanbanColumns: import("../types").KanbanColumn[] }) => s.kanbanColumns,
+  );
 
   return (
     <div className="flex-1 flex gap-3 p-4 overflow-x-auto min-h-0">
-      {kanbanColumns.map((column: import('../types').KanbanColumn) => (
-        <div key={column.id} className="flex-1 min-w-[220px] max-w-[280px] flex flex-col bg-paper-warm/30 rounded-xl border border-paper-deep/10">
+      {kanbanColumns.map((column: import("../types").KanbanColumn) => (
+        <div
+          key={column.id}
+          className="flex-1 min-w-[220px] max-w-[280px] flex flex-col bg-paper-warm/30 rounded-xl border border-paper-deep/10"
+        >
           {/* Column Header */}
           <div className="px-3 py-2.5 border-b border-paper-deep/10 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -26,11 +31,9 @@ export function KanbanBoard({ onSelectArticle }: KanbanBoardProps) {
           {/* Cards */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
             {column.articles.length === 0 ? (
-              <div className="py-6 text-center text-[11px] text-ink-ghost">
-                拖入文章或开始创作
-              </div>
+              <div className="py-6 text-center text-[11px] text-ink-ghost">拖入文章或开始创作</div>
             ) : (
-              column.articles.map((article: import('../../garden/types').GardenArticle) => (
+              column.articles.map((article: import("../../garden/types").GardenArticle) => (
                 <button
                   key={article.id}
                   type="button"
@@ -38,7 +41,7 @@ export function KanbanBoard({ onSelectArticle }: KanbanBoardProps) {
                   className="w-full text-left bg-paper rounded-lg border border-paper-deep/10 p-2.5 hover:shadow-md transition-shadow cursor-pointer group"
                 >
                   <div className="text-[12px] font-medium text-ink truncate">
-                    {article.title || '未命名'}
+                    {article.title || "未命名"}
                   </div>
                   {article.summary && (
                     <div className="text-[11px] text-ink-ghost mt-1 line-clamp-2">
@@ -51,7 +54,7 @@ export function KanbanBoard({ onSelectArticle }: KanbanBoardProps) {
                     </span>
                     {article.tags && article.tags.length > 0 && (
                       <span className="text-[10px] text-bamboo-ghost truncate">
-                        {article.tags.slice(0, 2).join(', ')}
+                        {article.tags.slice(0, 2).join(", ")}
                       </span>
                     )}
                   </div>

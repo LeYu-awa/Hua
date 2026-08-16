@@ -27,7 +27,15 @@ const NOTE_WRITE_PATTERNS = [
 ];
 const NOTE_OPTIMIZE_PATTERNS = ["优化", "润色", "改写", "重写"];
 const NOTE_OPTIMIZE_TARGET_WORDS = ["笔记", "文档", "文章", "文本", "内容"];
-const NOTE_CAPABILITY_PATTERNS = ["可以编辑", "能编辑", "能修改", "能改", "能整理", "能归类", "可以修改"];
+const NOTE_CAPABILITY_PATTERNS = [
+  "可以编辑",
+  "能编辑",
+  "能修改",
+  "能改",
+  "能整理",
+  "能归类",
+  "可以修改",
+];
 const OPEN_URL_PATTERNS = ["打开链接", "打开网址", "访问"];
 const COPY_PATTERNS = ["复制", "复制到剪贴板"];
 const URL_PATTERN = /https?:\/\/[^\s，。！？]+/i;
@@ -127,7 +135,8 @@ export function detectAssistantToolPlan(input: string): AssistantToolPlan | null
   }
 
   if (includesAny(text, NOTE_READ_PATTERNS) && !includesAny(text, NOTE_OPTIMIZE_PATTERNS)) {
-    const query = extractQuoted(text) ?? stripLead(text, ["读取", "看看", "总结", "整理", "分类", "归类"]);
+    const query =
+      extractQuoted(text) ?? stripLead(text, ["读取", "看看", "总结", "整理", "分类", "归类"]);
     // 只解析出"这篇笔记/这篇文章/总结一下"这类无明确主题的指代时，不硬跑本地搜索，
     // 交给 LLM 对话处理（LLM 会追问目标笔记，而不是把整句话当搜索词返回 0 条）
     if (!query || isVagueNoteReference(query)) return null;
@@ -177,7 +186,9 @@ export function requiresConfirmation(tool: AssistantToolName): boolean {
 }
 
 export function parseExplicitToolCommand(text: string): AssistantToolPlan | null {
-  const command = text.match(/^\/(搜索|search|读笔记|笔记|创建笔记|追加笔记|优化笔记|润色笔记|归类笔记|移动笔记|打开链接|复制)\s+([\s\S]+)$/i);
+  const command = text.match(
+    /^\/(搜索|search|读笔记|笔记|创建笔记|追加笔记|优化笔记|润色笔记|归类笔记|移动笔记|打开链接|复制)\s+([\s\S]+)$/i,
+  );
   if (!command) return null;
 
   const [, rawCommand, rawPayload] = command;
@@ -287,18 +298,26 @@ function extractAfter(text: string, markers: string[]) {
   for (const marker of markers) {
     const index = text.indexOf(marker);
     if (index >= 0) {
-      return text.slice(index + marker.length).replace(/^一[个篇条]?/, "").trim();
+      return text
+        .slice(index + marker.length)
+        .replace(/^一[个篇条]?/, "")
+        .trim();
     }
   }
   return null;
 }
 
 function parseOptimizeIntent(text: string): { query: string } | null {
-  if (!includesAny(text, NOTE_OPTIMIZE_PATTERNS) || !includesAny(text, NOTE_OPTIMIZE_TARGET_WORDS)) {
+  if (
+    !includesAny(text, NOTE_OPTIMIZE_PATTERNS) ||
+    !includesAny(text, NOTE_OPTIMIZE_TARGET_WORDS)
+  ) {
     return null;
   }
 
-  const titleMatch = text.match(/(?:标题(?:为|是)?|题目(?:为|是)?|叫做|名为)[「“"]?([^」”"，,。？！\s]+?)(?:[」”"]|的(?:文档|笔记|文章|内容)|[，,。？！\s]|$)/);
+  const titleMatch = text.match(
+    /(?:标题(?:为|是)?|题目(?:为|是)?|叫做|名为)[「“"]?([^」”"，,。？！\s]+?)(?:[」”"]|的(?:文档|笔记|文章|内容)|[，,。？！\s]|$)/,
+  );
   const quoted = extractQuoted(text);
   const query = titleMatch?.[1]?.trim() || quoted;
   // 只说"帮我优化这篇文章"但没有指明是哪一篇（无标题/引号）时，不猜测目标，
@@ -316,12 +335,16 @@ function isVagueNoteReference(value: string) {
 }
 
 function parseAppendIntent(text: string): { query: string; content: string } | null {
-  const explicit = text.match(/(?:追加|写入|编辑|修改)(?:笔记)?[「“"]?([^」”"|｜，,]+)[」”"]?\s*[|｜，,]\s*([\s\S]+)/);
+  const explicit = text.match(
+    /(?:追加|写入|编辑|修改)(?:笔记)?[「“"]?([^」”"|｜，,]+)[」”"]?\s*[|｜，,]\s*([\s\S]+)/,
+  );
   if (explicit?.[1] && explicit?.[2]) {
     return { query: explicit[1].trim(), content: explicit[2].trim() };
   }
 
-  const suffix = text.match(/(?:把|将)([\s\S]+?)(?:追加|写入|添加)到(?:笔记)?[「“"]?([^」”"]+)[」”"]?/);
+  const suffix = text.match(
+    /(?:把|将)([\s\S]+?)(?:追加|写入|添加)到(?:笔记)?[「“"]?([^」”"]+)[」”"]?/,
+  );
   if (suffix?.[1] && suffix?.[2]) {
     return { query: suffix[2].trim(), content: suffix[1].trim() };
   }
@@ -330,7 +353,9 @@ function parseAppendIntent(text: string): { query: string; content: string } | n
 }
 
 function parseMoveCategoryIntent(text: string) {
-  const explicit = text.match(/(?:把|将)?(?:笔记)?[「“"]?([^」”"|｜，,]+)[」”"]?\s*(?:归类到|移动到|分类到)\s*[「“"]?([^」”"，,]+)[」”"]?/);
+  const explicit = text.match(
+    /(?:把|将)?(?:笔记)?[「“"]?([^」”"|｜，,]+)[」”"]?\s*(?:归类到|移动到|分类到)\s*[「“"]?([^」”"，,]+)[」”"]?/,
+  );
   if (explicit?.[1] && explicit?.[2]) {
     return { query: explicit[1].trim(), category: explicit[2].trim() };
   }

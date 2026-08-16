@@ -156,7 +156,10 @@ export async function svgToPngBlob(svgText: string): Promise<Blob> {
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0);
     return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("PNG 编码失败"))), "image/png");
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("PNG 编码失败"))),
+        "image/png",
+      );
     });
   } finally {
     URL.revokeObjectURL(url);
@@ -184,7 +187,11 @@ export function layoutNoteLines(
   maxWidthPx: number,
   fontSize: number,
 ): { titleLines: string[]; bodyLines: string[] } {
-  const titleLines = wrapTextByPixels(title || "未命名笔记", maxWidthPx, Math.round(fontSize * 1.4));
+  const titleLines = wrapTextByPixels(
+    title || "未命名笔记",
+    maxWidthPx,
+    Math.round(fontSize * 1.4),
+  );
   const bodyLines = wrapTextByPixels(content || "", maxWidthPx, fontSize);
   return { titleLines, bodyLines };
 }
@@ -230,6 +237,9 @@ export function renderNoteToPngBlob(title: string, content: string): Promise<Blo
   }
 
   return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("PNG 编码失败"))), "image/png");
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("PNG 编码失败"))),
+      "image/png",
+    );
   });
 }

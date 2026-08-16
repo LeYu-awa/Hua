@@ -4,19 +4,22 @@ import { runAssistantPlan } from "./agentRuntime";
 import type { AssistantToolPlan } from "./toolPlanner";
 
 vi.mock("./assistantTools", () => ({
-  executeAssistantTool: vi.fn(async () => ({
-    tool: "note.read",
-    summary: "已读取笔记「ts」。",
-    data: {
-      note: {
-        id: "note-1",
-        title: "ts",
-        category: "学习",
-        content: "ts 是 js 的类型超集。",
-        wordCount: 11,
-      },
-    },
-  } satisfies AssistantToolResponse)),
+  executeAssistantTool: vi.fn(
+    async () =>
+      ({
+        tool: "note.read",
+        summary: "已读取笔记「ts」。",
+        data: {
+          note: {
+            id: "note-1",
+            title: "ts",
+            category: "学习",
+            content: "ts 是 js 的类型超集。",
+            wordCount: 11,
+          },
+        },
+      }) satisfies AssistantToolResponse,
+  ),
 }));
 
 describe("sidebar chat agent runtime", () => {

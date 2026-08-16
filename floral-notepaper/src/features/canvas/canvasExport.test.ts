@@ -36,9 +36,7 @@ const doc: CanvasDocument = {
       source: undefined,
     },
   ],
-  edges: [
-    { id: "e1", fromNodeId: "n1", toNodeId: "n2", style: "dashed" },
-  ],
+  edges: [{ id: "e1", fromNodeId: "n1", toNodeId: "n2", style: "dashed" }],
 };
 
 describe("wrapText", () => {
@@ -73,7 +71,7 @@ describe("buildCanvasSvg（导出保真源）", () => {
   it("保留节点文本与 XML 转义", () => {
     const svg = buildCanvasSvg({
       ...doc,
-      nodes: [{ ...doc.nodes[0], text: "A <B> & \"C\"" }, doc.nodes[1]],
+      nodes: [{ ...doc.nodes[0], text: 'A <B> & "C"' }, doc.nodes[1]],
     });
     expect(svg).toContain("A &lt;B&gt; &amp; &quot;C&quot;");
     // 其余节点原文不受影响

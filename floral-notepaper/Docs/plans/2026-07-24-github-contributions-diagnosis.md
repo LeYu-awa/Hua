@@ -94,16 +94,16 @@ git log -1 --format="%an <%ae>"
 
 ## 6. 常见问题排查
 
-| 问题 | 判断方式 | 处理方式 |
-| --- | --- | --- |
-| 邮箱未绑定 | GitHub Emails 没有 `160152866@qq.com` | 添加邮箱并验证 |
-| 邮箱未验证 | Emails 中有邮箱但未 verified | 完成验证邮件流程 |
-| 本地仓库覆盖了全局邮箱 | `git config --show-origin --get user.email` 显示 `.git/config` | 以仓库级配置为准，必要时重新设置 |
-| 提交邮箱属于旧账号 | commit author email 仍绑定 `Kawayideleyu` | 从旧账号移除或在新账号添加并验证该邮箱 |
-| 使用隐私邮箱但配置错 | 本地邮箱不是 GitHub no-reply 格式 | 使用 GitHub Emails 页面显示的完整 no-reply 地址 |
-| 提交不在默认分支 | commit 只在 feature 分支/未合并 | 合并或推送到默认分支后再看贡献图 |
-| 私有仓库贡献不可见 | 个人主页未开启 private contribution 显示 | 在贡献图设置中开启 private contributions 可见性 |
-| 邮件被拦截/无法验证 | 收不到 GitHub 验证邮件 | 检查垃圾箱、拦截规则，或换 no-reply/其他可验证邮箱 |
+| 问题                   | 判断方式                                                       | 处理方式                                           |
+| ---------------------- | -------------------------------------------------------------- | -------------------------------------------------- |
+| 邮箱未绑定             | GitHub Emails 没有 `160152866@qq.com`                          | 添加邮箱并验证                                     |
+| 邮箱未验证             | Emails 中有邮箱但未 verified                                   | 完成验证邮件流程                                   |
+| 本地仓库覆盖了全局邮箱 | `git config --show-origin --get user.email` 显示 `.git/config` | 以仓库级配置为准，必要时重新设置                   |
+| 提交邮箱属于旧账号     | commit author email 仍绑定 `Kawayideleyu`                      | 从旧账号移除或在新账号添加并验证该邮箱             |
+| 使用隐私邮箱但配置错   | 本地邮箱不是 GitHub no-reply 格式                              | 使用 GitHub Emails 页面显示的完整 no-reply 地址    |
+| 提交不在默认分支       | commit 只在 feature 分支/未合并                                | 合并或推送到默认分支后再看贡献图                   |
+| 私有仓库贡献不可见     | 个人主页未开启 private contribution 显示                       | 在贡献图设置中开启 private contributions 可见性    |
+| 邮件被拦截/无法验证    | 收不到 GitHub 验证邮件                                         | 检查垃圾箱、拦截规则，或换 no-reply/其他可验证邮箱 |
 
 ## 7. 历史提交修复
 

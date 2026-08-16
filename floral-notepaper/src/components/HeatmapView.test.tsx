@@ -34,9 +34,7 @@ function setElementWidth(width: number) {
 }
 
 function cellDates() {
-  return screen
-    .getAllByTitle(/\d{4}-\d{2}-\d{2}/)
-    .map((node) => node.getAttribute("title"));
+  return screen.getAllByTitle(/\d{4}-\d{2}-\d{2}/).map((node) => node.getAttribute("title"));
 }
 
 describe("HeatmapView", () => {

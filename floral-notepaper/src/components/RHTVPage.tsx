@@ -34,10 +34,7 @@ export function RHTVPage() {
         <p>
           ComfyUI 已安装到 <code className="bg-paper-warm px-1 rounded">d:\花箴\comfyui</code>
         </p>
-        <p>
-          首次启动前需要下载模型文件（如 SDXL、Flux 等），
-          请先运行启动脚本：
-        </p>
+        <p>首次启动前需要下载模型文件（如 SDXL、Flux 等）， 请先运行启动脚本：</p>
         <div className="bg-paper-warm rounded-lg p-3 font-mono text-xs select-all">
           d:\花箴\comfyui\start.bat
         </div>
@@ -52,9 +49,8 @@ export function RHTVPage() {
       </button>
 
       <p className="text-xs text-ink-ghost max-w-sm text-center leading-relaxed">
-        提示：首次使用需要先运行 start.bat 启动服务，
-        然后在浏览器中通过 ComfyUI Manager 下载所需的模型。
-        之后每次使用前启动 start.bat 即可。
+        提示：首次使用需要先运行 start.bat 启动服务， 然后在浏览器中通过 ComfyUI Manager
+        下载所需的模型。 之后每次使用前启动 start.bat 即可。
       </p>
     </div>
   );

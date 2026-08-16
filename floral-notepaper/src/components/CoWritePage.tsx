@@ -16,7 +16,16 @@ type RightTab = "chat" | "shared" | "local";
 // ============================================
 function DocumentIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
@@ -27,7 +36,16 @@ function DocumentIcon({ size = 14 }: { size?: number }) {
 
 function CanvasIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="3" width="7" height="7" rx="1" />
       <rect x="14" y="3" width="7" height="7" rx="1" />
       <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -38,7 +56,16 @@ function CanvasIcon({ size = 14 }: { size?: number }) {
 
 function ChatIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       <line x1="12" y1="9" x2="12" y2="9.01" />
       <line x1="8" y1="9" x2="8" y2="9.01" />
@@ -49,7 +76,16 @@ function ChatIcon({ size = 14 }: { size?: number }) {
 
 function SharedIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   );
@@ -57,7 +93,16 @@ function SharedIcon({ size = 14 }: { size?: number }) {
 
 function NotesIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z" />
       <polyline points="16 3 16 8 21 8" />
       <line x1="8" y1="12" x2="16" y2="12" />
@@ -112,7 +157,11 @@ export function CoWritePage() {
     setConvError(null);
     try {
       // 先确保系统好友会话存在（已存在好友时不会报错，只会补建会话）
-      try { await addSystemFriend(); } catch { /* 忽略 */ }
+      try {
+        await addSystemFriend();
+      } catch {
+        /* 忽略 */
+      }
       const list = await getConversationList();
       setConversations(list);
     } catch (e) {
@@ -190,7 +239,8 @@ export function CoWritePage() {
         ) : (
           <div className="py-1">
             {conversations.map((conv) => {
-              const friend = conv.members.find(m => m.user_id !== currentUserId) ?? conv.members[0];
+              const friend =
+                conv.members.find((m) => m.user_id !== currentUserId) ?? conv.members[0];
               return (
                 <button
                   key={conv.id}
@@ -318,9 +368,7 @@ export function CoWritePage() {
         {rightTab === "chat" && (
           <ChatPanel conversationId={selectedConvId} currentUserId={currentUserId} />
         )}
-        {rightTab === "shared" && (
-          <SharedFiles conversationId={selectedConvId} />
-        )}
+        {rightTab === "shared" && <SharedFiles conversationId={selectedConvId} />}
         {rightTab === "local" && <LocalFiles />}
       </div>
     </div>

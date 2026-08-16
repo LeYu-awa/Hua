@@ -366,7 +366,8 @@ pub fn agent_task_list(
     store.list(limit.unwrap_or(50), status)
 }
 
-/// IPC：更新任务状态（状态机转移由 Rust 编排侧负责，此处只做持久化）
+/// IPC：更新任务状态。状态机转移由 Rust 编排侧（runner.transition）负责，
+/// 外部只允许把非终态任务置为 Cancelled（如手动取消卡住的任务），避免任意改状态破坏编排。
 #[tauri::command]
 pub fn agent_task_update_status(
     store: tauri::State<'_, AgentTaskStore>,
@@ -374,6 +375,25 @@ pub fn agent_task_update_status(
     status: String,
 ) -> Result<Option<Task>, AppError> {
     let status = TaskStatus::parse(&status)?;
+    let existing = store.get(&task_id)?;
+    let Some(task) = existing else {
+        return Ok(None);
+    };
+    if status != TaskStatus::Cancelled {
+        return Err(AppError::new(
+            "statusNotAllowed",
+            format!("外部仅允许将任务置为取消（当前 {:?}）", task.status),
+        ));
+    }
+    if matches!(
+        task.status,
+        TaskStatus::Done | TaskStatus::Failed | TaskStatus::Cancelled
+    ) {
+        return Err(AppError::new(
+            "statusNotAllowed",
+            format!("任务已处于终态 {:?}，无法取消", task.status),
+        ));
+    }
     store.update_status(&task_id, status)
 }
 

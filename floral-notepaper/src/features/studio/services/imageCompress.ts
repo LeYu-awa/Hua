@@ -1,4 +1,4 @@
-export type CompressionLevel = 'lossless' | 'high' | 'balanced';
+export type CompressionLevel = "lossless" | "high" | "balanced";
 
 interface CompressOptions {
   level: CompressionLevel;
@@ -13,15 +13,15 @@ const QUALITY_MAP: Record<CompressionLevel, number> = {
 };
 
 export async function compressImage(
-  file: File, 
-  options: CompressOptions = { level: 'balanced' }
+  file: File,
+  options: CompressOptions = { level: "balanced" },
 ): Promise<Blob> {
   const img = await createImageBitmap(file);
   const { level, maxWidth = 1920, maxHeight = 2560 } = options;
-  
+
   let width = img.width;
   let height = img.height;
-  
+
   if (width > maxWidth) {
     height = (height * maxWidth) / width;
     width = maxWidth;
@@ -30,20 +30,16 @@ export async function compressImage(
     width = (width * maxHeight) / height;
     height = maxHeight;
   }
-  
-  const canvas = document.createElement('canvas');
+
+  const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
   ctx.drawImage(img, 0, 0, width, height);
   img.close();
-  
+
   return new Promise((resolve) => {
-    canvas.toBlob(
-      (blob) => resolve(blob || file),
-      file.type || 'image/jpeg',
-      QUALITY_MAP[level]
-    );
+    canvas.toBlob((blob) => resolve(blob || file), file.type || "image/jpeg", QUALITY_MAP[level]);
   });
 }
 

@@ -1,7 +1,16 @@
 export type CompanionMode = "embedded" | "floating";
 export type CompanionRenderer = "sprite" | "live2d";
 export type CompanionInputMode = "keyboard" | "gamepad" | "standard";
-export type CompanionSkinId = "a-yuno-keyboard" | "a-yuno-gamepad" | "a-yuno-standard" | "bongocat-classic" | "haru-cdn" | "hiyori" | "aquarius-love" | "miku" | "custom";
+export type CompanionSkinId =
+  | "a-yuno-keyboard"
+  | "a-yuno-gamepad"
+  | "a-yuno-standard"
+  | "bongocat-classic"
+  | "haru-cdn"
+  | "hiyori"
+  | "aquarius-love"
+  | "miku"
+  | "custom";
 export type Live2DCarouselOrder = "sequential" | "reverse" | "random";
 
 export type CompanionAction =

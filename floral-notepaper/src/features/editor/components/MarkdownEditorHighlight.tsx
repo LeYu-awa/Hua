@@ -64,7 +64,9 @@ type CodeFenceState = {
   length: number;
 };
 
-function getFenceMatch(line: string): { indent: string; fence: string; suffix: string; state: CodeFenceState } | null {
+function getFenceMatch(
+  line: string,
+): { indent: string; fence: string; suffix: string; state: CodeFenceState } | null {
   const match = line.match(/^(\s*)((?:`{3,})|(?:~{3,}))(.*)$/);
   if (!match) return null;
 
@@ -231,7 +233,11 @@ function tokenizeInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
   });
 }
 
-function renderMarkdownLine(line: string, index: number, activeFence: CodeFenceState | null): ReactNode {
+function renderMarkdownLine(
+  line: string,
+  index: number,
+  activeFence: CodeFenceState | null,
+): ReactNode {
   const keyPrefix = `mde-${index}`;
   if (activeFence) {
     if (isClosingFence(line, activeFence)) return renderFenceLine(line);
@@ -285,7 +291,9 @@ function renderMarkdownLine(line: string, index: number, activeFence: CodeFenceS
   }
 
   if (line.includes("|") && /^\s*\|?.+\|.+\|?\s*$/.test(line)) {
-    return <span className="mde-line mde-table-line">{tokenizeInlineMarkdown(line, keyPrefix)}</span>;
+    return (
+      <span className="mde-line mde-table-line">{tokenizeInlineMarkdown(line, keyPrefix)}</span>
+    );
   }
 
   return <span className="mde-line">{tokenizeInlineMarkdown(line, keyPrefix)}</span>;

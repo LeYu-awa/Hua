@@ -36,10 +36,7 @@
   },
   "parameterMap": {
     "eyeOpen": {
-      "targets": [
-        "ParamEyeLOpen",
-        "ParamEyeROpen"
-      ],
+      "targets": ["ParamEyeLOpen", "ParamEyeROpen"],
       "mode": "set",
       "scale": 1,
       "min": 0,
@@ -60,20 +57,14 @@
       "max": 1.2
     },
     "eyeSquint": {
-      "targets": [
-        "ParamEyeLOpen",
-        "ParamEyeROpen"
-      ],
+      "targets": ["ParamEyeLOpen", "ParamEyeROpen"],
       "mode": "subtract",
       "scale": 0.22,
       "min": 0,
       "max": 1.2
     },
     "eyeSmile": {
-      "targets": [
-        "ParamEyeSmile",
-        "ParamEyeSmileR"
-      ],
+      "targets": ["ParamEyeSmile", "ParamEyeSmileR"],
       "mode": "set",
       "scale": 1,
       "min": 0,
@@ -164,51 +155,35 @@
       "max": 1
     },
     "browInnerUp": {
-      "targets": [
-        "ParamBrowLY",
-        "ParamBrowRY"
-      ],
+      "targets": ["ParamBrowLY", "ParamBrowRY"],
       "mode": "set",
       "scale": 1,
       "min": -1,
       "max": 1
     },
     "browOuterUp": {
-      "targets": [
-        "ParamBrowLAngle",
-        "ParamBrowRAngle"
-      ],
+      "targets": ["ParamBrowLAngle", "ParamBrowRAngle"],
       "mode": "set",
       "scale": 0.9,
       "min": -1,
       "max": 1
     },
     "browDown": {
-      "targets": [
-        "ParamBrowLForm",
-        "ParamBrowRForm"
-      ],
+      "targets": ["ParamBrowLForm", "ParamBrowRForm"],
       "mode": "set",
       "scale": -0.85,
       "min": -1,
       "max": 1
     },
     "blush": {
-      "targets": [
-        "ParamCheek"
-      ],
+      "targets": ["ParamCheek"],
       "mode": "set",
       "scale": 1,
       "min": 0,
       "max": 1
     },
     "tear": {
-      "targets": [
-        "Param300",
-        "Param298",
-        "Param299",
-        "Param301"
-      ],
+      "targets": ["Param300", "Param298", "Param299", "Param301"],
       "mode": "set",
       "scale": 1,
       "min": 0,
@@ -224,12 +199,7 @@
   },
   "privateEmotionMap": {
     "positiveEye": {
-      "targets": [
-        "Param295",
-        "Param296",
-        "Param297",
-        "Param70"
-      ],
+      "targets": ["Param295", "Param296", "Param297", "Param70"],
       "category": "positiveEye",
       "priority": 90,
       "exclusiveGroup": "face-effect",
@@ -237,11 +207,7 @@
       "confidence": 0.94
     },
     "angerEffect": {
-      "targets": [
-        "ParamBrowRAngle2",
-        "ParamBrowLAngle2",
-        "star_09"
-      ],
+      "targets": ["ParamBrowRAngle2", "ParamBrowLAngle2", "star_09"],
       "category": "anger",
       "priority": 90,
       "exclusiveGroup": "face-effect",
@@ -249,18 +215,9 @@
       "confidence": 0.95
     },
     "starEffect": {
-      "targets": [
-        "Param271",
-        "Param272",
-        "star_04",
-        "star_05"
-      ],
+      "targets": ["Param271", "Param272", "star_04", "star_05"],
       "category": "privateEffect",
-      "emotions": [
-        "excited",
-        "happy",
-        "surprised"
-      ],
+      "emotions": ["excited", "happy", "surprised"],
       "priority": 70,
       "exclusiveGroup": "face-effect",
       "source": "heuristic",
@@ -268,50 +225,17 @@
     }
   },
   "idleConfig": {
-    "gazeX": [
-      -0.12,
-      0.12
-    ],
-    "gazeY": [
-      -0.06,
-      0.08
-    ],
-    "headX": [
-      -0.08,
-      0.08
-    ],
-    "headY": [
-      -0.04,
-      0.04
-    ],
-    "headZ": [
-      -0.05,
-      0.05
-    ],
-    "bodyX": [
-      -0.045,
-      0.045
-    ],
-    "bodyY": [
-      -0.014,
-      0.014
-    ],
-    "bodyZ": [
-      -0.055,
-      0.055
-    ],
-    "mouthSmile": [
-      0.02,
-      0.1
-    ],
-    "browInnerUp": [
-      0,
-      0.06
-    ],
-    "eyeOpen": [
-      0.9,
-      1
-    ]
+    "gazeX": [-0.12, 0.12],
+    "gazeY": [-0.06, 0.08],
+    "headX": [-0.08, 0.08],
+    "headY": [-0.04, 0.04],
+    "headZ": [-0.05, 0.05],
+    "bodyX": [-0.045, 0.045],
+    "bodyY": [-0.014, 0.014],
+    "bodyZ": [-0.055, 0.055],
+    "mouthSmile": [0.02, 0.1],
+    "browInnerUp": [0, 0.06],
+    "eyeOpen": [0.9, 1]
   },
   "reactionBias": {
     "shy": {

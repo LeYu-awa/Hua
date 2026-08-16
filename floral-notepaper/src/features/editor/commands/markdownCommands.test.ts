@@ -11,7 +11,12 @@ const labels: FormatLabels = {
   quoteText: "引用文本",
 };
 
-function format(value: string, action: FormatAction, selectionStart = 0, selectionEnd = value.length) {
+function format(
+  value: string,
+  action: FormatAction,
+  selectionStart = 0,
+  selectionEnd = value.length,
+) {
   return formatMarkdownSelection({ value, action, selectionStart, selectionEnd, labels });
 }
 

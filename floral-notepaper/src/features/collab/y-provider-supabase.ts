@@ -72,7 +72,7 @@ export class YjsSupabaseProvider {
 
     this.channel = this.supabase.channel(`doc:${this.documentId}`, {
       config: {
-        // 让Supabase 管理心跳和重连 
+        // 让Supabase 管理心跳和重连
         broadcast: { ack: false },
       },
     });
@@ -135,10 +135,7 @@ export class YjsSupabaseProvider {
   private scheduleReconnect() {
     if (this.destroyed || this.reconnectTimer) return;
 
-    const delay = Math.min(
-      1000 * Math.pow(2, this.reconnectAttempt),
-      this.maxReconnectDelay,
-    );
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), this.maxReconnectDelay);
     this.reconnectAttempt++;
 
     this.reconnectTimer = setTimeout(() => {

@@ -22,7 +22,16 @@ const SHORTCUTS: { keys: string; desc: string }[] = [
 
 function HelpIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="9" />
       <path d="M9.2 9a2.8 2.8 0 0 1 5.5.9c0 1.9-2.7 2.3-2.7 3.6" />
       <path d="M12 17h.01" />
@@ -113,14 +122,24 @@ function DemoReplayModal({ onClose }: { onClose: () => void }) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <span className="text-[13px] font-semibold text-[var(--canvas-control-text)]">操作演示回放</span>
+          <span className="text-[13px] font-semibold text-[var(--canvas-control-text)]">
+            操作演示回放
+          </span>
           <button
             type="button"
             onClick={onClose}
             className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--canvas-control-text)]/45 transition-colors hover:bg-[var(--canvas-accent-soft)] hover:text-[var(--canvas-control-text)]/80 cursor-pointer"
             title="关闭"
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
@@ -182,8 +201,12 @@ function DemoReplayModal({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
-        <div className="mt-2 text-[12.5px] font-semibold text-[var(--canvas-control-text)]">{step.title}</div>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--canvas-control-text)]/60">{step.desc}</p>
+        <div className="mt-2 text-[12.5px] font-semibold text-[var(--canvas-control-text)]">
+          {step.title}
+        </div>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--canvas-control-text)]/60">
+          {step.desc}
+        </p>
 
         <div className="mt-3 flex justify-between gap-2">
           <button
@@ -212,7 +235,7 @@ export function CanvasQuickHelp() {
   const [replaying, setReplaying] = useState(false);
 
   return (
-    <div className="absolute bottom-4 left-4 z-20 !bottom-20">
+    <div className="absolute bottom-20 left-4 z-20">
       {!open ? (
         <button
           type="button"
@@ -226,14 +249,24 @@ export function CanvasQuickHelp() {
       ) : (
         <div className="canvas-onboarding-panel w-[264px] overflow-hidden animate-fade-in border-bamboo/25">
           <div className="flex items-center justify-between border-b border-[var(--canvas-border)] px-3 py-2.5">
-            <span className="text-[12px] font-semibold text-[var(--canvas-control-text)]">画布快捷操作</span>
+            <span className="text-[12px] font-semibold text-[var(--canvas-control-text)]">
+              画布快捷操作
+            </span>
             <button
               type="button"
               onClick={() => setOpen(false)}
               className="flex h-5 w-5 items-center justify-center rounded-md text-[var(--canvas-control-text)]/45 transition-colors hover:bg-[var(--canvas-accent-soft)] hover:text-[var(--canvas-control-text)]/80 cursor-pointer"
               title="收起"
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
@@ -244,7 +277,9 @@ export function CanvasQuickHelp() {
                 <span className="shrink-0 rounded-md bg-[var(--canvas-accent-soft)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--canvas-control-text)]/60">
                   {item.keys}
                 </span>
-                <span className="text-right text-[10px] text-[var(--canvas-control-text)]/45">{item.desc}</span>
+                <span className="text-right text-[10px] text-[var(--canvas-control-text)]/45">
+                  {item.desc}
+                </span>
               </div>
             ))}
           </div>

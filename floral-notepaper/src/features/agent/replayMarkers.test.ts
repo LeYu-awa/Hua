@@ -16,9 +16,7 @@ describe("ruleBasedMarkers", () => {
   });
 
   it("标记较长的停顿为 stuck", () => {
-    const markers = ruleBasedMarkers(
-      session([{ startMs: 0, endMs: 40_000, type: "停顿思考" }]),
-    );
+    const markers = ruleBasedMarkers(session([{ startMs: 0, endMs: 40_000, type: "停顿思考" }]));
     expect(markers).toHaveLength(1);
     expect(markers[0].markerType).toBe("stuck");
   });

@@ -150,9 +150,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     // 乐观更新
     set((state) => ({
       articles: state.articles.map((a) =>
-        a.id === id
-          ? { ...a, isLiked: liked, likeCount: a.likeCount + (liked ? 1 : -1) }
-          : a,
+        a.id === id ? { ...a, isLiked: liked, likeCount: a.likeCount + (liked ? 1 : -1) } : a,
       ),
     }));
     await toggleLike(id, liked);

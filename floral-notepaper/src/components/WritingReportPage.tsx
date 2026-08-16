@@ -95,7 +95,16 @@ export function WritingReportPage({ noteId, providers }: WritingReportPageProps)
         {profile && (
           <div className="mb-5 p-4 rounded-xl bg-paper-warm/40 border border-paper-deep/20 animate-fade-in">
             <div className="flex items-center gap-2 mb-1.5">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-bamboo" aria-hidden="true">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-bamboo"
+                aria-hidden="true"
+              >
                 <path d="M3 3v18h18" />
                 <path d="M18 9l-5 5-3-3-4 4" />
               </svg>
@@ -103,7 +112,8 @@ export function WritingReportPage({ noteId, providers }: WritingReportPageProps)
                 {t("report.profile", { defaultValue: "跨项目写作画像" })}
               </span>
               <span className="ml-auto text-[10px] text-ink-ghost">
-                {profile.docCount} {t("report.docs", { defaultValue: "篇" })} · {t("report.avgDelete", { defaultValue: "平均删改" })} {profile.avgDeleteRatio}%
+                {profile.docCount} {t("report.docs", { defaultValue: "篇" })} ·{" "}
+                {t("report.avgDelete", { defaultValue: "平均删改" })} {profile.avgDeleteRatio}%
               </span>
             </div>
             <p className="text-[13px] text-ink-soft leading-relaxed">{profile.summary}</p>

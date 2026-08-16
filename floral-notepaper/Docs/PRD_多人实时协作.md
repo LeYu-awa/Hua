@@ -3,9 +3,11 @@
 ## 一、功能定义
 
 ### 一句话描述
+
 好友之间可以**实时同步编辑同一篇文档**，右侧聊天栏实时沟通，支持语音通话。
 
 ### 用户场景
+
 1. 我打开一篇笔记，点击"邀请协作"，选择好友 → 好友收到通知
 2. 好友加入后，两人光标可见（不同颜色），文档内容实时同步
 3. 右侧聊天栏显示实时消息，可以打字或语音交流
@@ -18,6 +20,7 @@
 ### 2.1 文档同步：Yjs (CRDT)
 
 **为什么选 Yjs**
+
 - 无需中心化冲突解决，每个客户端本地 CRDT 合并
 - 支持离线编辑后同步
 - 生态成熟，有 React 绑定 (`@yjs/react`)
@@ -151,9 +154,9 @@ awareness.setLocalState({
 
 ```tsx
 interface CollabSidebarProps {
-  docId: string;       // 协作文档 ID
-  participants: Participant[];  // 参与者列表 + 在线状态
-  messages: CollabMessage[];    // 聊天消息
+  docId: string; // 协作文档 ID
+  participants: Participant[]; // 参与者列表 + 在线状态
+  messages: CollabMessage[]; // 聊天消息
   onSendMessage: (text: string) => void;
   onStartVoiceCall: () => void;
 }
@@ -163,16 +166,16 @@ interface CollabSidebarProps {
 
 ## 五、实现步骤
 
-| 步骤 | 任务 | 预估 |
-|------|------|------|
-| 1 | 安装 yjs、创建 y-supabase-provider | 1 天 |
-| 2 | 封装 useCollabDoc hook（Yjs 绑定 textarea） | 1 天 |
-| 3 | 实现 Awareness（多光标显示） | 0.5 天 |
-| 4 | 实现 CollabSidebar（参与者列表 + 聊天） | 1 天 |
-| 5 | 接入 Supabase Realtime 聊天消息 | 0.5 天 |
-| 6 | WebRTC 语音通话 | 1.5 天 |
-| 7 | 好友邀请/通知流程 | 1 天 |
-| 8 | 集成测试 | 1 天 |
+| 步骤 | 任务                                        | 预估   |
+| ---- | ------------------------------------------- | ------ |
+| 1    | 安装 yjs、创建 y-supabase-provider          | 1 天   |
+| 2    | 封装 useCollabDoc hook（Yjs 绑定 textarea） | 1 天   |
+| 3    | 实现 Awareness（多光标显示）                | 0.5 天 |
+| 4    | 实现 CollabSidebar（参与者列表 + 聊天）     | 1 天   |
+| 5    | 接入 Supabase Realtime 聊天消息             | 0.5 天 |
+| 6    | WebRTC 语音通话                             | 1.5 天 |
+| 7    | 好友邀请/通知流程                           | 1 天   |
+| 8    | 集成测试                                    | 1 天   |
 
 ---
 

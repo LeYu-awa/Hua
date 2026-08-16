@@ -1,4 +1,3 @@
-
 /* ── Markdown Preview Skins & Syntax Highlighting ── */
 .markdown-preview {
   --md-text: var(--color-ink-soft);
@@ -7,8 +6,9 @@
   --md-accent: var(--color-bamboo);
   --md-accent-soft: rgba(58, 122, 82, 0.12);
   --md-border: rgba(71, 85, 105, 0.16);
-  --md-code-bg: rgba(37, 42, 38, 0.06);
-  --md-code-text: #23362b;
+  /* 代码块配色跟随主题变量：深色主题下自动变为浅字深底，避免固定浅色值导致不可读 */
+  --md-code-bg: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  --md-code-text: var(--color-ink);
   color: var(--md-text);
   line-height: 1.85;
   max-width: 860px;

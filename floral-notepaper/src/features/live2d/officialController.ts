@@ -1,4 +1,8 @@
-import type { EmotionIntent, Live2DParamState, NativeAnimationDirective } from "@soullink-emotion/engine";
+import type {
+  EmotionIntent,
+  Live2DParamState,
+  NativeAnimationDirective,
+} from "@soullink-emotion/engine";
 import { createScriptTagCubismLoader, Live2DRenderer } from "@soullink-emotion/live2d-pixi";
 import type { Live2DModelController } from "./modelController";
 import { SoullinkLocalEngineAdapter } from "./soullinkLocalEngine";
@@ -47,9 +51,10 @@ export function createOfficialLive2DController(
   let eyeFollowEnabled = false;
   let mouseFollowStrength = 1;
   let gazeExtra: Live2DParamState = {};
-  let manual:
-    | { expression: string | null; motion: { group: string; index: number; priority: "idle" | "normal" | "force" } | null }
-    | null = null;
+  let manual: {
+    expression: string | null;
+    motion: { group: string; index: number; priority: "idle" | "normal" | "force" } | null;
+  } | null = null;
 
   const coreUrl = options.coreUrl ?? "/live2dcubismcore.min.js";
 
@@ -75,7 +80,9 @@ export function createOfficialLive2DController(
     manualToken += 1;
   };
 
-  const buildDirective = (engineDirective: NativeAnimationDirective | null): NativeAnimationDirective | null => {
+  const buildDirective = (
+    engineDirective: NativeAnimationDirective | null,
+  ): NativeAnimationDirective | null => {
     if (!manual) return engineDirective;
     return {
       token: manualToken,
@@ -186,7 +193,10 @@ export function createOfficialLive2DController(
 
     playMotion(group: string, index = 0) {
       if (!loaded) return;
-      setManual({ expression: manual?.expression ?? null, motion: { group, index, priority: "normal" } });
+      setManual({
+        expression: manual?.expression ?? null,
+        motion: { group, index, priority: "normal" },
+      });
     },
 
     async setExpression(expressionId: string) {

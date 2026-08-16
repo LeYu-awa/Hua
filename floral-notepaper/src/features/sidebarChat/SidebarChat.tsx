@@ -717,15 +717,20 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
     (taskId: string) => {
       setMenuTaskId(null);
       if (!window.confirm("确定删除该对话吗？删除后不可恢复。")) return;
-      setTasks((current) => {
-        const remaining = current.filter((task) => task.id !== taskId);
-        if (activeTask.id === taskId) {
-          setActiveTaskId(remaining[0]?.id ?? "");
-        }
-        return remaining;
-      });
+      const remaining = tasks.filter((task) => task.id !== taskId);
+      if (remaining.length === 0) {
+        // 删除最后一个对话后立即新建，避免 activeTask 回退成幽灵任务导致消息被静默丢弃
+        const nextTask = createChatTask();
+        setTasks([nextTask]);
+        setActiveTaskId(nextTask.id);
+      } else {
+        setTasks(remaining);
+        if (activeTask.id === taskId) setActiveTaskId(remaining[0].id);
+      }
+      cancelPendingAgentRound();
+      stopSpeech();
     },
-    [activeTask.id],
+    [activeTask.id, cancelPendingAgentRound, tasks],
   );
 
   const requestModelMessages = useCallback(

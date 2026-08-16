@@ -116,7 +116,10 @@ export function VirtualList<T>({
 
   const { startIdx, visibleItems, totalHeight, offsetY } = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
-    const end = Math.min(items.length, Math.ceil((scrollTop + containerHeight) / itemHeight) + overscan);
+    const end = Math.min(
+      items.length,
+      Math.ceil((scrollTop + containerHeight) / itemHeight) + overscan,
+    );
     return {
       startIdx: start,
       endIdx: end,
@@ -146,7 +149,15 @@ export function VirtualList<T>({
         >
           {isRefreshing ? (
             <div className="flex items-center gap-2 text-sm text-[var(--color-bamboo)]">
-              <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="animate-spin"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
               </svg>
               <span>刷新中…</span>
@@ -193,7 +204,15 @@ export function VirtualList<T>({
           >
             {isLoadingMore ? (
               <div className="flex items-center gap-2 text-sm text-[var(--color-bamboo)]">
-                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  className="animate-spin"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
                 <span>加载更多…</span>

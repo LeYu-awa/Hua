@@ -30,14 +30,25 @@ async function getCurrentUserId(): Promise<string> {
 }
 
 /** 批量获取用户资料（避免联表查询依赖 schema cache） */
-async function fetchProfiles(userIds: string[]): Promise<Map<string, { display_name: string; avatar_url: string | null; email: string }>> {
+async function fetchProfiles(
+  userIds: string[],
+): Promise<Map<string, { display_name: string; avatar_url: string | null; email: string }>> {
   const ids = [...new Set(userIds)].filter(Boolean);
   if (ids.length === 0) return new Map();
   const { data } = await supabase
     .from("profiles")
     .select("id, display_name, avatar_url, email")
     .in("id", ids);
-  return new Map((data ?? []).map(p => [p.id, { display_name: p.display_name ?? p.email?.split("@")[0] ?? "用户", avatar_url: p.avatar_url, email: p.email ?? "" }]));
+  return new Map(
+    (data ?? []).map((p) => [
+      p.id,
+      {
+        display_name: p.display_name ?? p.email?.split("@")[0] ?? "用户",
+        avatar_url: p.avatar_url,
+        email: p.email ?? "",
+      },
+    ]),
+  );
 }
 
 // ============================================
@@ -75,13 +86,17 @@ export async function getIncomingRequests(): Promise<FriendRequestWithProfile[]>
   if (!data || data.length === 0) return [];
 
   // 2. 批量获取发送方资料
-  const profiles = await fetchProfiles(data.map(r => r.sender_id));
+  const profiles = await fetchProfiles(data.map((r) => r.sender_id));
 
   // 3. 合并
-  return data.map(r => ({
+  return data.map((r) => ({
     ...r,
     sender: profiles.get(r.sender_id) ?? { display_name: "未知用户", avatar_url: null, email: "" },
-    receiver: profiles.get(r.receiver_id) ?? { display_name: "未知用户", avatar_url: null, email: "" },
+    receiver: profiles.get(r.receiver_id) ?? {
+      display_name: "未知用户",
+      avatar_url: null,
+      email: "",
+    },
   })) as FriendRequestWithProfile[];
 }
 
@@ -99,12 +114,16 @@ export async function getOutgoingRequests(): Promise<FriendRequestWithProfile[]>
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) return [];
 
-  const profiles = await fetchProfiles(data.map(r => r.receiver_id));
+  const profiles = await fetchProfiles(data.map((r) => r.receiver_id));
 
-  return data.map(r => ({
+  return data.map((r) => ({
     ...r,
     sender: profiles.get(r.sender_id) ?? { display_name: "未知用户", avatar_url: null, email: "" },
-    receiver: profiles.get(r.receiver_id) ?? { display_name: "未知用户", avatar_url: null, email: "" },
+    receiver: profiles.get(r.receiver_id) ?? {
+      display_name: "未知用户",
+      avatar_url: null,
+      email: "",
+    },
   })) as FriendRequestWithProfile[];
 }
 
@@ -168,10 +187,10 @@ export async function getFriendList(): Promise<FriendWithProfile[]> {
   if (!data || data.length === 0) return [];
 
   // 2. 批量获取好友资料
-  const profiles = await fetchProfiles(data.map(r => r.friend_id));
+  const profiles = await fetchProfiles(data.map((r) => r.friend_id));
 
   // 3. 合并
-  return data.map(r => ({
+  return data.map((r) => ({
     id: r.id,
     user_id: r.user_id,
     friend_id: r.friend_id,
@@ -187,7 +206,9 @@ export async function removeFriend(friendId: string): Promise<void> {
   const { error } = await supabase
     .from("friends")
     .delete()
-    .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`);
+    .or(
+      `and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`,
+    );
 
   if (error) throw new Error(error.message);
 }
@@ -230,12 +251,13 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
           .from("friend_requests")
           .select("*")
           .eq("status", "pending")
-          .or(`and(sender_id.eq.${userId},receiver_id.eq.${profile.id}),and(sender_id.eq.${profile.id},receiver_id.eq.${userId})`);
+          .or(
+            `and(sender_id.eq.${userId},receiver_id.eq.${profile.id}),and(sender_id.eq.${profile.id},receiver_id.eq.${userId})`,
+          );
 
         if (pendingReqs && pendingReqs.length > 0) {
           const req = pendingReqs[0];
-          friend_status =
-            req.sender_id === userId ? "pending_sent" : "pending_received";
+          friend_status = req.sender_id === userId ? "pending_sent" : "pending_received";
         }
       }
 
@@ -257,10 +279,7 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
 // ============================================
 
 /** 创建私聊会话（如果已存在则返回现有） */
-async function createDirectConversation(
-  userA: string,
-  userB: string,
-): Promise<Conversation> {
+async function createDirectConversation(userA: string, userB: string): Promise<Conversation> {
   // 查找两人都在的 direct 类型会话
   const { data: existing } = await supabase.rpc("find_direct_conversation", {
     user_a: userA,
@@ -331,20 +350,21 @@ export async function getConversationList(): Promise<ConversationPreview[]> {
         .select("user_id")
         .eq("conversation_id", conv.id);
 
-      const memberProfiles = await fetchProfiles((members ?? []).map(m => m.user_id));
+      const memberProfiles = await fetchProfiles((members ?? []).map((m) => m.user_id));
 
       return {
         id: conv.id,
         type: conv.type,
         name: conv.name,
-        last_message: lastMsg && lastMsg.length > 0
-          ? {
-              content: lastMsg[0].content,
-              sender_id: lastMsg[0].sender_id,
-              created_at: lastMsg[0].created_at,
-              message_type: lastMsg[0].message_type,
-            }
-          : null,
+        last_message:
+          lastMsg && lastMsg.length > 0
+            ? {
+                content: lastMsg[0].content,
+                sender_id: lastMsg[0].sender_id,
+                created_at: lastMsg[0].created_at,
+                message_type: lastMsg[0].message_type,
+              }
+            : null,
         unread_count: 0,
         members: (members ?? []).map((m) => {
           const p = memberProfiles.get(m.user_id);
@@ -419,22 +439,15 @@ export async function sendMessage(
 }
 
 /** 上传文件到对话 */
-export async function uploadChatFile(
-  conversationId: string,
-  file: File,
-): Promise<Attachment> {
+export async function uploadChatFile(conversationId: string, file: File): Promise<Attachment> {
   await getCurrentUserId();
 
   const filePath = `${conversationId}/${Date.now()}_${file.name}`;
-  const { error: uploadError } = await supabase.storage
-    .from("chat-files")
-    .upload(filePath, file);
+  const { error: uploadError } = await supabase.storage.from("chat-files").upload(filePath, file);
 
   if (uploadError) throw new Error(uploadError.message);
 
-  const { data: urlData } = supabase.storage
-    .from("chat-files")
-    .getPublicUrl(filePath);
+  const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(filePath);
 
   const isImage = file.type.startsWith("image/");
 
@@ -461,9 +474,7 @@ export async function uploadChatFile(
 }
 
 /** 获取或创建与某好友的私聊会话 */
-export async function getOrCreateDirectConversation(
-  friendId: string,
-): Promise<Conversation> {
+export async function getOrCreateDirectConversation(friendId: string): Promise<Conversation> {
   const userId = await getCurrentUserId();
   return createDirectConversation(userId, friendId);
 }

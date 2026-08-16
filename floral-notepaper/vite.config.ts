@@ -15,19 +15,33 @@ export default defineConfig(async () => ({
       // pixi-live2d-display peer imports 向上解析到 SDK 自带 Pixi v7，而不是项目根 Pixi v8。
       // 否则 Pixi v8 EventBoundary 会递归 Cubism4 模型树并触发
       // `currentTarget.isInteractive is not a function`。
-      { find: /^@soullink-emotion\/live2d-pixi$/, replacement: fileURLToPath(new URL("./soullink-emotion-sdk/packages/live2d-pixi/dist/index.js", import.meta.url)) },
+      {
+        find: /^@soullink-emotion\/live2d-pixi$/,
+        replacement: fileURLToPath(
+          new URL("./soullink-emotion-sdk/packages/live2d-pixi/dist/index.js", import.meta.url),
+        ),
+      },
       // pixi.js v8 被 exclude 后物理加载，其 WebWorkerAdapter.mjs / GifSource.mjs 以具名导入
       // 方式 import 这两个 CJS 包，而 esbuild 预打包只能产出 default 导出，导致浏览器报
       // "does not provide an export named 'DOMParser'/'parseGIF'" 整页白屏。
       // 用 ESM shim 显式 re-export 具名导出，绕过 esbuild 的 CJS 静态分析缺陷。
       // 用精确匹配正则，避免误伤 shim 内部的深路径导入（@xmldom/xmldom/lib/index.js）。
-      { find: /^@xmldom\/xmldom$/, replacement: fileURLToPath(new URL("./shims/xmldom-shim.mjs", import.meta.url)) },
-      { find: /^gifuct-js$/, replacement: fileURLToPath(new URL("./shims/gifuct-js-shim.mjs", import.meta.url)) },
+      {
+        find: /^@xmldom\/xmldom$/,
+        replacement: fileURLToPath(new URL("./shims/xmldom-shim.mjs", import.meta.url)),
+      },
+      {
+        find: /^gifuct-js$/,
+        replacement: fileURLToPath(new URL("./shims/gifuct-js-shim.mjs", import.meta.url)),
+      },
       // 官方 SDK 栈内嵌 Pixi v7 的 @pixi/utils/lib/url.mjs 具名导入 Node `url`（npm
       // CJS polyfill），esbuild 预打包无具名导出 → "does not provide an export named
       // 'format'"。alias 到基于原生 URL API 的 ESM shim（需配合 optimizeDeps.exclude
       // 使 @pixi/utils 物理加载，alias 才能拦截裸导入）。
-      { find: /^url$/, replacement: fileURLToPath(new URL("./shims/url-shim.mjs", import.meta.url)) },
+      {
+        find: /^url$/,
+        replacement: fileURLToPath(new URL("./shims/url-shim.mjs", import.meta.url)),
+      },
     ],
   },
   optimizeDeps: {
@@ -47,7 +61,15 @@ export default defineConfig(async () => ({
     // 注：@xmldom/xmldom 与 gifuct-js 已通过 resolve.alias 指向 ESM shim；shim 内部以
     // 「裸深路径」导入真实实现，这里把深路径也预打包（default 即完整 exports 对象），
     // 使 dev 下 shim 的导入被 import-analysis 重写为预打包 ESM，而非原样输出的 CJS。
-    include: ["eventemitter3", "ismobilejs", "earcut", "parse-svg-path", "tiny-lru", "@xmldom/xmldom/lib/index.js", "gifuct-js/lib/index.js"],
+    include: [
+      "eventemitter3",
+      "ismobilejs",
+      "earcut",
+      "parse-svg-path",
+      "tiny-lru",
+      "@xmldom/xmldom/lib/index.js",
+      "gifuct-js/lib/index.js",
+    ],
   },
   server: {
     port: 1420,

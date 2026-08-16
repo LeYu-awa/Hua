@@ -33,10 +33,7 @@ const BEHAVIOR_BG: Record<BehaviorType, string> = {
   停顿思考: "rgba(153,153,153,0.08)",
 };
 
-const REPLAY_MARKER_STYLE: Record<
-  ReplayMarker["markerType"],
-  { color: string; label: string }
-> = {
+const REPLAY_MARKER_STYLE: Record<ReplayMarker["markerType"], { color: string; label: string }> = {
   flow: { color: "#2a6a42", label: "进入状态" },
   stuck: { color: "#b8860b", label: "停顿点" },
   handoff: { color: "#c8a24a", label: "接力点" },
@@ -173,7 +170,9 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
 
   const activeInterval = useMemo(() => {
     if (currentMs === null || !analyzed) return null;
-    return analyzed.intervals.find((inv) => currentMs >= inv.startMs && currentMs < inv.endMs) ?? null;
+    return (
+      analyzed.intervals.find((inv) => currentMs >= inv.startMs && currentMs < inv.endMs) ?? null
+    );
   }, [currentMs, analyzed]);
 
   // 播放循环：用 rAF 推进 playbackMs，到达末尾自动停止
@@ -463,16 +462,32 @@ export function InkPlaybackPage({ noteId }: InkPlaybackPageProps) {
               type="button"
               onClick={handlePlayPause}
               className="flex items-center justify-center w-7 h-7 rounded-full bg-bamboo text-cloud hover:bg-bamboo-light transition-colors cursor-pointer shrink-0"
-              title={playing ? t("playback.pause", { defaultValue: "暂停" }) : t("playback.play", { defaultValue: "播放" })}
+              title={
+                playing
+                  ? t("playback.pause", { defaultValue: "暂停" })
+                  : t("playback.play", { defaultValue: "播放" })
+              }
               aria-label={playing ? "暂停" : "播放"}
             >
               {playing ? (
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
                   <rect x="6" y="5" width="4" height="14" rx="1" />
                   <rect x="14" y="5" width="4" height="14" rx="1" />
                 </svg>
               ) : (
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
                   <path d="M8 5v14l11-7z" />
                 </svg>
               )}

@@ -316,7 +316,7 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
 
         <section className="space-y-2">
           <label className="block text-[11px] font-body text-ink-faint">
-            {t("settings.tabIndentSize", { defaultValue: "Tab 缩进宽��" })}
+            {t("settings.tabIndentSize", { defaultValue: "Tab 缩进宽度" })}
           </label>
           <div className="flex items-center gap-3 h-9 rounded-lg px-2.5 bg-paper-warm/45 border border-paper-deep/25">
             <input
@@ -538,7 +538,9 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
             onChange={(checked) => updateAgentPerm("webSearchBeforeConfirm", checked)}
           />
           <ToggleRow
-            label={t("settings.agentPerm.externalConfirm", { defaultValue: "打开链接/复制文本前需确认" })}
+            label={t("settings.agentPerm.externalConfirm", {
+              defaultValue: "打开链接/复制文本前需确认",
+            })}
             checked={agentPerm?.permissionPolicy.externalBeforeConfirm ?? true}
             onChange={(checked) => updateAgentPerm("externalBeforeConfirm", checked)}
           />

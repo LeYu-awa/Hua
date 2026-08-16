@@ -173,11 +173,20 @@ export function FriendsPage() {
             }}
             className="mt-4 px-5 py-2 rounded-lg text-[12px] font-medium text-cloud bg-bamboo/85 hover:bg-bamboo transition-colors cursor-pointer inline-flex items-center gap-2"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <line x1="19" y1="8" x2="19" y2="14"/>
-              <line x1="22" y1="11" x2="16" y2="11"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <line x1="19" y1="8" x2="19" y2="14" />
+              <line x1="22" y1="11" x2="16" y2="11" />
             </svg>
             添加 {SYSTEM_BOT_NAME}
           </button>
@@ -369,15 +378,10 @@ export function FriendsPage() {
 
   // ---- 主渲染 ----
   return (
-    <div
-      className="flex-1 flex flex-col min-h-0"
-      style={{ backgroundColor: "var(--color-paper)" }}
-    >
+    <div className="flex-1 flex flex-col min-h-0" style={{ backgroundColor: "var(--color-paper)" }}>
       {/* 顶部标题栏 */}
       <header className="shrink-0 flex items-center justify-between h-11 px-4 border-b border-paper-deep/20 bg-paper/80 backdrop-blur-sm">
-        <h1 className="text-sm font-display font-bold text-ink tracking-wide select-none">
-          好友
-        </h1>
+        <h1 className="text-sm font-display font-bold text-ink tracking-wide select-none">好友</h1>
       </header>
 
       {/* 消息提示 */}

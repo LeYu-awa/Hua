@@ -93,10 +93,7 @@ export function CanvasMode({ conversationId }: CanvasModeProps) {
         conversationId={conversationId}
         onAgentSync={handleAgentSync}
       />
-      <AgentSuggestionToast
-        suggestion={agentSuggestion}
-        onDismiss={handleDismissAgentSuggestion}
-      />
+      <AgentSuggestionToast suggestion={agentSuggestion} onDismiss={handleDismissAgentSuggestion} />
     </div>
   );
 }

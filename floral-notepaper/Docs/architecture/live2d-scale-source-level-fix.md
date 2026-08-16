@@ -12,12 +12,12 @@
 
 ## 2. 症状（用户原始反馈）
 
-| # | 症状 | 表面猜测 | 真实原因（最终定位） |
-|---|------|---------|---------------------|
-| 1 | 模型渲染盒检测非常大，模型只显示在左下角 | 像素比问题 | 缩放/居中体系混乱：anchor 语义误用 + 物理/逻辑像素错位 |
-| 2 | 缩放比例 > 1.2 视觉无变化，调到 1.7 需刷新才生效 | 渲染未刷新 | 两套比例换算互相覆盖：`fitModelToViewport` 重算 baseScale 后 scale 被重置 |
-| 3 | 放大后头脚被裁剪，可视区不变 | 画布不够大 | Live2D 内部 viewport 使用 renderer.width，与物理 canvas 不一致 |
-| 4 | 放大时卡片变大快于模型，模型偏左下角，Y 轴上下跳动 | 时序问题 | 模型缩放与卡片缩放不是同一线性函数；每次缩放都"适配视口"重定位 |
+| #   | 症状                                               | 表面猜测   | 真实原因（最终定位）                                                      |
+| --- | -------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
+| 1   | 模型渲染盒检测非常大，模型只显示在左下角           | 像素比问题 | 缩放/居中体系混乱：anchor 语义误用 + 物理/逻辑像素错位                    |
+| 2   | 缩放比例 > 1.2 视觉无变化，调到 1.7 需刷新才生效   | 渲染未刷新 | 两套比例换算互相覆盖：`fitModelToViewport` 重算 baseScale 后 scale 被重置 |
+| 3   | 放大后头脚被裁剪，可视区不变                       | 画布不够大 | Live2D 内部 viewport 使用 renderer.width，与物理 canvas 不一致            |
+| 4   | 放大时卡片变大快于模型，模型偏左下角，Y 轴上下跳动 | 时序问题   | 模型缩放与卡片缩放不是同一线性函数；每次缩放都"适配视口"重定位            |
 
 **核心矛盾**：模型存在两套独立换算体系（DOM 卡片的 CSS 缩放 + WebGL 模型的世界变换），一旦两者非线性耦合，就会出现"卡片快于模型 / 位置漂移 / 跳动"。
 
@@ -41,7 +41,10 @@
 
 ```ts
 const reportModelDebug = (hypothesisId, location, msg, data) => {
-  fetch("http://127.0.0.1:7778/event", { method: "POST", body: JSON.stringify({ sessionId, hypothesisId, location, msg, data }) });
+  fetch("http://127.0.0.1:7778/event", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, hypothesisId, location, msg, data }),
+  });
 };
 ```
 
@@ -121,7 +124,7 @@ const MODEL_REFERENCE_FILL_RATIO = 0.96;
 
 // load 时只算一次，与视口/分辨率完全解耦
 const computeBaseScale = (live2dModel: Live2DModel) => {
-  const modelWidth = Math.max(live2dModel.width || 1, 1);   // 2976
+  const modelWidth = Math.max(live2dModel.width || 1, 1); // 2976
   const modelHeight = Math.max(live2dModel.height || 1, 1); // 4175
   baseScale = Math.min(
     (MODEL_REFERENCE_WIDTH * MODEL_REFERENCE_FILL_RATIO) / modelWidth,
@@ -159,7 +162,7 @@ const centerModel = (live2dModel: Live2DModel) => {
 ```ts
 releaseSceneResize = live2dScene.onResize(() => {
   if (model !== currentModel) return;
-  centerModel(currentModel);   // 不再 fitModelToViewport
+  centerModel(currentModel); // 不再 fitModelToViewport
 });
 ```
 
@@ -175,7 +178,7 @@ internalModel.draw = (gl) => {
   const viewport = gl.getParameter(gl.VIEWPORT);
   const scissorEnabled = gl.isEnabled(gl.SCISSOR_TEST);
   const scissorBox = gl.getParameter(gl.SCISSOR_BOX);
-  internalModel.viewport = [0, 0, canvas.width, canvas.height];  // 物理像素
+  internalModel.viewport = [0, 0, canvas.width, canvas.height]; // 物理像素
   originalDraw(gl);
   // 恢复 framebuffer / viewport / scissor / clearColor ...
 };
@@ -187,14 +190,14 @@ internalModel.draw = (gl) => {
 
 ## 6. 修复前后换算对照
 
-| 维度 | 修复前 | 修复后 |
-|------|--------|--------|
-| 模型缩放 | `baseScale × scale` 与"适配视口"互相覆盖 | `baseScale × scale`，baseScale 恒定 |
-| 卡片/模型同步 | 卡片 260×scale，模型缩放非线性 | 均严格线性 ×scale，比例恒定 |
-| 居中 | 误用 anchor=0.5（被抵消） | position 按内容尺寸反推，内容中心=画布中心 |
-| 视口变化 | 重算 baseScale + 重定位 → 跳动 | 只重新居中 |
-| viewport | 用 renderer.width（逻辑/物理不一致） | 覆盖为 canvas 物理像素 |
-| 渲染 DPR | 随滑块 scale 变化 | 固定 DPR |
+| 维度          | 修复前                                   | 修复后                                     |
+| ------------- | ---------------------------------------- | ------------------------------------------ |
+| 模型缩放      | `baseScale × scale` 与"适配视口"互相覆盖 | `baseScale × scale`，baseScale 恒定        |
+| 卡片/模型同步 | 卡片 260×scale，模型缩放非线性           | 均严格线性 ×scale，比例恒定                |
+| 居中          | 误用 anchor=0.5（被抵消）                | position 按内容尺寸反推，内容中心=画布中心 |
+| 视口变化      | 重算 baseScale + 重定位 → 跳动           | 只重新居中                                 |
+| viewport      | 用 renderer.width（逻辑/物理不一致）     | 覆盖为 canvas 物理像素                     |
+| 渲染 DPR      | 随滑块 scale 变化                        | 固定 DPR                                   |
 
 ## 7. 验证
 
@@ -213,6 +216,6 @@ internalModel.draw = (gl) => {
 
 ## 修订记录
 
-| 日期 | 版本 | 说明 |
-|------|------|------|
+| 日期       | 版本 | 说明                             |
+| ---------- | ---- | -------------------------------- |
 | 2026-08-10 | v1.0 | 初版：源码级排查与修复全过程归档 |

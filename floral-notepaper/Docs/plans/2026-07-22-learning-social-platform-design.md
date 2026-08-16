@@ -40,14 +40,14 @@ floral-notepaper/src/
 
 ### 技术选型
 
-| 层 | 技术 | 说明 |
-|---|---|---|
-| 无限画布渲染 | Pixi.js v8 | WebGL 加速，已在项目依赖中 |
-| 画布交互 | 自建交互系统 | 拖拽、缩放、多选、右键菜单 |
-| 后端 | Tauri + Supabase | 本地文件系统 + 云端数据库 |
-| 多人协作 | Yjs + Supabase | 复用现有 collab 模块 |
-| AI 能力 | 现有 AgentSystem | 复用 agent 模块 |
-| 工作流 | LiteGraph（嵌入节点） | 现有 LiteGraphWorkflow 作为画布的一个节点类型 |
+| 层           | 技术                  | 说明                                          |
+| ------------ | --------------------- | --------------------------------------------- |
+| 无限画布渲染 | Pixi.js v8            | WebGL 加速，已在项目依赖中                    |
+| 画布交互     | 自建交互系统          | 拖拽、缩放、多选、右键菜单                    |
+| 后端         | Tauri + Supabase      | 本地文件系统 + 云端数据库                     |
+| 多人协作     | Yjs + Supabase        | 复用现有 collab 模块                          |
+| AI 能力      | 现有 AgentSystem      | 复用 agent 模块                               |
+| 工作流       | LiteGraph（嵌入节点） | 现有 LiteGraphWorkflow 作为画布的一个节点类型 |
 
 ## 二、领域一：InfiniteCanvas 无限画布系统
 
@@ -66,9 +66,11 @@ floral-notepaper/src/
 ```typescript
 interface CanvasNodeData {
   id: string;
-  type: 'search_card' | 'article' | 'journal' | 'workflow' | 'note';
-  x: number; y: number;
-  width: number; height: number;
+  type: "search_card" | "article" | "journal" | "workflow" | "note";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
   zIndex: number;
   title: string;
   summary?: string;
@@ -76,9 +78,9 @@ interface CanvasNodeData {
   updatedAt: number;
   authorId?: string;
   // 类型特有字段
-  sourceUrl?: string;       // search_card
-  content?: string;         // article / journal
-  workflowId?: string;      // workflow
+  sourceUrl?: string; // search_card
+  content?: string; // article / journal
+  workflowId?: string; // workflow
   tags?: string[];
   aiExpanded?: boolean;
 }
@@ -126,11 +128,13 @@ src/features/infinite-canvas/
 ### 双空间体系
 
 #### 公共花园（PublicGarden）
+
 - 全站内容聚合区，所有用户可浏览公开内容
 - 支持按分类/热度/最新排序
 - 展示所有 `isPublic: true` 的 GardenArticle
 
 #### 个人花园（PersonalGarden）
+
 - 用户私有创作空间
 - 支持创建文件夹、新建/编辑项目
 - 所有内容通过平台编辑器创作修改
@@ -139,31 +143,46 @@ src/features/infinite-canvas/
 
 ```typescript
 interface Category {
-  id: string; name: string; icon?: string;
-  color?: string; userId: string;
-  parentId?: string; articleCount: number;
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  userId: string;
+  parentId?: string;
+  articleCount: number;
   createdAt: number;
 }
 
 interface GardenArticle {
-  id: string; title: string; summary: string;
-  content: string; categoryId: string;
-  tags: string[]; authorId: string;
-  isPublic: boolean; coverImage?: string;
-  viewCount: number; likeCount: number;
-  createdAt: number; updatedAt: number;
+  id: string;
+  title: string;
+  summary: string;
+  content: string;
+  categoryId: string;
+  tags: string[];
+  authorId: string;
+  isPublic: boolean;
+  coverImage?: string;
+  viewCount: number;
+  likeCount: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface GardenFolder {
-  id: string; name: string; userId: string;
-  parentId?: string; articleIds: string[];
-  type: 'folder' | 'project';
+  id: string;
+  name: string;
+  userId: string;
+  parentId?: string;
+  articleIds: string[];
+  type: "folder" | "project";
 }
 ```
 
 ### Supabase 表结构
 
 参照设计阶段的 SQL 定义：
+
 - `categories`：用户创建的分类标签
 - `garden_articles`：公开/私有文章
 - `garden_folders`：个人空间文件夹
@@ -191,6 +210,7 @@ src/features/garden/
 ### 页面布局
 
 采用小红书/网易云风格的大场景视觉：
+
 - **顶部**：320px 大尺寸个人封面 Banner，渐变/图片/图案
 - **头像区域**：96px 圆形头像带微光阴影，用户昵称/简介/编辑按钮
 - **Tab 导航**：文章 / 喜欢 / 关注 / 粉丝 / 分类
@@ -235,6 +255,7 @@ src/features/social/
 ## 五、分阶段实施计划
 
 ### 第一阶段：基础设施搭建（预计主要工作量）
+
 1. 在 Supabase 创建所有新表（categories, garden_articles, garden_folders, follows, user_stats, user_profiles）
 2. 新增 `features/infinite-canvas/` 目录结构及基础类型
 3. 新增 `features/garden/` 目录结构及基础类型
@@ -243,6 +264,7 @@ src/features/social/
 6. 扩展 App.tsx 新增路由
 
 ### 第二阶段：无限画布核心
+
 1. 搭建 Pixi.js 基础渲染框架（Viewport + Grid）
 2. 实现节点系统（BaseNode + 各节点类型）
 3. 实现拖拽/缩放/选择交互
@@ -251,12 +273,14 @@ src/features/social/
 6. 实现 AI 扩写接入（复用 Agent 模块）
 
 ### 第三阶段：内容空间
+
 1. 实现公共花园页面（CategorySidebar + ContentGrid）
 2. 实现个人花园页面（文件夹树 + 文件管理）
 3. 实现文章发布/编辑流程
 4. 实现分类标签创建与管理
 
 ### 第四阶段：个人主页与社交
+
 1. 构建 ProfileHeader（大封面 + 用户信息）
 2. 实现 Tab 导航与内容展示
 3. 实现关注/粉丝系统
@@ -264,6 +288,7 @@ src/features/social/
 5. 实现编辑资料功能
 
 ### 第五阶段：集成与优化
+
 1. 无限画布 ↔ 内容空间双向打通（画布中的文章可发布到花园）
 2. 个人主页与画布/空间的数据联动
 3. 多人协作集成测试

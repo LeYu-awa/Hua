@@ -96,11 +96,11 @@
 
 输入最近 N 条对话消息，聚合信号：
 
-| 信号 | 规则 |
-|---|---|
+| 信号            | 规则                                                                            |
+| --------------- | ------------------------------------------------------------------------------- |
 | A. 实质性内容量 | 用户侧 ≥3 条 >20 字且非闲聊（非 `chatDistill` 的 decision/todo 关键词、非问候） |
-| B. 追问停滞 | 角色已连续追问 ≥5 轮，用户回复变短（<15 字）或重复 |
-| C. 主题聚拢 | 近 20 条中实体词（≥2 字专有名词/人物/主题词）重复出现 ≥3 次 |
+| B. 追问停滞     | 角色已连续追问 ≥5 轮，用户回复变短（<15 字）或重复                              |
+| C. 主题聚拢     | 近 20 条中实体词（≥2 字专有名词/人物/主题词）重复出现 ≥3 次                     |
 
 - 触发：`A 且 (B 或 C)` → 生成 `suggest_draft` 提议。
 - 防打扰：冷却 10 分钟 + 去重（同一主题只提议一次），复用 `SignalQueue`。
@@ -128,11 +128,11 @@
 
 ### 5.1 模型评估（RTX 4060 8GB）
 
-| 模型 | 规模 | 能力 | 4060 可行性 |
-|---|---|---|---|
-| TTS-1.5B | 骨干 Qwen2.5-1.5B，总 ~3B | 7.5Hz tokenizer，64K 上下文，单次最长 90 分钟，最多 4 说话人，24kHz WAV | ✅ q4 ~4.7GB（长文朗读用） |
-| Realtime-0.5B | ~0.5B | 流式 TTS，首包 ~300ms | ✅ ~2GB（实时对话用） |
-| ASR | ~7-9B | 60 分钟、说话人分离、时间戳、50+ 语言 | ⚠️ 8GB 太紧，不落地 |
+| 模型          | 规模                      | 能力                                                                    | 4060 可行性                |
+| ------------- | ------------------------- | ----------------------------------------------------------------------- | -------------------------- |
+| TTS-1.5B      | 骨干 Qwen2.5-1.5B，总 ~3B | 7.5Hz tokenizer，64K 上下文，单次最长 90 分钟，最多 4 说话人，24kHz WAV | ✅ q4 ~4.7GB（长文朗读用） |
+| Realtime-0.5B | ~0.5B                     | 流式 TTS，首包 ~300ms                                                   | ✅ ~2GB（实时对话用）      |
+| ASR           | ~7-9B                     | 60 分钟、说话人分离、时间戳、50+ 语言                                   | ⚠️ 8GB 太紧，不落地        |
 
 部署：官方 Python 版 + 社区 OpenAI 兼容服务（如 `vibevoice-realtime-openai-api`，支持 Docker），标准 `POST /v1/audio/speech`。模型优先 `4bit/nf4/q4` 量化版。
 
@@ -194,14 +194,14 @@
 
 ## 7. 实施路径
 
-| 阶段 | 内容 | 改动量 |
-|---|---|---|
-| Phase 0 | 部署 VibeVoice（0.5B 先验，1.5B q4 跟进）+ OpenAI 兼容服务 | 无（外部） |
-| Phase 1 | 方案 A 接线：TTS 配置指向本地 VibeVoice，验证角色配音 | 0 代码 |
-| Phase 2 | 口型联动：`ttsService.ts` 播放链路改 Web Audio + Live2D `setMouthValue` 驱动 | 小（核心体验） |
+| 阶段    | 内容                                                                                                           | 改动量         |
+| ------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
+| Phase 0 | 部署 VibeVoice（0.5B 先验，1.5B q4 跟进）+ OpenAI 兼容服务                                                     | 无（外部）     |
+| Phase 1 | 方案 A 接线：TTS 配置指向本地 VibeVoice，验证角色配音                                                          | 0 代码         |
+| Phase 2 | 口型联动：`ttsService.ts` 播放链路改 Web Audio + Live2D `setMouthValue` 驱动                                   | 小（核心体验） |
 | Phase 3 | 角色对话模式：引导型 prompt 切换 + 收敛检测（规则）+ 成文提议（live2d_signal）+ 成文动作（预览 → note.create） | 中（核心功能） |
-| Phase 4 | 增强：`vibevoice` 专用引擎、朗读整篇笔记、`suggest_draft` 指令、LLM 收敛判断 | 中 |
-| Phase 5 | 未来：VibeVoice-ASR（显存升级后）、独立角色窗口 | 大（另立文档） |
+| Phase 4 | 增强：`vibevoice` 专用引擎、朗读整篇笔记、`suggest_draft` 指令、LLM 收敛判断                                   | 中             |
+| Phase 5 | 未来：VibeVoice-ASR（显存升级后）、独立角色窗口                                                                | 大（另立文档） |
 
 ## 8. 风险与注意事项
 
@@ -216,15 +216,15 @@
 
 ## 9. 代码改动清单
 
-| 文件 | 阶段 | 改动 |
-|---|---|---|
-| `src/features/tts/ttsService.ts` | P2 | 播放链路改 Web Audio + AnalyserNode，导出口型信号（RMS）与停止逻辑 |
-| `src/features/live2d/modelController.ts` / `officialController.ts` | P2 | 口型信号接入（外层写 `setMouthValue`） |
-| `src/features/live2d/Live2DCompanionLayer.tsx` | P2 | 订阅播放状态，把 RMS 路由到当前模型 controller |
-| `src/features/sidebarChat/SidebarChat.tsx` | P3 | 角色对话模式（prompt 切换）、成文预览卡、确认 → `note.create` |
-| `src/features/sidebarChat/prompts.ts`（新增） | P3 | 引导型角色 prompt（按 PERSONA 角色拼接） |
-| `src/features/agent/`（新增收敛检测模块） | P3 | 主题收敛规则检测（借鉴 chatDistill 范式） |
-| `src/features/agent/signalQueue.ts` | P3/P4 | 预留 `suggest_draft` 指令；成文提议复用 `live2d_signal` |
-| `src/features/tts/types.ts` / `ttsClient.ts` | P4 | 新增 `vibevoice` 引擎、`synthesizeVibeVoice` |
-| `src/components/ElysiaPage.tsx` | P4 | TTS Tab 增引擎选项；角色模式入口 |
-| 编辑器工具栏 / 右键菜单 | P4 | "朗读当前笔记"（1.5B 长文本） |
+| 文件                                                               | 阶段  | 改动                                                               |
+| ------------------------------------------------------------------ | ----- | ------------------------------------------------------------------ |
+| `src/features/tts/ttsService.ts`                                   | P2    | 播放链路改 Web Audio + AnalyserNode，导出口型信号（RMS）与停止逻辑 |
+| `src/features/live2d/modelController.ts` / `officialController.ts` | P2    | 口型信号接入（外层写 `setMouthValue`）                             |
+| `src/features/live2d/Live2DCompanionLayer.tsx`                     | P2    | 订阅播放状态，把 RMS 路由到当前模型 controller                     |
+| `src/features/sidebarChat/SidebarChat.tsx`                         | P3    | 角色对话模式（prompt 切换）、成文预览卡、确认 → `note.create`      |
+| `src/features/sidebarChat/prompts.ts`（新增）                      | P3    | 引导型角色 prompt（按 PERSONA 角色拼接）                           |
+| `src/features/agent/`（新增收敛检测模块）                          | P3    | 主题收敛规则检测（借鉴 chatDistill 范式）                          |
+| `src/features/agent/signalQueue.ts`                                | P3/P4 | 预留 `suggest_draft` 指令；成文提议复用 `live2d_signal`            |
+| `src/features/tts/types.ts` / `ttsClient.ts`                       | P4    | 新增 `vibevoice` 引擎、`synthesizeVibeVoice`                       |
+| `src/components/ElysiaPage.tsx`                                    | P4    | TTS Tab 增引擎选项；角色模式入口                                   |
+| 编辑器工具栏 / 右键菜单                                            | P4    | "朗读当前笔记"（1.5B 长文本）                                      |

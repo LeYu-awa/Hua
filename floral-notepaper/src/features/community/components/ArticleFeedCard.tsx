@@ -66,9 +66,10 @@ export function ArticleFeedCard({
     onLongPress(article, e.clientX, e.clientY);
   };
 
-  const ratioClass = article.coverImage && article.coverRatio
-    ? coverRatioClass[article.coverRatio] ?? "aspect-square"
-    : "";
+  const ratioClass =
+    article.coverImage && article.coverRatio
+      ? (coverRatioClass[article.coverRatio] ?? "aspect-square")
+      : "";
 
   return (
     <div className="bg-white rounded-xl shadow-[0_1px_3px_var(--color-shadow)] hover:shadow-[0_4px_12px_var(--color-shadow-deep)] hover:-translate-y-px transition-all duration-200 ease-out overflow-hidden">
@@ -94,11 +95,7 @@ export function ArticleFeedCard({
         {/* Cover image — optional */}
         {article.coverImage && (
           <div className={`rounded-xl overflow-hidden mb-3 ${ratioClass}`}>
-            <LazyImage
-              src={article.coverImage}
-              alt={article.title}
-              className="w-full h-full"
-            />
+            <LazyImage src={article.coverImage} alt={article.title} className="w-full h-full" />
           </div>
         )}
 

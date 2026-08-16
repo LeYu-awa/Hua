@@ -1117,6 +1117,7 @@ name = "floral-notepaper"
 version = "1.0.4"
 dependencies = [
  "chrono",
+ "log",
  "objc2",
  "reqwest 0.12.28",
  "rmcp",

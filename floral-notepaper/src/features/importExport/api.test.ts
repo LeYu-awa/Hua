@@ -16,6 +16,19 @@ const mockedInvoke = vi.mocked(invoke);
 const mockedOpen = vi.mocked(open);
 const mockedSave = vi.mocked(save);
 
+const noteFileFilters = [
+  { name: "笔记文件", extensions: ["md", "pdf", "doc", "docx"] },
+  { name: "Markdown", extensions: ["md"] },
+  { name: "PDF", extensions: ["pdf"] },
+  { name: "Word", extensions: ["doc", "docx"] },
+];
+
+const exportFileFilters = [
+  { name: "Markdown", extensions: ["md"] },
+  { name: "PDF", extensions: ["pdf"] },
+  { name: "Word", extensions: ["doc", "docx"] },
+];
+
 describe("importExport api", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
@@ -23,16 +36,18 @@ describe("importExport api", () => {
     mockedSave.mockReset();
   });
 
-  test("imports the selected markdown path through Rust", async () => {
-    mockedOpen.mockResolvedValue("D:\\notes\\外部笔记.md");
+  test("imports the selected supported note file path through Rust", async () => {
+    mockedOpen.mockResolvedValue("D:\\notes\\外部笔记.pdf");
     mockedInvoke.mockResolvedValue({
       id: "note-1",
       title: "外部笔记",
-      fileName: "note-1.md",
+      fileName: "note-1.pdf",
       createdAt: "2026-04-28T00:00:00Z",
       updatedAt: "2026-04-28T00:00:00Z",
-      wordCount: 4,
-      content: "# 标题\n正文",
+      wordCount: 0,
+      content: "",
+      preview: "PDF 文件",
+      filePath: "D:\\managed\\note-1.pdf",
     });
 
     const note = await importMarkdownNote();
@@ -40,10 +55,10 @@ describe("importExport api", () => {
     expect(open).toHaveBeenCalledWith({
       multiple: false,
       directory: false,
-      filters: [{ name: "Markdown", extensions: ["md"] }],
+      filters: noteFileFilters,
     });
     expect(invoke).toHaveBeenCalledWith("notes_import_markdown", {
-      path: "D:\\notes\\外部笔记.md",
+      path: "D:\\notes\\外部笔记.pdf",
       category: "",
     });
     expect(note?.id).toBe("note-1");
@@ -56,15 +71,17 @@ describe("importExport api", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  test("exports a note to the selected markdown path", async () => {
+  test("exports a note to the selected file path", async () => {
     mockedSave.mockResolvedValue("D:\\exports\\读书笔记.md");
     mockedInvoke.mockResolvedValue(undefined);
 
-    await expect(exportMarkdownNote({ id: "note-1", title: "读书笔记" })).resolves.toBe(true);
+    await expect(
+      exportMarkdownNote({ id: "note-1", title: "读书笔记", fileName: "note-1.md" }),
+    ).resolves.toBe(true);
 
     expect(save).toHaveBeenCalledWith({
       defaultPath: "读书笔记.md",
-      filters: [{ name: "Markdown", extensions: ["md"] }],
+      filters: exportFileFilters,
     });
     expect(invoke).toHaveBeenCalledWith("notes_export_markdown", {
       id: "note-1",
@@ -72,24 +89,28 @@ describe("importExport api", () => {
     });
   });
 
-  test("uses a safe markdown file name for export", async () => {
+  test("uses a safe file name and preserves the source extension for export", async () => {
     mockedSave.mockResolvedValue(null);
 
-    await exportMarkdownNote({ id: "note-1", title: "A/B:Test" });
-    await exportMarkdownNote({ id: "note-2", title: "" });
-    await exportMarkdownNote({ id: "note-3", title: `${"x".repeat(79)}😀` });
+    await exportMarkdownNote({ id: "note-1", title: "A/B:Test", fileName: "note-1.md" });
+    await exportMarkdownNote({ id: "note-2", title: "", fileName: "note-2.pdf" });
+    await exportMarkdownNote({
+      id: "note-3",
+      title: `${"x".repeat(79)}😀`,
+      fileName: "note-3.docx",
+    });
 
     expect(save).toHaveBeenNthCalledWith(1, {
       defaultPath: "A_B_Test.md",
-      filters: [{ name: "Markdown", extensions: ["md"] }],
+      filters: exportFileFilters,
     });
     expect(save).toHaveBeenNthCalledWith(2, {
-      defaultPath: "无标题笔记.md",
-      filters: [{ name: "Markdown", extensions: ["md"] }],
+      defaultPath: "无标题笔记.pdf",
+      filters: exportFileFilters,
     });
     expect(save).toHaveBeenNthCalledWith(3, {
-      defaultPath: `${"x".repeat(79)}😀.md`,
-      filters: [{ name: "Markdown", extensions: ["md"] }],
+      defaultPath: `${"x".repeat(79)}😀.docx`,
+      filters: exportFileFilters,
     });
     expect(invoke).not.toHaveBeenCalled();
   });

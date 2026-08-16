@@ -11,10 +11,10 @@ export function convertToXiaohongshuFormat(
   title: string,
   blocks: unknown[],
   tags: string[],
-  imageUrls: string[]
+  imageUrls: string[],
 ): XiaohongshuPost {
   const body = convertBlocksToText(blocks);
-  
+
   return {
     title: title.slice(0, 20),
     body: body.slice(0, 1000),
@@ -25,36 +25,38 @@ export function convertToXiaohongshuFormat(
 }
 
 function convertBlocksToText(blocks: unknown[]): string {
-  if (!Array.isArray(blocks)) return '';
-  
-  return blocks.map((block: any) => {
-    if (!block?.type) return '';
-    
-    switch (block.type) {
-      case 'heading1':
-        return `**${block.text || ''}**\n\n`;
-      case 'heading2':
-        return `**${block.text || ''}**\n`;
-      case 'paragraph':
-        return `${block.text || ''}\n`;
-      case 'todo':
-        return `✅ ${block.text || ''}\n`;
-      case 'topicTag':
-        return `#${block.text || ''} `;
-      case 'emoji':
-        return block.text || '';
-      case 'divider':
-        return '---\n';
-      case 'blockquote':
-        return `> ${block.text || ''}\n`;
-      default:
-        return `${block.text || ''}\n`;
-    }
-  }).join('');
+  if (!Array.isArray(blocks)) return "";
+
+  return blocks
+    .map((block: any) => {
+      if (!block?.type) return "";
+
+      switch (block.type) {
+        case "heading1":
+          return `**${block.text || ""}**\n\n`;
+        case "heading2":
+          return `**${block.text || ""}**\n`;
+        case "paragraph":
+          return `${block.text || ""}\n`;
+        case "todo":
+          return `✅ ${block.text || ""}\n`;
+        case "topicTag":
+          return `#${block.text || ""} `;
+        case "emoji":
+          return block.text || "";
+        case "divider":
+          return "---\n";
+        case "blockquote":
+          return `> ${block.text || ""}\n`;
+        default:
+          return `${block.text || ""}\n`;
+      }
+    })
+    .join("");
 }
 
 /** 生成小红书预览文本 */
 export function generatePreview(post: XiaohongshuPost): string {
-  const tagText = post.tags.map(t => `#${t}`).join(' ');
+  const tagText = post.tags.map((t) => `#${t}`).join(" ");
   return `${post.title}\n\n${post.body}\n\n${tagText}`;
 }

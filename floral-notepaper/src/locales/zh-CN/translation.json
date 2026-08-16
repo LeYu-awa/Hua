@@ -184,6 +184,13 @@
     }
   },
   "settings": {
+    "aiIntegration": {
+      "webSearch": "Web 搜索（SearXNG）",
+      "webSearchHint": "画布「知识采集」与「联网调研」通过 SearXNG 搜索互联网，默认已内置公共实例 https://paulgo.io，无需配置即可使用。想用更稳定的自托管实例时，在这里改成自己的地址；清空则降级为模型离线作答。",
+      "webSearchReady": "已配置：知识采集将使用联网搜索结果",
+      "webSearchEmpty": "未配置：知识采集将离线作答（无来源链接）",
+      "dockerHint": "自托管方案：本仓库提供一键部署 docker/searxng/docker-compose.yml（docker compose up -d 后把地址填到上面）。"
+    },
     "autoSave": {
       "externalFile": "外部文件自动保存",
       "note": "自动保存笔记",

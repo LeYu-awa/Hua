@@ -87,8 +87,8 @@
 在 `features/auth/api.ts` 增加：
 
 ```ts
-export async function resetPassword(email: string, redirectTo?: string): Promise<void>
-export async function updatePassword(password: string): Promise<void>
+export async function resetPassword(email: string, redirectTo?: string): Promise<void>;
+export async function updatePassword(password: string): Promise<void>;
 ```
 
 实现分别映射：

@@ -157,10 +157,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /** 两点欧氏距离（用于画布空间距离规则） */
-export function spatialDistance(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-): number {
+export function spatialDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 

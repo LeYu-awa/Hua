@@ -80,7 +80,12 @@ describe("streaming tool call deltas", () => {
         {
           delta: {
             tool_calls: [
-              { index: 0, id: "call_1", type: "function", function: { name: "note.search", arguments: "" } },
+              {
+                index: 0,
+                id: "call_1",
+                type: "function",
+                function: { name: "note.search", arguments: "" },
+              },
             ],
           },
         },

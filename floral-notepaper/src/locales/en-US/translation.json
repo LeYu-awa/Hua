@@ -184,6 +184,13 @@
     }
   },
   "settings": {
+    "aiIntegration": {
+      "webSearch": "Web Search (SearXNG)",
+      "webSearchHint": "Canvas \"Knowledge Collect\" and \"Web Research\" search the internet through SearXNG. A public instance (https://paulgo.io) is built in by default, so no setup is needed. Switch to your own self-hosted instance here for stability, or clear the field to fall back to offline model answers.",
+      "webSearchReady": "Configured: Knowledge Collect will use live web results",
+      "webSearchEmpty": "Not configured: Knowledge Collect will answer offline (no source links)",
+      "dockerHint": "Self-host: this repo ships docker/searxng/docker-compose.yml (run docker compose up -d, then paste its URL above)."
+    },
     "autoSave": {
       "externalFile": "Auto-save external files",
       "note": "Auto-save notes",

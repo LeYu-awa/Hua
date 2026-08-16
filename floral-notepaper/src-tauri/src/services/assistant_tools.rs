@@ -2,6 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::sync::Mutex as StdMutex;
 use std::{fs, path::Path};
 use uuid::Uuid;
 
@@ -11,6 +12,9 @@ const MAX_LOGS: usize = 500;
 const MAX_NOTE_CHANGES: usize = 200;
 const SEARCH_LIMIT_DEFAULT: usize = 5;
 const SEARCH_LIMIT_MAX: usize = 8;
+
+/// 序列化工具日志 / 笔记变更记录的读-改-写，避免并发（多会话/限流统计）互相覆盖丢记录
+static TOOL_STORE_LOCK: StdMutex<()> = StdMutex::new(());
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -197,6 +201,9 @@ pub fn list_note_changes(limit: usize) -> Result<Vec<NoteChangeRecord>, AppError
 
 /** 恢复某次变更：把笔记写回该变更发生前的内容，并记录一条 restore 变更 */
 pub fn restore_note_change(change_id: &str) -> Result<(Note, NoteChangeRecord), AppError> {
+    let _guard = TOOL_STORE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let path = note_changes_path()?;
     let mut changes = read_note_changes(&path)?;
     let index = changes
@@ -242,6 +249,9 @@ fn save_note_change(
     before_content: &str,
     after_content: &str,
 ) -> Result<(), AppError> {
+    let _guard = TOOL_STORE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let path = note_changes_path()?;
     let mut changes = read_note_changes(&path)?;
     changes.push(NoteChangeRecord {
@@ -448,6 +458,51 @@ async fn execute_web_search(params: &Value) -> Result<AssistantToolResponse, App
     let limit = number_param(params, "limit")
         .map(|value| value.clamp(1, SEARCH_LIMIT_MAX as u64) as usize)
         .unwrap_or(SEARCH_LIMIT_DEFAULT);
+
+    // 优先用 SearXNG（自托管或内置默认实例 paulgo.io）：结果真实、覆盖全站；
+    // 不可用（未配置/宕机/无结果）时回退 DuckDuckGo Instant Answer
+    let config = default_store()?.load_config()?;
+    if !config.searxng_url.trim().is_empty() {
+        match crate::services::agent::web_search::searxng_search(
+            &config.searxng_url,
+            &query,
+            limit.max(1),
+        )
+        .await
+        {
+            Ok(results) if !results.is_empty() => {
+                let items: Vec<SearchResultItem> = results
+                    .into_iter()
+                    .map(|item| SearchResultItem {
+                        title: item.title,
+                        url: item.url,
+                        snippet: item.content,
+                    })
+                    .collect();
+                let summary = format!(
+                    "已检索到 {} 条结果。\n{}",
+                    items.len(),
+                    items
+                        .iter()
+                        .take(3)
+                        .map(|item| format!("{}：{}", item.title, item.snippet))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                return Ok(AssistantToolResponse {
+                    tool: "web.search".into(),
+                    summary,
+                    data: json!({ "query": query, "results": items, "provider": "SearXNG" }),
+                });
+            }
+            Ok(_) => {
+                log::debug!("[search] SearXNG 无结果，回退 DuckDuckGo");
+            }
+            Err(error) => {
+                log::debug!("[search] SearXNG 不可用，回退 DuckDuckGo: {}", error.message);
+            }
+        }
+    }
 
     let url = Url::parse_with_params(
         "https://api.duckduckgo.com/",
@@ -795,6 +850,9 @@ fn enforce_frequency_limit(tool: &str) -> Result<(), AppError> {
 }
 
 fn append_log(tool: &str, status: &str, summary: &str, params: &Value) -> Result<(), AppError> {
+    let _guard = TOOL_STORE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let path = log_path()?;
     let mut logs = read_logs(&path)?;
     logs.push(AssistantToolLog {

@@ -132,7 +132,9 @@ function getLocalizedAppErrorMessage(
 
   switch (appError.code) {
     case "unsupportedFile":
-      return translate("errors.unsupportedFile", { defaultValue: "只支持导入 .md 文件" });
+      return translate("errors.unsupportedFile", {
+        defaultValue: "只支持导入 .md、.pdf、.doc、.docx 文件",
+      });
     case "categoryNameEmpty":
       return translate("errors.categoryNameEmpty", { defaultValue: "分类名不能为空" });
     case "categoryNameInvalidChars":

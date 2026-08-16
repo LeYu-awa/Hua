@@ -1,10 +1,10 @@
-import { useRef } from 'react';
-import type { NodeViewProps } from '@tiptap/react';
-import { NodeViewWrapper } from '@tiptap/react';
+import { useRef } from "react";
+import type { NodeViewProps } from "@tiptap/react";
+import { NodeViewWrapper } from "@tiptap/react";
 
 export function CoverCropNode(props: NodeViewProps) {
   const { node, updateAttributes, editor } = props;
-  const imageUrl = node.attrs.src as string || '';
+  const imageUrl = (node.attrs.src as string) || "";
   const isEditable = editor?.isEditable ?? false;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,16 +33,29 @@ export function CoverCropNode(props: NodeViewProps) {
             >
               选择封面
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
           </div>
         ) : (
           <div className="relative">
-            <img src={imageUrl} alt="封面预览" className="w-full object-cover" style={{ aspectRatio: '3/4', maxHeight: '400px' }} />
+            <img
+              src={imageUrl}
+              alt="封面预览"
+              className="w-full object-cover"
+              style={{ aspectRatio: "3/4", maxHeight: "400px" }}
+            />
             <div className="absolute inset-0 bg-black/10 pointer-events-none" />
             {isEditable && (
               <button
                 type="button"
-                onClick={() => { updateAttributes({ src: '' }); }}
+                onClick={() => {
+                  updateAttributes({ src: "" });
+                }}
                 className="absolute top-2 right-2 px-2 py-0.5 text-[11px] bg-black/50 text-white rounded hover:bg-black/70 transition-colors cursor-pointer"
               >
                 更换

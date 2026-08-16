@@ -109,7 +109,10 @@ export async function classifyNodesByEmbedding(
   let nodeVectors: number[][];
   let tagVectors: number[][];
   try {
-    nodeVectors = await callEmbedding(providers, valid.map((n) => n.text.slice(0, 300)));
+    nodeVectors = await callEmbedding(
+      providers,
+      valid.map((n) => n.text.slice(0, 300)),
+    );
     tagVectors = await callEmbedding(providers, tags);
   } catch {
     return [];

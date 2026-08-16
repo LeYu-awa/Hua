@@ -1,35 +1,30 @@
 {
-	"Version": 3,
-	"FileReferences": {
-		"Moc": "standard/cat_model/cat.moc3",
-		"Textures": [
-			"standard/cat_model/cat.4096/texture_00.png"
-		],
-		"Physics": "standard/cat_model/cat.physics3.json",
-		"DisplayInfo": "standard/cat_model/cat.cdi3.json",
-		"Motions": {
-			"CAT_motion_lock": [
-				{
-					"File": "standard/cat_model/syxs.motion3.json",
-					"FadeInTime": 0,
-					"FadeOutTime": 0
-				}
-			]
-		}
-	},
-	"Groups": [
-		{
-			"Target": "Parameter",
-			"Name": "EyeBlink",
-			"Ids": [
-				"ParamEyeLOpen",
-				"ParamEyeROpen"
-			]
-		},
-		{
-			"Target": "Parameter",
-			"Name": "LipSync",
-			"Ids": []
-		}
-	]
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "standard/cat_model/cat.moc3",
+    "Textures": ["standard/cat_model/cat.4096/texture_00.png"],
+    "Physics": "standard/cat_model/cat.physics3.json",
+    "DisplayInfo": "standard/cat_model/cat.cdi3.json",
+    "Motions": {
+      "CAT_motion_lock": [
+        {
+          "File": "standard/cat_model/syxs.motion3.json",
+          "FadeInTime": 0,
+          "FadeOutTime": 0
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": ["ParamEyeLOpen", "ParamEyeROpen"]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": []
+    }
+  ]
 }

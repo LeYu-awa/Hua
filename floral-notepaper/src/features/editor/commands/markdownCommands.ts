@@ -238,7 +238,10 @@ export function applyMarkdownFormat(
   });
 }
 
-export function runEditorCommand(textarea: HTMLTextAreaElement | null, command: EditorCommand): boolean {
+export function runEditorCommand(
+  textarea: HTMLTextAreaElement | null,
+  command: EditorCommand,
+): boolean {
   if (!textarea || textarea.disabled) return false;
   textarea.focus();
   return document.execCommand(command);

@@ -36,9 +36,10 @@ export function CategoryBar({ categories, activeId, onSelect }: CategoryBarProps
             className={`
               flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium
               transition-all duration-200 cursor-pointer whitespace-nowrap select-none
-              ${isActive
-                ? "bg-[#FF2442] text-white shadow-sm"
-                : "bg-[var(--color-cloud)] text-[var(--color-ink-faint)] border border-[var(--color-paper-deep)] hover:border-[var(--color-ink-ghost)]"
+              ${
+                isActive
+                  ? "bg-[#FF2442] text-white shadow-sm"
+                  : "bg-[var(--color-cloud)] text-[var(--color-ink-faint)] border border-[var(--color-paper-deep)] hover:border-[var(--color-ink-ghost)]"
               }
             `}
           >

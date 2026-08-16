@@ -26,7 +26,7 @@ export interface FollowRelation {
 }
 
 export interface ProfileTab {
-  key: 'articles' | 'likes' | 'following' | 'followers' | 'categories';
+  key: "articles" | "likes" | "following" | "followers" | "categories";
   label: string;
   count?: number;
 }

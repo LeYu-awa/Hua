@@ -66,17 +66,31 @@ vi.mock("../locales", () => ({
 }));
 
 vi.mock("../components/ContextMenu", () => ({
-  ContextMenuProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="context-menu">{children}</div>,
+  ContextMenuProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="context-menu">{children}</div>
+  ),
 }));
 vi.mock("../components/WindowFrame", () => ({
-  WindowFrame: ({ children }: { children: React.ReactNode }) => <div data-testid="window-frame">{children}</div>,
+  WindowFrame: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="window-frame">{children}</div>
+  ),
 }));
 vi.mock("../components/AppSidebar", () => ({
-  AppSidebar: ({ activeView, onViewChange }: { activeView: string; onViewChange: (view: string) => void }) => (
+  AppSidebar: ({
+    activeView,
+    onViewChange,
+  }: {
+    activeView: string;
+    onViewChange: (view: string) => void;
+  }) => (
     <div data-testid="sidebar">
       <span data-testid="active-view">{activeView}</span>
-      <button type="button" onClick={() => onViewChange("home")}>首页</button>
-      <button type="button" onClick={() => onViewChange("settings")}>设置</button>
+      <button type="button" onClick={() => onViewChange("home")}>
+        首页
+      </button>
+      <button type="button" onClick={() => onViewChange("settings")}>
+        设置
+      </button>
     </div>
   ),
 }));
@@ -87,11 +101,14 @@ vi.mock("../features/sidebarChat", () => ({
 
 vi.mock("./routeViews", () => ({
   renderSpecialRoute: vi.fn((route: { view: string; noteId?: string }) => {
-    if (route.view === "notepad") return <div data-testid="special-route">notepad:{route.noteId}</div>;
+    if (route.view === "notepad")
+      return <div data-testid="special-route">notepad:{route.noteId}</div>;
     if (route.view === "tile") return <div data-testid="special-route">tile:{route.noteId}</div>;
     return null;
   }),
-  renderMainView: vi.fn(({ sidebarView }: { sidebarView: string }) => <div data-testid="main-view">{sidebarView}</div>),
+  renderMainView: vi.fn(({ sidebarView }: { sidebarView: string }) => (
+    <div data-testid="main-view">{sidebarView}</div>
+  )),
 }));
 
 import { AppShell } from "./AppShell";
@@ -134,7 +151,9 @@ describe("AppShell", () => {
     fireEvent.click(screen.getByText("首页"));
 
     await waitFor(() => expect(screen.getByTestId("main-view").textContent).toBe("home"));
-    expect(renderMainView).toHaveBeenLastCalledWith(expect.objectContaining({ sidebarView: "home" }));
+    expect(renderMainView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sidebarView: "home" }),
+    );
   });
 
   it("特殊 notepad 路由不渲染主侧边栏", () => {

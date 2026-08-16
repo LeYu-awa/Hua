@@ -245,12 +245,9 @@ describe("SidebarChat 日记接线（diary S1）", () => {
 
     render(<SidebarChatFixture />);
 
-    await waitFor(() =>
-      expect(screen.getByText(/要不要把今天的想法记成日记/)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/要不要把今天的想法记成日记/)).toBeTruthy());
     expect(screen.getByText("存入日记")).toBeTruthy();
     expect(screen.getByText("稍后再说")).toBeTruthy();
     expect(screen.getByText("今天不提醒")).toBeTruthy();
   });
 });
-

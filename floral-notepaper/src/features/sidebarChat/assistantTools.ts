@@ -98,7 +98,9 @@ export async function executeAssistantTool<T = unknown>(
   });
 
   if (response.data && typeof response.data === "object" && "action" in response.data) {
-    await executeValidatedExternalAction(response.data as { action?: unknown; url?: unknown; text?: unknown });
+    await executeValidatedExternalAction(
+      response.data as { action?: unknown; url?: unknown; text?: unknown },
+    );
   }
 
   return response;
@@ -114,9 +116,7 @@ export function listAssistantToolChanges(limit = 50): Promise<NoteChangeRecord[]
 }
 
 /** 恢复某次变更：把笔记写回该变更发生前的内容 */
-export function restoreAssistantToolChange(
-  changeId: string,
-): Promise<RestoreNoteChangeResult> {
+export function restoreAssistantToolChange(changeId: string): Promise<RestoreNoteChangeResult> {
   return invoke("note_change_restore", { changeId });
 }
 
@@ -124,7 +124,9 @@ export function getAssistantAgentConfig(): Promise<AssistantAgentConfig> {
   return invoke("assistant_agent_config_get");
 }
 
-export function saveAssistantAgentConfig(config: AssistantAgentConfig): Promise<AssistantAgentConfig> {
+export function saveAssistantAgentConfig(
+  config: AssistantAgentConfig,
+): Promise<AssistantAgentConfig> {
   return invoke("assistant_agent_config_save", { config });
 }
 

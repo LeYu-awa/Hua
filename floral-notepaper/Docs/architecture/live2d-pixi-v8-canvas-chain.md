@@ -69,11 +69,11 @@ Miku      -> /live2d/miku/miku.model3.json
 加载条件集中在 `Live2DCompanionLayer.tsx`：
 
 ```ts
-config.enabled
-config.visible
-config.renderer === "live2d"
-isSurfaceActive
-config.modelPath
+config.enabled;
+config.visible;
+config.renderer === "live2d";
+isSurfaceActive;
+config.modelPath;
 ```
 
 当 `modelPath` 变化、renderer 变化、enabled/visible 变化时，会触发卸载/加载模型。
@@ -197,12 +197,12 @@ pointerEvents: none
 canvas style：
 
 ```ts
-width: "100%"
-height: "100%"
-display: "block"
-background: "transparent"
-backgroundColor: "transparent"
-pointerEvents: "none"
+width: "100%";
+height: "100%";
+display: "block";
+background: "transparent";
+backgroundColor: "transparent";
+pointerEvents: "none";
 ```
 
 `scene.ts` 初始化后又会把 canvas 的 CSS width/height 写成 parent 的像素尺寸：
@@ -296,7 +296,7 @@ app.renderer.clear({ clearColor: [0, 0, 0, 0], clear: true });
 `modelController.ts` 还 patch 了 Live2D 内部 draw：
 
 ```ts
-patchTransparentCanvasDraw(currentModel)
+patchTransparentCanvasDraw(currentModel);
 ```
 
 该 patch 在 Live2D 内部 draw 后恢复 WebGL framebuffer、viewport、scissor，并设置 `gl.clearColor(0,0,0,0)`，避免透明 canvas 状态被 Live2D 内部渲染污染。
@@ -315,7 +315,10 @@ function getLive2DDevicePixelRatio() {
 }
 
 function getLive2DRenderResolution(qualityScale: number) {
-  return Math.min(MAX_LIVE2D_RENDER_RESOLUTION, getLive2DDevicePixelRatio() * Math.max(qualityScale, 1));
+  return Math.min(
+    MAX_LIVE2D_RENDER_RESOLUTION,
+    getLive2DDevicePixelRatio() * Math.max(qualityScale, 1),
+  );
 }
 ```
 
@@ -339,8 +342,8 @@ height = round(parent rect/clientHeight/canvas rect/canvas clientHeight/520 fall
 `getCanvasLogicalSize()` 当前把 logicalWidth/logicalHeight 设为 CSS 尺寸一致：
 
 ```ts
-logicalWidth = cssWidth
-logicalHeight = cssHeight
+logicalWidth = cssWidth;
+logicalHeight = cssHeight;
 ```
 
 Pixi resize：
@@ -363,8 +366,8 @@ canvas.height     ≈ CSS height * renderer.resolution
 文档里的 `backingStoreScaleX/Y` 就是：
 
 ```ts
-canvas.width / canvas.clientWidth
-canvas.height / canvas.clientHeight
+canvas.width / canvas.clientWidth;
+canvas.height / canvas.clientHeight;
 ```
 
 正常情况下应接近 `app.renderer.resolution`。
@@ -376,32 +379,32 @@ canvas.height / canvas.clientHeight
 1. **外层 DOM 尺寸**：
 
 ```ts
-width = 260 * scale
-height = 380 * scale
+width = 260 * scale;
+height = 380 * scale;
 ```
 
 1. **Pixi/模型内部缩放**：
 
 ```ts
-scene.setQualityScale(scale)
-controller.setScale(scale)
+scene.setQualityScale(scale);
+controller.setScale(scale);
 ```
 
 `controller.setScale(scale)` 最终：
 
 ```ts
-model.scale.set(baseScale * scale)
+model.scale.set(baseScale * scale);
 ```
 
 而 `baseScale` 来自 `fitModelToViewport()`：
 
 ```ts
-availableWidth = app.screen.width - 32
-availableHeight = app.screen.height - 32
-baseScale = min(availableWidth / modelWidth, availableHeight / modelHeight) * 0.98
-model.x = screenWidth / 2
-model.y = screenHeight / 2
-anchor = 0.5, 0.5
+availableWidth = app.screen.width - 32;
+availableHeight = app.screen.height - 32;
+baseScale = min(availableWidth / modelWidth, availableHeight / modelHeight) * 0.98;
+model.x = screenWidth / 2;
+model.y = screenHeight / 2;
+((anchor = 0.5), 0.5);
 ```
 
 排查画面变大/裁切/模糊时，必须同时检查：
@@ -421,7 +424,7 @@ anchor = 0.5, 0.5
 加载模型前，`Live2DCompanionLayer.tsx` 先跑：
 
 ```ts
-validateLive2DModelAssets(modelPath)
+validateLive2DModelAssets(modelPath);
 ```
 
 流程：
@@ -457,7 +460,7 @@ Live2D resource not found: /live2d/miku/miku.4096/texture_05.png (404)
 加载新模型前会执行：
 
 ```ts
-unloadCachedModelTextures(modelUrl, normalizedModelJson)
+unloadCachedModelTextures(modelUrl, normalizedModelJson);
 ```
 
 对 model3.json 里的 texture 路径生成候选 URL：
@@ -477,7 +480,7 @@ unloadCachedModelTextures(modelUrl, normalizedModelJson)
 加载前调用：
 
 ```ts
-configureLive2DTextureLoading()
+configureLive2DTextureLoading();
 ```
 
 当前配置：
@@ -495,7 +498,7 @@ TextureSource.defaultOptions.maxAnisotropy = 16;
 加载后再次逐 texture 调用：
 
 ```ts
-configureTextureQuality(live2dModel)
+configureTextureQuality(live2dModel);
 ```
 
 对每张 `texture.source` 设置：
@@ -528,7 +531,7 @@ miku.4096/texture_05.png
 另外 `modelController.ts` 对 Miku 加了参数双保险：
 
 ```ts
-Param137 = 0
+Param137 = 0;
 ```
 
 并在 `beforeModelUpdate` 每帧保持隐藏。
@@ -552,7 +555,7 @@ const loaded = await L2DModel.from(normalizedModelJson, {
 当前不使用 autoUpdate，而是在项目自己的 ticker 中手动调用：
 
 ```ts
-model.update(deltaMs)
+model.update(deltaMs);
 ```
 
 ### 9.2 setRenderer 与交互关闭
@@ -560,9 +563,9 @@ model.update(deltaMs)
 加载后：
 
 ```ts
-currentModel.setRenderer?.(live2dScene.app.renderer)
-currentModel.anchor.set(0.5, 0.5)
-disablePixiHitTesting(stage/backgroundLayer/particleLayer/characterLayer/currentModel)
+currentModel.setRenderer?.(live2dScene.app.renderer);
+currentModel.anchor.set(0.5, 0.5);
+disablePixiHitTesting(stage / backgroundLayer / particleLayer / characterLayer / currentModel);
 ```
 
 禁用 hitTesting 的原因：Pixi v8 递归 Live2D 内部对象树时，部分内部节点不是完整 Pixi v8 Container，可能触发：
@@ -578,14 +581,14 @@ currentTarget.isInteractive is not a function
 `startRuntimeLoop()` 将 `runtimeTick` 添加到 `app.ticker`：
 
 ```ts
-deltaMs = min(app.ticker.deltaMS || 16.67, 66.67)
-model.update(deltaMs)
+deltaMs = min(app.ticker.deltaMS || 16.67, 66.67);
+model.update(deltaMs);
 if (core && soullinkLocalEngine) {
-  soullinkLocalEngine.update(core, deltaMs)
+  soullinkLocalEngine.update(core, deltaMs);
 } else {
-  applyHeartbeat(deltaMs)
+  applyHeartbeat(deltaMs);
 }
-if (mouthValue > 0) mouthValue -= deltaMs / 420
+if (mouthValue > 0) mouthValue -= deltaMs / 420;
 ```
 
 ### 9.4 fallback heartbeat
@@ -593,9 +596,9 @@ if (mouthValue > 0) mouthValue -= deltaMs / 420
 如果没有 Soullink engine，则手动写参数：
 
 ```ts
-ParamBreath
-ParamBodyAngleX
-ParamAngleZ
+ParamBreath;
+ParamBodyAngleX;
+ParamAngleZ;
 ```
 
 ### 9.5 口型
@@ -603,13 +606,13 @@ ParamAngleZ
 TTS 通过 `subscribeMouthValue()` 推送 RMS 音量包络，`Live2DCompanionLayer` 调：
 
 ```ts
-controller.setMouthValue(value)
+controller.setMouthValue(value);
 ```
 
 `modelController.ts` 在 `beforeModelUpdate` 写：
 
 ```ts
-ParamMouthOpenY = mouthValue
+ParamMouthOpenY = mouthValue;
 ```
 
 ## 10. CSS 事件/拖动/聊天与画布的关系

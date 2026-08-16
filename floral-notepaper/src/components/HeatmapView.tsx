@@ -211,7 +211,11 @@ export function HeatmapView({
           <div style={{ width: GRID_GUTTER }} />
 
           {/* cell grid */}
-          <div ref={gridRef} className="relative shrink-0" style={{ width: gridWidth, height: gridHeight }}>
+          <div
+            ref={gridRef}
+            className="relative shrink-0"
+            style={{ width: gridWidth, height: gridHeight }}
+          >
             {slots.map((date, slotIndex) => {
               if (date === null) return null;
               const weekIndex = Math.floor(slotIndex / 7);
@@ -232,11 +236,11 @@ export function HeatmapView({
                     height: cellSize,
                     borderRadius: 3,
                     // 无记录（level 0）不填充，保持页面底色（浅色=白，深色=深）
-                    backgroundColor:
-                      level === 0 ? "transparent" : `var(--heatmap-level-${level})`,
+                    backgroundColor: level === 0 ? "transparent" : `var(--heatmap-level-${level})`,
                     border: "1px solid var(--heatmap-cell-border)",
                     transform: hoveredSlot === slotIndex ? "scale(1.1)" : "scale(1)",
-                    transition: "transform 150ms ease-out, background-color 0.2s ease, border-color 0.2s ease",
+                    transition:
+                      "transform 150ms ease-out, background-color 0.2s ease, border-color 0.2s ease",
                   }}
                   onMouseEnter={(e) => handleCellEnter(slotIndex, e)}
                   onMouseLeave={handleCellLeave}

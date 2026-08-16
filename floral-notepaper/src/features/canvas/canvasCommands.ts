@@ -160,7 +160,11 @@ export function parseCommandDsl(dsl: string): CanvasCommand | null {
     case "node": {
       const type = (rest[0] ?? "text") as CanvasNodeType;
       const valid: CanvasNodeType[] = ["text", "card", "resource", "task"];
-      return { kind: "createNode", type: valid.includes(type) ? type : "text", text: rest.slice(1).join(":") };
+      return {
+        kind: "createNode",
+        type: valid.includes(type) ? type : "text",
+        text: rest.slice(1).join(":"),
+      };
     }
     case "select":
       return { kind: "selectNode", nodeId: rest.join(":") };
@@ -171,7 +175,10 @@ export function parseCommandDsl(dsl: string): CanvasCommand | null {
     }
     case "zoomto": {
       const scale = Number.parseFloat(rest[0] ?? "1");
-      return { kind: "zoomTo", scale: Number.isFinite(scale) && scale > 0 ? Math.min(scale, 3) : 1 };
+      return {
+        kind: "zoomTo",
+        scale: Number.isFinite(scale) && scale > 0 ? Math.min(scale, 3) : 1,
+      };
     }
     case "tutorial":
       return { kind: "runTutorial" };

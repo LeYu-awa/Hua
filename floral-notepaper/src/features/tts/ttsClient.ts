@@ -1,7 +1,4 @@
-import {
-  EMOTION_SPEED_ADJUST,
-  type TTSConfig,
-} from "./types";
+import { EMOTION_SPEED_ADJUST, type TTSConfig } from "./types";
 
 /**
  * 与 soullink-emotion-sdk 对齐的 TTS 合成端口。
@@ -191,8 +188,9 @@ async function synthesizeEdge(
   if (wanted) {
     voice = voices.find((v) => v.name === wanted) ?? voices.find((v) => v.lang.startsWith("zh"));
   } else {
-    voice = voices.find((v) => v.lang.startsWith("zh") && /female|xiaoxiao|yaoyao|yayun/i.test(v.name))
-      ?? voices.find((v) => v.lang.startsWith("zh"));
+    voice =
+      voices.find((v) => v.lang.startsWith("zh") && /female|xiaoxiao|yaoyao|yayun/i.test(v.name)) ??
+      voices.find((v) => v.lang.startsWith("zh"));
   }
   if (!voice) throw new Error("未找到可用的中文语音");
 
@@ -202,7 +200,8 @@ async function synthesizeEdge(
     utterance.rate = speedForEmotion(config.defaultSpeed, emotion) || 1;
     utterance.volume = config.volume;
     utterance.onend = () => resolve({});
-    utterance.onerror = (event) => reject(new Error(`Edge 语音合成失败: ${event.error ?? "unknown"}`));
+    utterance.onerror = (event) =>
+      reject(new Error(`Edge 语音合成失败: ${event.error ?? "unknown"}`));
     synth.speak(utterance);
   });
 }
