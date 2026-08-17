@@ -4,7 +4,7 @@
 //! 返回 `results[]`（title/url/content/score）。不引入 MCP 也能先落地 web.search 工具，
 //! MCP 协议化在工具注册表阶段再包装。
 
-use crate::services::notes::AppError;
+use crate::services::notes::{AppError, DEFAULT_SEARXNG_URL};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -19,8 +19,60 @@ pub struct WebSearchResult {
     pub thumbnail: Option<String>,
 }
 
-/// 调用 SearXNG JSON API 搜索
+/// 内置的公开 SearXNG 实例（无需配置即可用）。公共实例会随时上下线，
+/// 因此逐个尝试、谁先返回结果用谁；全部失败由调用方回退 DuckDuckGo。
+const PUBLIC_SEARXNG_INSTANCES: &[&str] = &[
+    "https://paulgo.io",
+    "https://priv.au",
+    "https://searx.tiekoetter.com",
+    "https://search.bus-hit.me",
+    "https://opnxng.com",
+];
+
+/// 解析候选实例：
+/// - 用户显式配置了非默认自托管地址 → 只用该地址；
+/// - 地址为空或仍为内置默认（paulgo.io）→ 依次尝试所有公共实例。
+fn searxng_candidates(base_url: &str) -> Vec<String> {
+    let trimmed = base_url.trim().trim_end_matches('/');
+    if !trimmed.is_empty() && trimmed != DEFAULT_SEARXNG_URL {
+        vec![trimmed.to_string()]
+    } else {
+        PUBLIC_SEARXNG_INSTANCES
+            .iter()
+            .map(|url| url.to_string())
+            .collect()
+    }
+}
+
+/// 调用 SearXNG JSON API 搜索（自动在公共实例间回退）
 pub async fn searxng_search(
+    base_url: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<WebSearchResult>, AppError> {
+    let candidates = searxng_candidates(base_url);
+    let mut last_error: Option<AppError> = None;
+
+    for base in candidates {
+        match search_instance(&base, query, limit).await {
+            Ok(results) if !results.is_empty() => return Ok(results),
+            Ok(_) => {
+                log::debug!("[search] SearXNG 实例 {base} 无结果，尝试下一个");
+            }
+            Err(error) => {
+                log::debug!("[search] SearXNG 实例 {base} 不可用: {}", error.message);
+                last_error = Some(error);
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        AppError::new("webSearch", "所有 SearXNG 实例均未返回结果，请检查网络或配置自托管实例")
+    }))
+}
+
+/// 请求单个 SearXNG 实例
+async fn search_instance(
     base_url: &str,
     query: &str,
     limit: usize,
@@ -41,7 +93,7 @@ pub async fn searxng_search(
             ("language", "zh-CN"),
             ("safesearch", "0"),
         ])
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(8))
         .send()
         .await
         .map_err(|e| AppError::new("webSearch", format!("SearXNG 请求失败: {e}")))?;
@@ -329,9 +381,17 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_base_url() {
-        let err = tauri::async_runtime::block_on(searxng_search("", "q", 5)).unwrap_err();
-        assert_eq!(err.code, "webSearch");
+    fn searxng_candidates_fall_back_to_public_instances() {
+        // 空地址 → 公共实例列表
+        let empty = searxng_candidates("");
+        assert!(empty.len() >= 3);
+        assert_eq!(empty[0], "https://paulgo.io");
+        // 内置默认地址 → 同样走公共实例列表
+        let default = searxng_candidates(DEFAULT_SEARXNG_URL);
+        assert_eq!(default.len(), PUBLIC_SEARXNG_INSTANCES.len());
+        // 用户自定义自托管 → 单实例
+        let custom = searxng_candidates("http://127.0.0.1:8080/");
+        assert_eq!(custom, vec!["http://127.0.0.1:8080"]);
     }
 
     #[test]

@@ -462,17 +462,16 @@ async fn execute_web_search(params: &Value) -> Result<AssistantToolResponse, App
         .map(|value| value.clamp(1, SEARCH_LIMIT_MAX as u64) as usize)
         .unwrap_or(SEARCH_LIMIT_DEFAULT);
 
-    // 优先用 SearXNG（自托管或内置默认实例 paulgo.io）：结果真实、覆盖全站；
-    // 不可用（未配置/宕机/无结果）时回退 DuckDuckGo Instant Answer
+    // 优先用 SearXNG（未配置或为内置默认时自动在多个公开实例间回退；也支持自托管地址）；
+    // 全部不可用/无结果时回退 DuckDuckGo
     let config = default_store()?.load_config()?;
-    if !config.searxng_url.trim().is_empty() {
-        match crate::services::agent::web_search::searxng_search(
-            &config.searxng_url,
-            &query,
-            limit.max(1),
-        )
-        .await
-        {
+    match crate::services::agent::web_search::searxng_search(
+        &config.searxng_url,
+        &query,
+        limit.max(1),
+    )
+    .await
+    {
             Ok(results) if !results.is_empty() => {
                 let items: Vec<SearchResultItem> = results
                     .into_iter()
@@ -506,7 +505,6 @@ async fn execute_web_search(params: &Value) -> Result<AssistantToolResponse, App
                 log::debug!("[search] SearXNG 不可用，回退 DuckDuckGo: {}", error.message);
             }
         }
-    }
 
     // 回退 1：DuckDuckGo HTML 网页搜索——对普通搜索词也能返回真实网页结果
     match crate::services::agent::web_search::duckduckgo_search(&query, limit).await {

@@ -1554,14 +1554,14 @@ function AiIntegrationPanel({
         <p className="text-[10px] leading-relaxed text-ink-ghost mb-3">
           {t("settings.aiIntegration.webSearchHint", {
             defaultValue:
-              "画布「知识采集」与「联网调研」通过 SearXNG 搜索互联网，默认已内置公共实例 https://paulgo.io，无需配置即可使用。想用更稳定的自托管实例时，在这里改成自己的地址；清空则降级为模型离线作答。",
+              "画布「知识采集」与「联网调研」通过 SearXNG 搜索互联网。留空时自动在多个内置公开实例间切换（paulgo.io / priv.au / searx.tiekoetter.com / search.bus-hit.me / opnxng.com），无需配置即可使用；全不可用时自动回退 DuckDuckGo。想用更稳定的自托管实例，在这里填自己的地址。",
           })}
         </p>
         <TextField
           label="SearXNG URL"
           value={searxngUrl}
           onChange={(v) => onChange({ ...config, searxngUrl: v.trim() })}
-          placeholder="https://paulgo.io"
+          placeholder="留空自动切换内置公开实例"
         />
         <div className="mt-2 flex items-center gap-2">
           <span
