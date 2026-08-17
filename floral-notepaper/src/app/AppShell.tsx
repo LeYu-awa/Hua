@@ -11,6 +11,7 @@ import { getConfig, saveConfig } from "../features/settings/api";
 import { applyTheme, watchSystemTheme } from "../features/settings/theme";
 import type { AppConfig, ProviderConfig, ThemeOption } from "../features/settings/types";
 import { uploadConfig, downloadConfig } from "../features/sync/api";
+import { installExternalLinkHandler } from "../features/windows/externalLinks";
 import { getInitialRoute } from "../features/windows/windowRoutes";
 import { syncLanguage } from "../locales";
 import { Live2DCompanionLayer } from "../features/live2d/Live2DCompanionLayer";
@@ -113,6 +114,12 @@ export function AppShell() {
       })
       .catch(() => {});
     return () => cleanup();
+  }, []);
+
+  useEffect(() => {
+    // 全局拦截外部链接：防止裸 <a href> 把 webview 导航到外部站点后
+    // 回退触发整个应用重新加载（见 features/windows/externalLinks）
+    return installExternalLinkHandler();
   }, []);
 
   useEffect(() => {

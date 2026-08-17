@@ -400,7 +400,7 @@ mod keyboard_hook {
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
+    App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Url, WebviewUrl,
     WebviewWindowBuilder, Window, WindowEvent, Wry,
 };
 use uuid::Uuid;
@@ -1558,6 +1558,22 @@ fn toggle_tile_window_now(
     Ok(true)
 }
 
+/// 顶层导航白名单：只允许应用自身页面与 asset 协议资源。
+/// 外部链接一律拒绝，防止 markdown 等处的裸链接把窗口导航到外部站点
+/// （与前端全局点击拦截互为双保险；主窗口冷启动由 config 创建，主要依赖前端拦截）。
+fn allow_app_navigation(url: &Url) -> bool {
+    match url.scheme() {
+        // 生产环境内置页面：tauri://localhost（Windows/Linux）/ https://tauri.localhost（macOS）
+        "tauri" => true,
+        "https" => url.host_str() == Some("tauri.localhost"),
+        // 开发环境 Vite dev server
+        "http" => matches!(url.host_str(), Some("localhost") | Some("127.0.0.1")),
+        // asset 协议（本地图片等静态资源）
+        "asset" => true,
+        _ => false,
+    }
+}
+
 fn open_or_focus_window(
     app: &AppHandle,
     label: &str,
@@ -1585,7 +1601,9 @@ fn open_or_focus_window(
         .always_on_top(opts.always_on_top)
         .shadow(opts.shadow)
         .skip_taskbar(opts.skip_taskbar)
-        .visible(false);
+        .visible(false)
+        // 顶层导航白名单：拒绝外部站点，避免 markdown 裸链接把窗口导航走
+        .on_navigation(|url| allow_app_navigation(url));
 
     // Floating tile surfaces stay frameless; notepad and other windows use the
     // native macOS title bar.
