@@ -54,6 +54,7 @@ import { getNote } from "../notes/api";
 import {
   detectAssistantToolPlan,
   parseExplicitToolCommand,
+  parseInvokeText,
   requiresConfirmation,
   toolLabel,
   type AssistantToolPlan,
@@ -800,11 +801,22 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
         body: buildBody(options?.tools),
       });
       if (!response.ok && options?.tools && options.tools.length > 0) {
-        // 模型/网关不支持 function calling → 回退纯对话
+        // 模型/网关不支持 function calling → 回退纯对话；
+        // 同时移除系统指令里的工具引导（AGENT_SYSTEM_SUFFIX），
+        // 避免模型在无 tools 定义时用 <invoke> 文本"假装"调用工具
+        const fallbackMessages = modelMessages.map((m) =>
+          m.role === "system"
+            ? { ...m, content: (m.content || "").replace(AGENT_SYSTEM_SUFFIX, "") }
+            : m,
+        );
         const fallback = await fetch(apiUrl, {
           method: "POST",
           headers,
-          body: buildBody(undefined),
+          body: JSON.stringify({
+            model: activeModel.modelId,
+            messages: fallbackMessages,
+            stream: true,
+          }),
         });
         if (!fallback.ok) {
           const errorText = await response.text();
@@ -933,6 +945,23 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
         return;
       }
 
+      // 方案 C：明确联网意图词（搜索/查一下/最新/实时等）直接走规则路径触发 web.search，
+      // 不依赖模型 function calling（部分网关不支持，会退化成 <invoke> 文本）
+      const webRulePlan = detectAssistantToolPlan(text);
+      if (webRulePlan?.tool === "web.search") {
+        if (requiresConfirmation(webRulePlan.tool)) {
+          const pending: PendingToolPlan = {
+            ...webRulePlan,
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          };
+          setPendingTool(pending);
+          appendAssistantReply(buildPendingToolMessage(pending));
+          return;
+        }
+        await executeToolPlan(webRulePlan, false);
+        return;
+      }
+
       // 3) 标准 Agent（function calling）：模型自己决定调用哪个工具、传什么参数；
       //    #引用笔记作为上下文注入，模型自主决定是否读取后完成任务
       setLoading(true);
@@ -992,10 +1021,38 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
         }
 
         if (result.text) {
-          // 始终用最终完整文本收尾：流式片段替换为完整回复并解析为四大模块结构化数据（ai-2）
-          replaceAssistantDraft(draftId, result.text);
+          // 方案 B 兜底：网关不支持 function calling 时，模型可能用 <invoke> 文本模拟工具调用
+          // （未真正执行）。识别已知工具后解析参数、转为真实工具计划执行；危险工具仍走确认。
+          const invoke = parseInvokeText(result.text);
+          const invokeName = invoke?.name;
+          if (invokeName !== undefined && isKnownAgentTool(invokeName)) {
+            const params = invoke?.params ?? {};
+            replaceAssistantDraft(
+              draftId,
+              `检测到文本形式的工具调用请求，正在执行 **${toolLabel(invokeName)}**。`,
+            );
+            const invokePlan: AssistantToolPlan = {
+              tool: invokeName,
+              params,
+              title: toolLabel(invokeName),
+              description: `解析到文本工具调用 ${invokeName}（${JSON.stringify(params)}），转为真实工具执行。`,
+            };
+            if (requiresConfirmation(invokeName)) {
+              const pending: PendingToolPlan = {
+                ...invokePlan,
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              };
+              setPendingTool(pending);
+              appendAssistantReply(buildPendingToolMessage(pending));
+            } else {
+              await executeToolPlan(invokePlan, false);
+            }
+          } else {
+            // 始终用最终完整文本收尾：流式片段替换为完整回复并解析为四大模块结构化数据（ai-2）
+            replaceAssistantDraft(draftId, result.text);
+            speakAssistantReply(result.text);
+          }
         }
-        if (result.text) speakAssistantReply(result.text);
       } catch (err) {
         replaceAssistantDraft(draftId, `错误：${getErrorText(err)}`);
       } finally {

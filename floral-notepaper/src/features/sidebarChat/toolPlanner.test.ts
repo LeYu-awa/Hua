@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { detectAssistantToolPlan, requiresConfirmation } from "./toolPlanner";
+import {
+  detectAssistantToolPlan,
+  parseInvokeText,
+  requiresConfirmation,
+} from "./toolPlanner";
 
 function expectPlan(input: string) {
   const plan = detectAssistantToolPlan(input);
@@ -79,5 +83,31 @@ describe("sidebar chat tool planner", () => {
     const copy = expectPlan("复制到剪贴板 会议摘要");
     expect(copy.tool).toBe("external.copyText");
     expect(copy.params.text).toBe("会议摘要");
+  });
+});
+
+describe("parseInvokeText (方案 B：模型以 <invoke> 文本模拟工具调用)", () => {
+  test("parses web_search with parameters", () => {
+    const call = parseInvokeText(
+      '<invoke name="web_search"><parameter name="query">樱花图片 壁纸</parameter><parameter name="limit">5</parameter></invoke>',
+    );
+    expect(call).toEqual({ name: "web.search", params: { query: "樱花图片 壁纸", limit: "5" } });
+  });
+
+  test("normalizes underscore tool names to dot notation", () => {
+    const call = parseInvokeText('<invoke name="note_search"><parameter name="query">复盘</parameter></invoke>');
+    expect(call?.name).toBe("note.search");
+  });
+
+  test("returns null for plain text without an invoke tag", () => {
+    expect(parseInvokeText("这是普通的回答文本")).toBeNull();
+    expect(parseInvokeText("")).toBeNull();
+  });
+
+  test("matches invoke tags embedded in surrounding prose", () => {
+    const call = parseInvokeText(
+      '好的，我来帮你搜索。<invoke name="web_search"><parameter name="query">樱花 图片</parameter></invoke>',
+    );
+    expect(call).toEqual({ name: "web.search", params: { query: "樱花 图片" } });
   });
 });

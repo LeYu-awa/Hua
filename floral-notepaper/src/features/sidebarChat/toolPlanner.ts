@@ -362,3 +362,32 @@ function parseMoveCategoryIntent(text: string) {
 
   return null;
 }
+
+export interface InvokeTextCall {
+  /** 归一化后的工具名（web_search → web.search） */
+  name: string;
+  params: Record<string, string>;
+}
+
+/**
+ * 解析模型以 XML 文本形式模拟的工具调用，如
+ * `<invoke name="web_search"><parameter name="query">樱花图片</parameter></invoke>`。
+ * 网关不支持 function calling 时模型可能输出该格式；识别后按真实工具执行。
+ */
+export function parseInvokeText(text: string): InvokeTextCall | null {
+  const invoke = text.match(/<invoke\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/invoke>/i);
+  if (!invoke) return null;
+  const name = invoke[1].replace(/_/g, ".").trim();
+  if (!name) return null;
+
+  const params: Record<string, string> = {};
+  const parameterRe = /<parameter\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/parameter>/gi;
+  let parameterMatch: RegExpExecArray | null;
+  while ((parameterMatch = parameterRe.exec(invoke[2])) !== null) {
+    const key = parameterMatch[1].trim();
+    const value = parameterMatch[2].trim();
+    if (key) params[key] = value;
+  }
+
+  return { name, params };
+}
