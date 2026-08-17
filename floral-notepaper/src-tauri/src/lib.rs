@@ -164,6 +164,23 @@ fn save_external_file(path: String, content: String) -> Result<(), AppError> {
     })
 }
 
+/// 保存二进制文件（如对话截图导出的 PNG），按用户选择路径写入
+#[tauri::command]
+fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), AppError> {
+    if let Some(parent) = PathBuf::from(&path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| AppError {
+            code: "io".into(),
+            message: e.to_string(),
+            details: Default::default(),
+        })?;
+    }
+    std::fs::write(&path, data).map_err(|e| AppError {
+        code: "io".into(),
+        message: e.to_string(),
+        details: Default::default(),
+    })
+}
+
 #[tauri::command]
 fn categories_list() -> Result<Vec<String>, AppError> {
     default_store()?.list_categories()
@@ -631,6 +648,7 @@ pub fn run() {
             notes_move_category,
             read_external_file,
             save_external_file,
+            save_binary_file,
             get_file_modified_time,
             categories_list,
             categories_create,

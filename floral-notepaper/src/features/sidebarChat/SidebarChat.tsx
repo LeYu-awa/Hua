@@ -70,6 +70,7 @@ import { DiarySuggestionCard } from "../diary/DiarySuggestionCard";
 import { onOpenChatTask } from "../diary/diaryEvents";
 import { useDiarySuggestion } from "../diary/useDiarySuggestion";
 import { recallBaseline, recallMemory } from "../agent/memoryRecall";
+import { saveChatScreenshot } from "./chatCapture";
 import type { StructuredReply } from "./structuredReply";
 
 export interface SidebarChatMessage {
@@ -363,6 +364,8 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
   /** 日记跳转提示（diary S1）：来源对话已清空时显示短暂提示 */
   const [chatTaskNotice, setChatTaskNotice] = useState<string | null>(null);
   const chatTaskNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 对话截图导出中（禁用重复点击） */
+  const [exporting, setExporting] = useState(false);
   /** 对话面板宽度（默认 360，可拖动，持久化本地） */
   const [chatPanelWidth, setChatPanelWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("sidebar_chat_panel_width"));
@@ -686,6 +689,27 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
     cancelPendingAgentRound();
     stopSpeech();
   }, [setMessages, cancelPendingAgentRound]);
+
+  /** 导出当前对话为 PNG 截图（html-to-image → 系统保存对话框） */
+  const handleExportScreenshot = useCallback(async () => {
+    if (exporting || !chatPanelRef.current) return;
+    setExporting(true);
+    try {
+      const result = await saveChatScreenshot(chatPanelRef.current);
+      if (result.status === "saved") {
+        setChatTaskNotice(`截图已保存：${result.message}`);
+        if (chatTaskNoticeTimerRef.current) clearTimeout(chatTaskNoticeTimerRef.current);
+        chatTaskNoticeTimerRef.current = setTimeout(() => setChatTaskNotice(null), 5000);
+      } else if (result.status === "failed") {
+        setChatTaskNotice(`截图导出失败：${result.message}`);
+        if (chatTaskNoticeTimerRef.current) clearTimeout(chatTaskNoticeTimerRef.current);
+        chatTaskNoticeTimerRef.current = setTimeout(() => setChatTaskNotice(null), 5000);
+      }
+      // canceled：静默返回
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting]);
 
   const createNewTask = useCallback(() => {
     const nextTask = createChatTask();
@@ -1594,6 +1618,27 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
                       </svg>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => void handleExportScreenshot()}
+                    disabled={exporting}
+                    className="w-6 h-6 flex items-center justify-center rounded-md text-ink-ghost hover:text-ink-faint hover:bg-paper-warm transition-all cursor-pointer disabled:opacity-50"
+                    title="导出对话截图（PNG）"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     onClick={clearHistory}
