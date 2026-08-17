@@ -1,4 +1,7 @@
 /* ── Markdown Preview Skins & Syntax Highlighting ── */
+/* 代码块采用 Shiki One Dark Pro（固定深色 IDE 底），非代码区块采用 GitHub 风格布局，
+   文字/链接色继续由 --md-* 变量与四套皮肤驱动，保证磁贴可读性与皮肤协调 */
+
 .markdown-preview {
   --md-text: var(--color-ink-soft);
   --md-muted: var(--color-ink-ghost);
@@ -6,14 +9,12 @@
   --md-accent: var(--color-bamboo);
   --md-accent-soft: rgba(58, 122, 82, 0.12);
   --md-border: rgba(71, 85, 105, 0.16);
-  /* 代码块配色跟随主题变量：深色主题下自动变为浅字深底，避免固定浅色值导致不可读 */
-  --md-code-bg: color-mix(in srgb, var(--color-ink) 6%, transparent);
-  --md-code-text: var(--color-ink);
   color: var(--md-text);
-  line-height: 1.85;
+  line-height: 1.8;
   max-width: 860px;
   margin: 0 auto;
   font-family: var(--font-body);
+  overflow-wrap: break-word;
 }
 
 .markdown-preview-ink {
@@ -23,8 +24,6 @@
   --md-accent: #d7b46a;
   --md-accent-soft: rgba(215, 180, 106, 0.14);
   --md-border: rgba(255, 246, 223, 0.16);
-  --md-code-bg: #151716;
-  --md-code-text: #eee3c4;
   background: linear-gradient(135deg, #181a18, #24251f);
   border-radius: 18px;
   padding: 28px;
@@ -37,8 +36,6 @@
   --md-accent: #c45d78;
   --md-accent-soft: rgba(196, 93, 120, 0.13);
   --md-border: rgba(196, 93, 120, 0.2);
-  --md-code-bg: #fff3f5;
-  --md-code-text: #643543;
 }
 
 .markdown-preview-aurora {
@@ -48,13 +45,11 @@
   --md-accent: #3a8db7;
   --md-accent-soft: rgba(58, 141, 183, 0.13);
   --md-border: rgba(58, 141, 183, 0.2);
-  --md-code-bg: #eef8fb;
-  --md-code-text: #1e4658;
 }
 
 .markdown-empty,
 .markdown-paragraph {
-  margin: 0 0 0.85rem;
+  margin: 0 0 1rem;
 }
 
 .markdown-empty {
@@ -63,23 +58,27 @@
   padding: 48px 0;
 }
 
+/* ── 标题：GitHub 式字号阶梯 + 顶部细线（h1/h2） ── */
 .markdown-heading {
   color: var(--md-heading);
   font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1.35;
-  margin: 1.35em 0 0.65em;
+  font-weight: 650;
+  line-height: 1.3;
+  margin: 1.6em 0 0.7em;
 }
 
 .markdown-heading-1 {
   font-size: 1.9em;
   border-bottom: 1px solid var(--md-border);
   padding-bottom: 0.35em;
+  margin-top: 1.1em;
 }
 
 .markdown-heading-2 {
   font-size: 1.45em;
+  border-bottom: 1px solid var(--md-border);
+  padding-bottom: 0.3em;
+  margin-top: 1.4em;
 }
 
 .markdown-heading-3 {
@@ -87,7 +86,7 @@
 }
 
 .markdown-heading-4 {
-  font-size: 1.05em;
+  font-size: 1.02em;
 }
 
 .markdown-strong {
@@ -99,19 +98,25 @@
   color: var(--md-accent);
 }
 
+/* ── 链接：单一强调色 + 下划线，悬停实底（GitHub 式） ── */
 .markdown-link {
   color: var(--md-accent);
   text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--md-accent), transparent 40%);
+  border-bottom: 1px solid color-mix(in srgb, var(--md-accent), transparent 55%);
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .markdown-link:hover {
   background: var(--md-accent-soft);
+  border-bottom-color: transparent;
 }
 
+/* ── 列表 ── */
 .markdown-list {
-  margin: 0.75rem 0 1rem;
-  padding-left: 1.4rem;
+  margin: 0.8rem 0 1rem;
+  padding-left: 1.5rem;
 }
 
 .markdown-list-unordered {
@@ -123,43 +128,54 @@
 }
 
 .markdown-list-item {
-  margin: 0.25rem 0;
+  margin: 0.3rem 0;
 }
 
+.markdown-list-item::marker {
+  color: var(--md-accent);
+}
+
+/* ── 引用：左侧色条 + 极浅底（GitHub 式） ── */
 .markdown-blockquote {
   margin: 1rem 0;
-  padding: 0.7rem 1rem;
-  border-left: 3px solid var(--md-accent);
+  padding: 0.55rem 1rem;
+  border-left: 4px solid var(--md-accent);
   background: var(--md-accent-soft);
   color: var(--md-text);
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 10px 10px 0;
+}
+
+.markdown-blockquote p {
+  margin: 0.4rem 0;
 }
 
 .markdown-divider {
   border: 0;
   border-top: 1px solid var(--md-border);
-  margin: 1.4rem 0;
+  margin: 1.6rem 0;
 }
 
+/* ── 内联代码 ── */
 .markdown-inline-code {
   color: var(--md-accent);
   background: var(--md-accent-soft);
-  border: 1px solid var(--md-border);
+  border: 1px solid color-mix(in srgb, var(--md-border) 80%, transparent);
   border-radius: 6px;
-  padding: 0.12em 0.38em;
+  padding: 0.12em 0.4em;
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
 }
 
+/* ── 代码块：Shiki One Dark Pro 固定深色 IDE 观感 ── */
 .markdown-code-block {
   position: relative;
   margin: 1rem 0;
   padding: 0;
   overflow-x: auto;
-  border: 1px solid var(--md-border);
-  border-radius: 14px;
-  background: var(--md-code-bg);
-  color: var(--md-code-text);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #abb2bf;
+  background: #282c34;
   box-shadow: none;
 }
 
@@ -170,19 +186,34 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  min-height: 2.3rem;
-  padding: 0.48rem 0.75rem 0.45rem 0.9rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--md-border) 72%, transparent);
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem 0.42rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #2c313a;
+  border-radius: 12px 12px 0 0;
 }
 
 .markdown-code-content {
   display: block;
-  padding: 0.85rem 1rem 1rem;
+  padding: 0.9rem 1rem 1rem;
   white-space: pre;
   font-family: var(--font-mono);
-  font-size: 0.93em;
-  line-height: 1.78;
-  color: color-mix(in srgb, var(--md-code-text) 92%, var(--md-heading) 8%);
+  font-size: 0.9em;
+  line-height: 1.7;
+  color: #abb2bf;
+}
+
+.md-shiki-line {
+  display: block;
+}
+
+.md-shiki-line:empty::after {
+  content: " ";
+}
+
+.md-shiki-plain {
+  color: #abb2bf;
+  white-space: pre;
 }
 
 .markdown-code-language,
@@ -193,7 +224,7 @@
 }
 
 .markdown-code-language {
-  color: color-mix(in srgb, var(--md-muted) 76%, var(--md-code-text) 24%);
+  color: #5c6370;
   font-weight: 600;
 }
 
@@ -201,10 +232,10 @@
   flex: 0 0 auto;
   min-width: 3rem;
   height: 1.45rem;
-  border: 1px solid var(--md-border);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
   padding: 0 0.58rem;
-  color: color-mix(in srgb, var(--md-muted) 72%, var(--md-code-text) 28%);
+  color: #848b97;
   background: transparent;
   cursor: pointer;
   transition:
@@ -215,57 +246,24 @@
 
 .markdown-code-copy:hover,
 .markdown-code-copy:focus-visible {
-  color: var(--md-heading);
-  background: rgba(127, 127, 127, 0.08);
-  border-color: color-mix(in srgb, var(--md-border) 70%, var(--md-heading) 30%);
+  color: #e6e6e6;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.28);
   outline: none;
 }
 
 .markdown-code-copy.is-copied {
-  color: var(--md-heading);
-  background: rgba(127, 127, 127, 0.1);
-  border-color: color-mix(in srgb, var(--md-border) 70%, var(--md-heading) 30%);
+  color: #98c379;
+  background: rgba(152, 195, 121, 0.12);
+  border-color: rgba(152, 195, 121, 0.4);
 }
 
-.md-token-keyword {
-  color: color-mix(in srgb, var(--md-code-text) 84%, var(--md-accent) 16%);
-  font-weight: 650;
-}
-
-.md-token-string {
-  color: color-mix(in srgb, var(--md-code-text) 86%, var(--md-accent) 14%);
-}
-
-.md-token-number {
-  color: color-mix(in srgb, var(--md-code-text) 86%, #b78a58 14%);
-}
-
-.md-token-comment {
-  color: color-mix(in srgb, var(--md-muted) 72%, var(--md-code-text) 28%);
-  font-style: normal;
-}
-
-.md-token-function {
-  color: color-mix(in srgb, var(--md-code-text) 84%, #5f91b8 16%);
-}
-
-.md-token-type {
-  color: color-mix(in srgb, var(--md-code-text) 86%, #b78a58 14%);
-}
-
-.md-token-property {
-  color: color-mix(in srgb, var(--md-code-text) 86%, var(--md-accent) 14%);
-}
-
-.md-token-punctuation {
-  color: color-mix(in srgb, var(--md-code-text) 76%, var(--md-muted) 24%);
-}
-
+/* ── 表格：表头底色 + 行斑马纹（GitHub 式） ── */
 .markdown-table-wrap {
   overflow-x: auto;
   margin: 1rem 0;
   border: 1px solid var(--md-border);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .markdown-table {
@@ -275,12 +273,22 @@
 
 .markdown-th,
 .markdown-td {
-  padding: 0.55rem 0.7rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--md-border);
+  text-align: left;
 }
 
 .markdown-th {
   color: var(--md-heading);
   background: var(--md-accent-soft);
-  font-weight: 700;
+  font-weight: 650;
+  font-size: 0.9em;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+  background: rgba(127, 127, 127, 0.05);
+}
+
+.markdown-table tbody tr:last-child td {
+  border-bottom: 0;
 }

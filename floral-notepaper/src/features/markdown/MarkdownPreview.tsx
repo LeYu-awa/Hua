@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,106 +13,59 @@ import type { Components } from "react-markdown";
 import "katex/dist/katex.min.css";
 import "./markdown-preview-skins.css";
 import remarkAlerts from "./remarkAlerts";
+import {
+  SHIKI_BG,
+  SHIKI_FG,
+  highlightTokens,
+  fontStyleFromToken,
+  type ThemedToken,
+} from "./shikiHighlighter";
 
-const CODE_KEYWORDS = new Set([
-  "abstract",
-  "async",
-  "await",
-  "boolean",
-  "break",
-  "case",
-  "catch",
-  "class",
-  "const",
-  "continue",
-  "default",
-  "do",
-  "else",
-  "enum",
-  "export",
-  "extends",
-  "false",
-  "finally",
-  "for",
-  "from",
-  "function",
-  "if",
-  "implements",
-  "import",
-  "in",
-  "interface",
-  "let",
-  "new",
-  "null",
-  "number",
-  "of",
-  "private",
-  "protected",
-  "public",
-  "readonly",
-  "return",
-  "string",
-  "switch",
-  "throw",
-  "true",
-  "try",
-  "type",
-  "undefined",
-  "unknown",
-  "var",
-  "void",
-  "while",
-]);
-
-function tokenClass(token: string, language: string): string | null {
-  const normalized = language.toLowerCase();
-  if (/^\/\//.test(token) || /^\/\*/.test(token) || token.startsWith("# "))
-    return "md-token-comment";
-  if (/^(['"`])/.test(token)) return "md-token-string";
-  if (/^#([\da-f]{3,8})\b/i.test(token)) return "md-token-string";
-  if (/^\d+(\.\d+)?/.test(token)) return "md-token-number";
-  if (CODE_KEYWORDS.has(token)) return "md-token-keyword";
-  if (/^[{}()[\].,;:+\-*/%=<>!&|?]+$/.test(token)) return "md-token-punctuation";
-  if (
-    (normalized.includes("css") || normalized.includes("scss")) &&
-    /^[.#]?[a-z_-][\w-]*/i.test(token)
-  ) {
-    return "md-token-property";
+function ShikiTokens({ lines }: { lines: ThemedToken[][] | null }) {
+  if (!lines) {
+    return <span className="md-shiki-plain">{/* 高亮器未就绪时仅显示纯文本（由外层兜底） */}</span>;
   }
-  if ((normalized.includes("html") || normalized.includes("xml")) && /^<\/?[\w-]+/.test(token)) {
-    return "md-token-keyword";
-  }
-  if (/^[A-Z][A-Za-z0-9_$]*$/.test(token)) return "md-token-type";
-  if (/^[a-zA-Z_$][\w$]*(?=\s*\()/.test(token)) return "md-token-function";
-  return null;
-}
-
-function highlightCode(code: string, language = ""): React.ReactNode[] {
-  const pattern =
-    /(\/\/.*|\/\*[\s\S]*?\*\/|`(?:\\.|[^`])*`|'(?:\\.|[^'])*'|"(?:\\.|[^"])*"|#(?:[\da-f]{3,8})\b|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b|<\/?[\w-]+|[{}()[\].,;:+\-*/%=<>!&|?]+|\s+|.)/g;
-  const nodes: React.ReactNode[] = [];
-  const tokens = code.match(pattern) ?? [code];
-
-  tokens.forEach((token, index) => {
-    const className = tokenClass(token, language);
-    if (!className) {
-      nodes.push(token);
-      return;
-    }
-    nodes.push(
-      <span key={`${token}-${index}`} className={className}>
-        {token}
-      </span>,
-    );
-  });
-
-  return nodes;
+  return (
+    <>
+      {lines.map((line, lineIndex) => (
+        <span className="md-shiki-line" key={lineIndex}>
+          {line.map((token, tokenIndex) => (
+            <span
+              key={tokenIndex}
+              style={{
+                color: token.color ?? SHIKI_FG,
+                ...fontStyleFromToken(token),
+              }}
+            >
+              {token.content}
+            </span>
+          ))}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function CodeBlock({ children, language }: { children: React.ReactNode; language?: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
+  const [highlightReady, setHighlightReady] = useState(false);
   const codeText = extractText(children).replace(/\n$/, "");
+
+  useEffect(() => {
+    let cancelled = false;
+    setHighlightReady(false);
+    setTokens(null);
+    void highlightTokens(codeText, language).then((result) => {
+      if (cancelled) return;
+      setTokens(result);
+      setHighlightReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [codeText, language]);
 
   const handleCopy = useCallback(() => {
     void navigator.clipboard.writeText(codeText).then(() => {
@@ -122,7 +75,10 @@ function CodeBlock({ children, language }: { children: React.ReactNode; language
   }, [codeText]);
 
   return (
-    <pre className={`markdown-code-block group ${language ? "has-language" : ""}`}>
+    <pre
+      className={`markdown-code-block group ${language ? "has-language" : ""}`}
+      style={{ backgroundColor: SHIKI_BG }}
+    >
       <span className="markdown-code-header">
         <span className="markdown-code-language">{language || "code"}</span>
         <button
@@ -136,7 +92,13 @@ function CodeBlock({ children, language }: { children: React.ReactNode; language
             : t("markdown.copy", { defaultValue: "复制" })}
         </button>
       </span>
-      <code className="markdown-code-content">{highlightCode(codeText, language)}</code>
+      <code className="markdown-code-content">
+        {highlightReady && tokens ? (
+          <ShikiTokens lines={tokens} />
+        ) : (
+          <span className="md-shiki-plain">{codeText}</span>
+        )}
+      </code>
     </pre>
   );
 }
@@ -343,16 +305,31 @@ const staticComponents: Components = {
     }
     return <code className="markdown-inline-code">{children}</code>;
   },
-  pre: ({ children }) => {
+  pre: ({ node, children }) => {
+    // 语言信息位于 hast 中 code 子节点的 className（如 language-ts）。
+    // 注意：components.code 渲染时会改写 className，不能依赖渲染后的 children。
     let language = "";
-    if (
-      children != null &&
-      typeof children === "object" &&
-      "props" in (children as React.ReactElement)
-    ) {
-      const codeProps = (children as React.ReactElement<{ className?: string }>).props;
-      const match = codeProps.className?.match(/language-(\S+)/);
-      if (match) language = match[1];
+    const codeNode = node?.children?.[0];
+    const codeClassName = (codeNode as
+      | { properties?: { className?: unknown } }
+      | undefined)?.properties?.className;
+    const classNameStr = Array.isArray(codeClassName)
+      ? codeClassName.join(" ")
+      : String(codeClassName ?? "");
+    const match = classNameStr.match(/language-(\S+)/);
+    if (match) language = match[1];
+
+    if (!language) {
+      // 兼容兜底：从渲染后的 code 元素重新提取
+      if (
+        children != null &&
+        typeof children === "object" &&
+        "props" in (children as React.ReactElement)
+      ) {
+        const codeProps = (children as React.ReactElement<{ className?: string }>).props;
+        const fallback = codeProps.className?.match(/language-(\S+)/);
+        if (fallback) language = fallback[1];
+      }
     }
 
     return <CodeBlock language={language}>{children}</CodeBlock>;
