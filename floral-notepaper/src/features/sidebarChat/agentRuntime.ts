@@ -233,7 +233,7 @@ function formatToolResponse(response: AssistantToolResponse) {
       : [];
     const sources = formatSearchSources(results);
     const previews = results
-      .filter((item) => typeof item.thumbnail === "string" && item.thumbnail.length > 0)
+      .filter((item) => isSafeThumbnailUrl(item.thumbnail))
       .map((item) => `![${item.title}](${item.thumbnail})`)
       .join("\n");
     const previewBlock = previews ? `\n\n**图片预览**\n${previews}` : "";
@@ -358,6 +358,16 @@ function formatNote(note: unknown) {
 function formatSearchSources(results: WebSearchResult[]) {
   if (results.length === 0) return "";
   return results.map((item, index) => `- [${index + 1}] [${item.title}](${item.url})`).join("\n");
+}
+
+/**
+ * 校验缩略图地址是否可安全拼进 markdown 图片语法：
+ * 只允许 `http(s)://` 绝对地址（Rust 端已把 SearXNG 相对路径归一化）。
+ * 相对路径、data:/javascript:/含空白的异常值一律丢弃，
+ * 避免按应用 origin 解析成 404，或注入非预期 scheme。
+ */
+function isSafeThumbnailUrl(value: unknown): value is string {
+  return typeof value === "string" && /^https?:\/\/\S+$/i.test(value);
 }
 
 function isRecord(value: unknown): value is RecordLike {

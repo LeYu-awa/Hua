@@ -130,7 +130,7 @@ async fn search_instance(
                         thumbnail: item
                             .get("thumbnail")
                             .and_then(serde_json::Value::as_str)
-                            .map(String::from),
+                            .and_then(|t| normalize_thumbnail(t, base)),
                     })
                 })
                 .take(limit.max(1))
@@ -138,6 +138,29 @@ async fn search_instance(
         })
         .unwrap_or_default();
     Ok(results)
+}
+
+/// 归一化 SearXNG 缩略图地址为前端 webview 可直接加载的绝对 URL：
+/// - `/path` 相对路径 → 拼上实例 origin（SearXNG 常见 `/image_proxy?url=...` 输出）。
+///   若原样拼接进 markdown，会被按应用自身 origin（tauri://localhost）解析而 404/403。
+/// - `//host/path` 协议相对 → 补 `https:`。
+/// - 已是 `http(s)://` 绝对地址 → 原样返回。
+/// - 其它非法值（data:/javascript:/空）→ `None`，丢弃以免污染 markdown 渲染。
+fn normalize_thumbnail(thumbnail: &str, base_url: &str) -> Option<String> {
+    let trimmed = thumbnail.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(rest) = trimmed.strip_prefix("//") {
+        return Some(format!("https://{rest}"));
+    }
+    if let Some(path) = trimmed.strip_prefix('/') {
+        return Some(format!("{base_url}/{path}"));
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Some(trimmed.to_string());
+    }
+    None
 }
 
 /// 结果项链接标记（DDG HTML 结构：`<a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=...">标题</a>`）
@@ -354,7 +377,7 @@ mod tests {
             }
             let body = r#"{
                 "results": [
-                    {"title": "Rust 入门", "url": "https://example.com/rust", "content": "教程", "score": 0.9},
+                    {"title": "Rust 入门", "url": "https://example.com/rust", "content": "教程", "score": 0.9, "thumbnail": "/image_proxy?url=https%3A%2F%2Fexample.com%2Frust.png&h=100&w=100"},
                     {"title": "Tauri 2", "url": "https://example.com/tauri", "content": "桌面框架", "score": 0.5}
                 ]
             }"#;
@@ -376,8 +399,46 @@ mod tests {
         assert_eq!(results[0].title, "Rust 入门");
         assert_eq!(results[0].url, "https://example.com/rust");
         assert!(results[0].score > results[1].score);
+        // 相对路径 thumbnail 被归一化为实例 origin 下的绝对 URL
+        assert_eq!(
+            results[0].thumbnail,
+            Some(format!(
+                "http://127.0.0.1:{port}/image_proxy?url=https%3A%2F%2Fexample.com%2Frust.png&h=100&w=100"
+            ))
+        );
+        assert_eq!(results[1].thumbnail, None);
         assert!(queried.lock().unwrap().contains("q=rust"));
         server.join().unwrap();
+    }
+
+    #[test]
+    fn normalizes_thumbnail_urls() {
+        let base = "https://paulgo.io";
+        // 相对路径（SearXNG image_proxy 常见输出）→ 拼实例 origin
+        assert_eq!(
+            normalize_thumbnail("/image_proxy?url=x&h=100&w=100", base),
+            Some("https://paulgo.io/image_proxy?url=x&h=100&w=100".to_string())
+        );
+        // 协议相对 → 补 https:
+        assert_eq!(
+            normalize_thumbnail("//cdn.example.com/img.jpg", base),
+            Some("https://cdn.example.com/img.jpg".to_string())
+        );
+        // 已绝对 → 原样
+        assert_eq!(
+            normalize_thumbnail("http://cdn.example.com/img.jpg", base),
+            Some("http://cdn.example.com/img.jpg".to_string())
+        );
+        assert_eq!(
+            normalize_thumbnail("https://cdn.example.com/img.jpg", base),
+            Some("https://cdn.example.com/img.jpg".to_string())
+        );
+        // 非法/空 → 丢弃
+        assert_eq!(normalize_thumbnail("", base), None);
+        assert_eq!(normalize_thumbnail("   ", base), None);
+        assert_eq!(normalize_thumbnail("data:image/png;base64,AAAA", base), None);
+        assert_eq!(normalize_thumbnail("javascript:alert(1)", base), None);
+        assert_eq!(normalize_thumbnail("ftp://example.com/img.jpg", base), None);
     }
 
     #[test]

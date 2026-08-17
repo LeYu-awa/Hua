@@ -208,7 +208,23 @@ function formatChangeTime(value: string): string {
 }
 
 const MARKDOWN_CONTENT_CLASS =
-  "text-[12.5px] leading-relaxed text-ink-soft break-words [&_h1]:text-[15px] [&_h1]:font-bold [&_h1]:text-ink [&_h1]:mb-1.5 [&_h2]:text-[14px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mb-1.5 [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:text-ink [&_h3]:mb-1 [&_p]:mb-1.5 [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:mb-0.5 [&_strong]:text-ink [&_strong]:font-semibold [&_code]:text-bamboo [&_code]:bg-bamboo-mist/50 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-ink/5 [&_pre]:text-ink-soft [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:mb-1.5 [&_a]:text-bamboo [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-bamboo/40 [&_blockquote]:pl-3 [&_blockquote]:text-ink-faint [&_hr]:border-paper-deep/30 [&_hr]:my-2";
+  "text-[12.5px] leading-relaxed text-ink-soft break-words [&_h1]:text-[15px] [&_h1]:font-bold [&_h1]:text-ink [&_h1]:mb-1.5 [&_h2]:text-[14px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mb-1.5 [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:text-ink [&_h3]:mb-1 [&_p]:mb-1.5 [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:mb-0.5 [&_strong]:text-ink [&_strong]:font-semibold [&_code]:text-bamboo [&_code]:bg-bamboo-mist/50 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-ink/5 [&_pre]:text-ink-soft [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre]:mb-1.5 [&_a]:text-bamboo [&_a]:underline [&_img]:max-w-full [&_img]:max-h-40 [&_img]:rounded-md [&_img]:border [&_img]:border-paper-deep/20 [&_img]:object-cover [&_img]:my-1 [&_img]:bg-paper-deep/10 [&_blockquote]:border-l-2 [&_blockquote]:border-bamboo/40 [&_blockquote]:pl-3 [&_blockquote]:text-ink-faint [&_hr]:border-paper-deep/30 [&_hr]:my-2";
+
+/**
+ * 对话内图片渲染器：加载失败（外部图源 403/反爬、连接中断等）时
+ * 用占位文案兜底，避免出现破碎图片图标。
+ */
+function SafeMarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span className="my-1 inline-block max-w-full rounded-md border border-paper-deep/20 bg-paper-deep/10 px-2 py-1 text-[11px] text-ink-faint">
+        {alt || "图片加载失败"}
+      </span>
+    );
+  }
+  return <img src={src} alt={alt ?? ""} loading="lazy" onError={() => setFailed(true)} />;
+}
 
 function splitAgentMessage(content: string) {
   const flow: string[] = [];
@@ -281,7 +297,9 @@ function AgentTimelineMessage({ content }: { content: string }) {
       )}
       {answer ? (
         <div className={MARKDOWN_CONTENT_CLASS}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: SafeMarkdownImage }}>
+            {answer}
+          </ReactMarkdown>
         </div>
       ) : (
         <TypingDots />
