@@ -86,6 +86,16 @@ export const WORKFLOW_NODE_DEFINITIONS: WorkflowNodeDefinition[] = [
     outputs: [{ name: "result", type: "any" }],
     defaults: { prompt: "总结输入内容" },
   },
+  {
+    type: "social/publish",
+    title: "社交发布",
+    category: "自动化",
+    width: 280,
+    height: 160,
+    inputs: [{ name: "content", type: "any", required: true }],
+    outputs: [{ name: "result", type: "any" }],
+    defaults: { platform: "xiaohongshu" },
+  },
 ];
 
 export function createEmptyWorkflowDocument(id: string, noteId?: string): WorkflowDocument {

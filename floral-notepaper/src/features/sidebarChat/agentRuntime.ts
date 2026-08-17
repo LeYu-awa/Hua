@@ -4,6 +4,7 @@ import {
   type WebSearchResult,
 } from "./assistantTools";
 import { toolLabel, type AssistantToolPlan } from "./toolPlanner";
+import { buildSocialCardSvg } from "../social/socialCard";
 
 export type PendingToolPlan = AssistantToolPlan & {
   id: string;
@@ -155,6 +156,18 @@ export function formatAgentToolOutput(tool: string, response: AssistantToolRespo
     return `已${mode === "replace" ? "整篇覆盖" : "追加"}笔记「${title}」，正文现约 ${wordCount} 字。`;
   }
 
+  if (tool === "social.generate") {
+    const platform = getString(data.platform, "xiaohongshu");
+    const title = getString(data.title);
+    const text = getString(data.text);
+    const tags = Array.isArray(data.tags)
+      ? data.tags.filter((tag): tag is string => typeof tag === "string")
+      : [];
+    const chars = typeof data.chars === "number" ? data.chars : [...text].length;
+    const passed = typeof data.passed === "boolean" ? data.passed : true;
+    return `已生成 ${platform} 社交素材：标题=「${title || "无"}」，正文 ${chars} 字，标签 ${tags.length} 个${passed ? "，合规预检通过" : "，合规预检存在需处理项"}。`;
+  }
+
   return response.summary;
 }
 
@@ -253,6 +266,42 @@ function formatToolResponse(response: AssistantToolResponse) {
     response.tool === "note.moveCategory"
   ) {
     return `**${toolLabel(response.tool)}完成**\n\n${response.summary}${formatNote(data.note)}`;
+  }
+
+  if (response.tool === "social.generate") {
+    const platform = getString(data.platform, "xiaohongshu") as
+      | "xiaohongshu"
+      | "wechat"
+      | "qq";
+    const title = getString(data.title, "");
+    const text = getString(data.text, "");
+    const tags = Array.isArray(data.tags)
+      ? data.tags.filter((tag): tag is string => typeof tag === "string")
+      : [];
+    const issues = Array.isArray(data.issues)
+      ? data.issues.filter(isRecord)
+      : [];
+    const svg = buildSocialCardSvg({ title, text, tags, platform });
+    const preview = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const issueLines = issues
+      .map((issue) => {
+        const severity = getString(issue.severity, "warning");
+        const message = getString(issue.message);
+        return `- [${severity === "error" ? "需处理" : "提示"}] ${message}`;
+      })
+      .join("\n");
+    return [
+      `**${toolLabel(response.tool)}完成**`,
+      "",
+      response.summary,
+      "",
+      `![社交卡片预览](${preview})`,
+      issueLines ? `\n**平台规范预检**\n${issueLines}` : "",
+      "",
+      "可在「社交发布」面板一键导出平台尺寸 PNG 或发布到内容花园。",
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   return `**${toolLabel(response.tool)}完成**\n\n${response.summary}`;

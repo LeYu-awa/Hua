@@ -66,6 +66,15 @@ const ENHANCE_WORDS: &[&str] = &["扩写", "展开", "补充细节", "丰富", "
 const CHAPTER_WORDS: &[&str] = &["续写", "下一章", "下一节", "继续写", "chapter", "接着写"];
 const GROUP_WORDS: &[&str] = &["分组", "归组", "归类", "自动分组", "泳道", "group"];
 const COLLECT_WORDS: &[&str] = &["知识采集", "采集", "搜集", "搜一下"];
+const SOCIAL_PUBLISH_WORDS: &[&str] = &[
+    "朋友圈",
+    "小红书",
+    "QQ说说",
+    "qq说说",
+    "社交",
+    "发帖",
+    "发布动态",
+];
 
 // ── 查询抽取与原子工具 ────────────────────────────────────────────────────────
 
@@ -586,6 +595,29 @@ fn export_plan(goal: &str) -> Vec<Step> {
     ]
 }
 
+/// 技能流水线：社交文案编排（检索素材 → LLM 按平台规范编排 → 确认落库）。
+/// 卡片/图文素材的视觉生成由前端社交发布面板与 assistant_tools 的 social.generate 承接。
+fn social_publish_plan(goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("sp1", "note.search", json!({ "query": extract_query(goal), "limit": 5 })),
+        tool_step("sp2", "note.read", json!({ "id": "top" })),
+        llm_step(
+            "sp3",
+            json!({
+                "promptTemplate": format!(
+                    "请把下面这篇笔记编排成一条适合发 QQ说说 / 微信朋友圈 / 小红书的社交文案。\n要求：\n1. 保留原创信息与核心亮点，口语化、有温度\n2. 正文不超过 300 字\n3. 结尾附 3-5 个 # 话题标签\n4. 不要出现极限词（最/第一/绝对等）\n\n用户目标：{}\n\n笔记内容：\n{{previousOutput}}",
+                    goal
+                )
+            }),
+        ),
+        tool_step_confirm(
+            "sp4",
+            "note.create",
+            json!({ "title": "社交文案", "category": "AI 生成", "content": "{previousOutput}" }),
+        ),
+    ]
+}
+
 /// 技能流水线：画布节点自动排版（确认）
 fn organize_plan(_goal: &str) -> Vec<Step> {
     vec![
@@ -710,6 +742,12 @@ static SKILLS: &[Skill] = &[
         plan: organize_plan,
     },
     Skill {
+        name: "social.publish",
+        description: "把笔记/内容编排成社交文案并落库（QQ说说/朋友圈/小红书）",
+        matches: |g| has_any(g, SOCIAL_PUBLISH_WORDS),
+        plan: social_publish_plan,
+    },
+    Skill {
         name: "note.search",
         description: "检索本地笔记",
         matches: |_| true,
@@ -733,6 +771,7 @@ fn structured_skill(goal: &str) -> Option<&'static Skill> {
         ("续写笔记", "note.chapter"),
         ("自动分组", "canvas.group"),
         ("扩写节点", "canvas.node.enhance"),
+        ("生成社交文案", "social.publish"),
     ] {
         if trimmed.starts_with(marker) {
             return SKILLS.iter().find(|skill| skill.name == name);
@@ -2441,7 +2480,7 @@ mod tests {
     #[test]
     fn skill_registry_has_unique_names_and_descriptions() {
         let skills = skill_registry();
-        assert_eq!(skills.len(), 10);
+        assert_eq!(skills.len(), 11);
         let mut names: Vec<&str> = skills.iter().map(|s| s.name).collect();
         names.sort_unstable();
         let mut uniq = names.clone();
@@ -2460,6 +2499,7 @@ mod tests {
         assert_eq!(match_skill("把这篇文章导出").name, "note.export");
         assert_eq!(match_skill("把画布自动排版").name, "canvas.organize");
         assert_eq!(match_skill("扩写一下这个节点").name, "canvas.node.enhance");
+        assert_eq!(match_skill("生成社交文案发朋友圈").name, "social.publish");
         assert_eq!(match_skill("随便找点东西").name, "note.search");
     }
 

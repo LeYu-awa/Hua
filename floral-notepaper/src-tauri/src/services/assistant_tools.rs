@@ -163,6 +163,7 @@ pub async fn execute_tool(
         "web.search" => execute_web_search(&request.params).await,
         "external.openUrl" => execute_external_open_url(&request.params),
         "external.copyText" => execute_external_copy_text(&request.params),
+        "social.generate" => execute_social_generate(&request.params),
         _ => Err(AppError::new(
             "unsupportedTool",
             format!("暂不支持工具：{tool}"),
@@ -651,6 +652,201 @@ fn execute_external_copy_text(params: &Value) -> Result<AssistantToolResponse, A
     })
 }
 
+// ── social.generate：文字 → 可视化社交素材（diagram-design 集成） ───────────
+// 平台规范与前端 src/features/social/platformSpecs.ts 保持同源；
+// 本执行器负责参数校验与内容审核预检，卡片渲染由前端 socialCard.ts 完成。
+
+#[derive(Clone, Copy)]
+struct SocialPlatformSpec {
+    id: &'static str,
+    name: &'static str,
+    short_name: &'static str,
+    width: u32,
+    height: u32,
+    ratio_label: &'static str,
+    max_text_length: usize,
+    max_tags: usize,
+    max_images: usize,
+    accent: &'static str,
+}
+
+static SOCIAL_PLATFORM_SPECS: [SocialPlatformSpec; 3] = [
+    SocialPlatformSpec {
+        id: "xiaohongshu",
+        name: "小红书",
+        short_name: "XHS",
+        width: 1242,
+        height: 1660,
+        ratio_label: "3:4 竖版",
+        max_text_length: 1000,
+        max_tags: 10,
+        max_images: 9,
+        accent: "#ff2442",
+    },
+    SocialPlatformSpec {
+        id: "wechat",
+        name: "微信朋友圈",
+        short_name: "WX",
+        width: 1080,
+        height: 1080,
+        ratio_label: "1:1 方图",
+        max_text_length: 2000,
+        max_tags: 9,
+        max_images: 9,
+        accent: "#07c160",
+    },
+    SocialPlatformSpec {
+        id: "qq",
+        name: "QQ 说说",
+        short_name: "QQ",
+        width: 1080,
+        height: 1080,
+        ratio_label: "1:1 通用",
+        max_text_length: 2000,
+        max_tags: 10,
+        max_images: 9,
+        accent: "#12b7f5",
+    },
+];
+
+const SENSITIVE_WORDS: &[&str] = &[
+    "违禁",
+    "赌博",
+    "色情",
+    "暴力",
+    "毒品",
+    "枪支",
+    "代购",
+    "刷单",
+    "传销",
+    "封建迷信",
+];
+
+/// 小红书明确禁用的极限/夸大宣传词（命中即 error）
+const EXTREMISM_WORDS: &[&str] = &[
+    "最",
+    "第一",
+    "国家级",
+    "世界级",
+    "顶级",
+    "极致",
+    "绝对",
+    "百分百",
+    "全网最低",
+    "销量第一",
+];
+
+fn social_platform_spec(id: &str) -> &'static SocialPlatformSpec {
+    SOCIAL_PLATFORM_SPECS
+        .iter()
+        .find(|spec| spec.id == id)
+        .unwrap_or(&SOCIAL_PLATFORM_SPECS[0])
+}
+
+fn execute_social_generate(params: &Value) -> Result<AssistantToolResponse, AppError> {
+    let text = string_param(params, "text")?;
+    if text.chars().count() > 20_000 {
+        return Err(AppError::new("payloadTooLarge", "社交素材正文过长"));
+    }
+
+    let platform_id =
+        optional_string_param(params, "platform").unwrap_or_else(|| "xiaohongshu".to_string());
+    let spec = social_platform_spec(&platform_id);
+    let title = optional_string_param(params, "title").unwrap_or_default();
+    let tags = optional_string_array(params, "tags");
+    let image_count = params
+        .get("imageCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as usize;
+
+    let mut issues: Vec<Value> = Vec::new();
+    for word in SENSITIVE_WORDS {
+        if text.contains(word) {
+            issues.push(json!({
+                "type": "sensitive_word",
+                "message": format!("正文包含敏感词「{}」，请删除后重试", word),
+                "severity": "error",
+            }));
+        }
+    }
+    if spec.id == "xiaohongshu" {
+        for word in EXTREMISM_WORDS {
+            if text.contains(word) {
+                issues.push(json!({
+                    "type": "extremism_word",
+                    "message": format!("正文疑似包含极限词「{}」，可能触发平台审核", word),
+                    "severity": "error",
+                }));
+            }
+        }
+    }
+    let chars = text.chars().count();
+    if chars > spec.max_text_length {
+        issues.push(json!({
+            "type": "text_length",
+            "message": format!("正文 {} 字，超出 {} 的 {} 字限制", chars, spec.name, spec.max_text_length),
+            "severity": "error",
+        }));
+    }
+    if tags.len() > spec.max_tags {
+        issues.push(json!({
+            "type": "tag_count",
+            "message": format!("话题标签 {} 个，超出 {} 的 {} 个限制", tags.len(), spec.name, spec.max_tags),
+            "severity": "warning",
+        }));
+    }
+    if image_count > spec.max_images {
+        issues.push(json!({
+            "type": "image_count",
+            "message": format!("图片 {} 张，超出 {} 的 {} 张限制", image_count, spec.name, spec.max_images),
+            "severity": "error",
+        }));
+    }
+
+    let passed = !issues
+        .iter()
+        .any(|issue| issue["severity"].as_str() == Some("error"));
+    let summary = if passed {
+        format!(
+            "已按 {}（{}）规范生成社交图文素材：正文 {} 字、标签 {} 个、图片 {} 张，合规预检通过，可导出或发布。",
+            spec.name,
+            spec.ratio_label,
+            chars,
+            tags.len(),
+            image_count
+        )
+    } else {
+        format!(
+            "已按 {}（{}）规范生成社交图文素材，正文 {} 字、标签 {} 个；合规预检发现 {} 个需处理项（见 issues）。",
+            spec.name,
+            spec.ratio_label,
+            chars,
+            tags.len(),
+            issues.len()
+        )
+    };
+
+    Ok(AssistantToolResponse {
+        tool: "social.generate".into(),
+        summary,
+        data: json!({
+            "platform": spec.id,
+            "platformName": spec.name,
+            "shortName": spec.short_name,
+            "canvas": { "width": spec.width, "height": spec.height },
+            "ratioLabel": spec.ratio_label,
+            "accent": spec.accent,
+            "title": title,
+            "text": text,
+            "tags": tags,
+            "chars": chars,
+            "imageCount": image_count,
+            "passed": passed,
+            "issues": issues,
+        }),
+    })
+}
+
 fn resolve_note(params: &Value) -> Result<Note, AppError> {
     if let Some(id) = optional_string_param(params, "id") {
         if !id.trim().is_empty() {
@@ -741,6 +937,22 @@ fn optional_string_param(params: &Value, key: &str) -> Option<String> {
         .and_then(Value::as_str)
         .map(str::trim)
         .map(str::to_string)
+}
+
+fn optional_string_array(params: &Value, key: &str) -> Vec<String> {
+    params
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn number_param(params: &Value, key: &str) -> Option<u64> {
@@ -955,6 +1167,13 @@ fn summarize_params(tool: &str, params: &Value) -> Value {
         "external.copyText" => json!({
             "textLength": optional_string_param(params, "text").map(|value| value.chars().count()).unwrap_or(0),
         }),
+        "social.generate" => json!({
+            "platform": optional_string_param(params, "platform").unwrap_or_else(|| "xiaohongshu".into()),
+            "title": optional_string_param(params, "title").unwrap_or_default(),
+            "textLength": optional_string_param(params, "text").map(|value| value.chars().count()).unwrap_or(0),
+            "imageCount": params.get("imageCount").and_then(Value::as_u64).unwrap_or(1),
+            "tags": optional_string_array(params, "tags"),
+        }),
         _ => params.clone(),
     }
 }
@@ -974,6 +1193,7 @@ fn tool_label(tool: &str) -> &'static str {
         "web.search" => "联网搜索",
         "external.openUrl" => "打开外部链接",
         "external.copyText" => "写入剪贴板",
+        "social.generate" => "生成社交素材",
         _ => "未知工具",
     }
 }

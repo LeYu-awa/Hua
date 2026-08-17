@@ -9,6 +9,7 @@ export type AppView =
   | "garden"
   | "profile"
   | "studio"
+  | "social"
   | "community";
 
 interface AppSidebarProps {
@@ -138,6 +139,16 @@ function ProfileIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+function ShareIcon({ size = 20 }: { size?: number }) {
+  return (
+    <IconShell size={size}>
+      <path d="M12 8.6V4.4l5.6 4.6L12 13.6" />
+      <path d="M6.9 9.4H5.4c-1.05 0-1.9.85-1.9 1.9v5.55c0 1.05.85 1.9 1.9 1.9h13.2c1.05 0 1.9-.85 1.9-1.9v-5.55c0-1.05-.85-1.9-1.9-1.9h-1.5" opacity="0.62" />
+      <path d="M9.4 14.6h5.2" opacity="0.5" />
+    </IconShell>
+  );
+}
+
 function ChatIcon({ size = 20 }: { size?: number }) {
   return (
     <IconShell size={size}>
@@ -156,6 +167,7 @@ const sidebarItems: SidebarItem[] = [
   { view: "diary", label: "日记", icon: DiaryIcon },
   { view: "garden", label: "花园", icon: GardenIcon },
   { view: "studio", label: "创作台", icon: StudioIcon },
+  { view: "social", label: "社交发布", icon: ShareIcon },
   { view: "profile", label: "主页", icon: ProfileIcon },
 ];
 

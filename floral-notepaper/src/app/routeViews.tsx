@@ -11,6 +11,7 @@ import { CompanionFloatingPage } from "../features/companion/components/Companio
 import { DiaryPage } from "../features/diary/DiaryPage";
 import { ProfilePageSkeleton } from "../features/social/components/ProfilePageSkeleton";
 import { StudioEditorPage } from "../features/studio/pages/StudioEditorPage";
+import { SocialPublishPage } from "../features/social/pages/SocialPublishPage";
 import type { ProviderConfig, AppConfig } from "../features/settings/types";
 import type { AppRoute } from "../features/windows/windowRoutes";
 
@@ -88,6 +89,9 @@ export function renderMainView({
   if (sidebarView === "garden") return <GardenLayout userId={userId} />;
   if (sidebarView === "studio") {
     return userId ? <StudioEditorPage userId={userId} /> : <LoginRequiredState />;
+  }
+  if (sidebarView === "social") {
+    return userId ? <SocialPublishPage userId={userId} /> : <LoginRequiredState />;
   }
   if (sidebarView === "profile") {
     return userId ? (

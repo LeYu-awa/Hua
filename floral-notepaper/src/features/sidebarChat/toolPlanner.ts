@@ -39,6 +39,21 @@ const NOTE_CAPABILITY_PATTERNS = [
 const OPEN_URL_PATTERNS = ["打开链接", "打开网址", "访问"];
 const COPY_PATTERNS = ["复制", "复制到剪贴板"];
 const URL_PATTERN = /https?:\/\/[^\s，。！？]+/i;
+const SOCIAL_PUBLISH_PATTERNS = [
+  "发朋友圈",
+  "发小红书",
+  "小红书笔记",
+  "朋友圈",
+  "小红书",
+  "QQ说说",
+  "qq说说",
+  "社交卡片",
+  "社交素材",
+  "社交动态",
+  "生成社交",
+];
+/** 纯搜索意图时跳过社交识别，避免「搜索小红书上的穿搭」被误判 */
+const SEARCH_ACTION_PATTERNS = ["搜索", "查找", "查一下", "搜一下", "查询", "看看最新"];
 
 export function detectAssistantToolPlan(input: string): AssistantToolPlan | null {
   const text = input.trim();
@@ -65,6 +80,16 @@ export function detectAssistantToolPlan(input: string): AssistantToolPlan | null
       description: `读取标题为「${optimize.query}」的文档，生成优化稿后等待你确认写回。`,
       workflow: "note.optimize",
       instruction: text,
+    };
+  }
+
+  const social = detectSocialIntent(text);
+  if (social) {
+    return {
+      tool: "social.generate",
+      params: { title: social.title, text: social.content, tags: social.tags, platform: social.platform },
+      title: "生成社交图文素材",
+      description: `把「${social.content.slice(0, 24)}${social.content.length > 24 ? "…" : ""}」生成适配 ${social.platformLabel} 规范的图文卡片，可导出/发布。`,
     };
   }
 
@@ -172,6 +197,8 @@ export function toolLabel(tool: AssistantToolName): string {
       return "打开链接";
     case "external.copyText":
       return "复制文本";
+    case "social.generate":
+      return "生成社交素材";
   }
 }
 
@@ -188,13 +215,23 @@ export function requiresConfirmation(tool: AssistantToolName): boolean {
 
 export function parseExplicitToolCommand(text: string): AssistantToolPlan | null {
   const command = text.match(
-    /^\/(搜索|search|读笔记|笔记|创建笔记|追加笔记|优化笔记|润色笔记|归类笔记|移动笔记|打开链接|复制)\s+([\s\S]+)$/i,
+    /^\/(搜索|search|读笔记|笔记|创建笔记|追加笔记|优化笔记|润色笔记|归类笔记|移动笔记|打开链接|复制|社交|发布)\s+([\s\S]+)$/i,
   );
   if (!command) return null;
 
   const [, rawCommand, rawPayload] = command;
   const payload = rawPayload.trim();
   const lowerCommand = rawCommand.toLowerCase();
+
+  if (rawCommand === "社交" || rawCommand === "发布") {
+    const social = parseSocialPayload(payload);
+    return {
+      tool: "social.generate",
+      params: { title: social.title, text: social.content, tags: social.tags, platform: social.platform },
+      title: "生成社交图文素材",
+      description: `把「${social.content.slice(0, 24)}${social.content.length > 24 ? "…" : ""}」生成适配 ${social.platformLabel} 规范的图文卡片。`,
+    };
+  }
 
   if (rawCommand === "搜索" || lowerCommand === "search") {
     return {
@@ -377,6 +414,75 @@ function parseMoveCategoryIntent(text: string) {
   }
 
   return null;
+}
+
+interface SocialIntent {
+  title: string;
+  content: string;
+  tags: string[];
+  platform: "xiaohongshu" | "wechat" | "qq";
+  platformLabel: string;
+}
+
+const SOCIAL_PLATFORM_LABELS: Record<SocialIntent["platform"], string> = {
+  xiaohongshu: "小红书 3:4 竖版",
+  wechat: "微信朋友圈 1:1 方图",
+  qq: "QQ 说说 1:1 通用",
+};
+
+function detectSocialPlatform(text: string): SocialIntent["platform"] {
+  if (/小红书/.test(text)) return "xiaohongshu";
+  if (/朋友圈|微信/.test(text)) return "wechat";
+  if (/QQ说说|qq说说|说说/.test(text)) return "qq";
+  // 默认小红书：规范最严格，生成的素材在各平台兼容性最好
+  return "xiaohongshu";
+}
+
+/** 提取 #话题 标签并从正文中移除 */
+function extractTags(content: string): { content: string; tags: string[] } {
+  const tags = Array.from(content.matchAll(/#([^\s#，。！？]+)/g), (match) => match[1].trim()).filter(
+    Boolean,
+  );
+  if (tags.length === 0) return { content, tags };
+  const cleaned = content.replace(/#[^\s#，。！？]+/g, " ").replace(/\s+/g, " ").trim();
+  return { content: cleaned, tags };
+}
+
+/** 剥离社交动作前缀，解析出可发布的原创内容（供 detectSocialIntent / /社交 命令共用） */
+function parseSocialPayload(payload: string): SocialIntent {
+  let content = payload
+    .replace(
+      /^(?:帮我|请你?|麻烦你?|你帮我|能否|可以|请|给我)+[，,、\s]*/i,
+      "",
+    )
+    .replace(
+      /^(?:生成|制作|做|发|写|整理|出|弄|搞)(?:个|一条|一张|一个)?(?:朋友圈|小红书|小红书笔记|QQ说说|qq说说|社交卡片|社交素材|社交动态|帖子|动态|素材|卡片|图文)?/i,
+      "",
+    )
+    .replace(/^[:：，,。\s]+/, "")
+    .trim();
+
+  const { content: body, tags } = extractTags(content);
+  content = body || content;
+  if (!content.trim()) content = payload;
+
+  const platform = detectSocialPlatform(payload);
+  const quoted = /[「“"]([^」”"]+)[」”"]/.exec(payload)?.[1]?.trim() ?? "";
+  const title = quoted || content.split("\n")[0]?.slice(0, 20) || "";
+  return {
+    title,
+    content,
+    tags,
+    platform,
+    platformLabel: SOCIAL_PLATFORM_LABELS[platform],
+  };
+}
+
+/** 社交内容意图：命中社交平台/素材关键词且不是搜索意图时触发 */
+function detectSocialIntent(text: string): SocialIntent | null {
+  if (!includesAny(text, SOCIAL_PUBLISH_PATTERNS)) return null;
+  if (includesAny(text, SEARCH_ACTION_PATTERNS)) return null;
+  return parseSocialPayload(text);
 }
 
 export interface InvokeTextCall {

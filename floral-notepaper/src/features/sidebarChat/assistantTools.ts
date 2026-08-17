@@ -11,7 +11,8 @@ export type AssistantToolName =
   | "note.moveCategory"
   | "web.search"
   | "external.openUrl"
-  | "external.copyText";
+  | "external.copyText"
+  | "social.generate";
 
 export type AssistantAgentMode = "workflow" | "autonomous";
 
