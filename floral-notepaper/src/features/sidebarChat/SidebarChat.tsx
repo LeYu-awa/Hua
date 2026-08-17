@@ -945,23 +945,6 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
         return;
       }
 
-      // 方案 C：明确联网意图词（搜索/查一下/最新/实时等）直接走规则路径触发 web.search，
-      // 不依赖模型 function calling（部分网关不支持，会退化成 <invoke> 文本）
-      const webRulePlan = detectAssistantToolPlan(text);
-      if (webRulePlan?.tool === "web.search") {
-        if (requiresConfirmation(webRulePlan.tool)) {
-          const pending: PendingToolPlan = {
-            ...webRulePlan,
-            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          };
-          setPendingTool(pending);
-          appendAssistantReply(buildPendingToolMessage(pending));
-          return;
-        }
-        await executeToolPlan(webRulePlan, false);
-        return;
-      }
-
       // 3) 标准 Agent（function calling）：模型自己决定调用哪个工具、传什么参数；
       //    #引用笔记作为上下文注入，模型自主决定是否读取后完成任务
       setLoading(true);

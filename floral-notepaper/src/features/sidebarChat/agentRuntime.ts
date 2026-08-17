@@ -232,9 +232,14 @@ function formatToolResponse(response: AssistantToolResponse) {
         )
       : [];
     const sources = formatSearchSources(results);
+    const previews = results
+      .filter((item) => typeof item.thumbnail === "string" && item.thumbnail.length > 0)
+      .map((item) => `![${item.title}](${item.thumbnail})`)
+      .join("\n");
+    const previewBlock = previews ? `\n\n**图片预览**\n${previews}` : "";
     return sources
-      ? `**联网搜索完成**\n\n${response.summary}\n\n**来源**\n${sources}`
-      : `**联网搜索完成**\n\n${response.summary}`;
+      ? `**联网搜索完成**\n\n${response.summary}${previewBlock}\n\n**来源**\n${sources}`
+      : `**联网搜索完成**\n\n${response.summary}${previewBlock}`;
   }
 
   if (response.tool === "note.list" || response.tool === "note.search") {

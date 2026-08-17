@@ -88,6 +88,8 @@ export interface WebSearchResult {
   title: string;
   url: string;
   snippet: string;
+  /** 搜索结果缩略图（SearXNG 提供；DDG 回退无） */
+  thumbnail?: string;
 }
 
 export async function executeAssistantTool<T = unknown>(

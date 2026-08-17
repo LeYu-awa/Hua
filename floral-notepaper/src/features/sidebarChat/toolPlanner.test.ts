@@ -19,6 +19,20 @@ describe("sidebar chat tool planner", () => {
     expect(requiresConfirmation(plan.tool)).toBe(true);
   });
 
+  test("cleans intent noise from web search queries", () => {
+    const plan = expectPlan("帮我搜索一张樱花的图片");
+    expect(plan.tool).toBe("web.search");
+    expect(plan.params.query).toBe("樱花的图片");
+    expect(requiresConfirmation(plan.tool)).toBe(true);
+  });
+
+  test("cleans polite prefixes before action words", () => {
+    const plan = expectPlan("请帮我查一下最新的天气");
+    expect(plan.tool).toBe("web.search");
+    expect(plan.params.query).toBe("最新的天气");
+    expect(requiresConfirmation(plan.tool)).toBe(true);
+  });
+
   test("detects local note read requests without confirmation", () => {
     const plan = expectPlan("读取我的笔记 灵感");
     expect(plan.tool).toBe("note.search");

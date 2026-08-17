@@ -93,7 +93,8 @@ export function detectAssistantToolPlan(input: string): AssistantToolPlan | null
   }
 
   if (includesAny(text, SEARCH_PATTERNS) && !includesAny(text, ["本地笔记", "我的笔记"])) {
-    const query = stripLead(text, ["联网搜索", "搜索", "查一下", "查找", "最新", "实时"]);
+    const stripped = stripLead(text, ["联网搜索", "搜索", "查一下", "查找", "最新", "实时"]);
+    const query = cleanSearchQuery(stripped || text);
     return {
       tool: "web.search",
       params: { query: query || text, limit: 5 },
@@ -288,6 +289,21 @@ function stripLead(text: string, leads: string[]) {
     }
   }
   return result.replace(/[？?。！!]+$/g, "").trim();
+}
+
+/**
+ * 清洗联网搜索词：去掉"帮我/搜索/一张"等意图与语气废话，保留核心关键词。
+ * 例：「帮我搜索一张樱花的图片」→「樱花的图片」。
+ */
+function cleanSearchQuery(text: string): string {
+  let query = text.trim();
+  // 1) 首部礼貌/语气前缀（可叠加，如"请帮我"）
+  query = query.replace(/^(?:帮我|请你?|麻烦你?|你帮我|能否|可以|请|给我)+[，,、\s]*/i, "");
+  // 2) 搜索动作词（可能带"联网/最新"前缀）
+  query = query.replace(/^(?:联网|最新|实时)?(?:搜索|查找|查询|搜一下|搜一搜|查一下|找找|搜|找)\s*/i, "");
+  // 3) 量词与语气词（"一张樱花图"→"樱花图"）
+  query = query.replace(/(?:一张|一个|一幅|一只|一枚|一篇|一本|一份|一下|一些|一点|几?张|几?个)/g, " ");
+  return query.replace(/\s+/g, " ").trim() || text.trim();
 }
 
 function extractQuoted(text: string) {

@@ -115,6 +115,9 @@ struct SearchResultItem {
     title: String,
     url: String,
     snippet: String,
+    /// 结果缩略图（SearXNG 提供；DDG 回退无）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thumbnail: Option<String>,
 }
 
 pub async fn execute_tool(
@@ -477,6 +480,7 @@ async fn execute_web_search(params: &Value) -> Result<AssistantToolResponse, App
                         title: item.title,
                         url: item.url,
                         snippet: item.content,
+                        thumbnail: item.thumbnail,
                     })
                     .collect();
                 let summary = format!(
@@ -504,6 +508,43 @@ async fn execute_web_search(params: &Value) -> Result<AssistantToolResponse, App
         }
     }
 
+    // 回退 1：DuckDuckGo HTML 网页搜索——对普通搜索词也能返回真实网页结果
+    match crate::services::agent::web_search::duckduckgo_search(&query, limit).await {
+        Ok(items) if !items.is_empty() => {
+            let items: Vec<SearchResultItem> = items
+                .into_iter()
+                .map(|item| SearchResultItem {
+                    title: item.title,
+                    url: item.url,
+                    snippet: item.content,
+                    thumbnail: item.thumbnail,
+                })
+                .collect();
+            let summary = format!(
+                "已检索到 {} 条结果。\n{}",
+                items.len(),
+                items
+                    .iter()
+                    .take(3)
+                    .map(|item| format!("{}：{}", item.title, item.snippet))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            return Ok(AssistantToolResponse {
+                tool: "web.search".into(),
+                summary,
+                data: json!({ "query": query, "results": items, "provider": "DuckDuckGo" }),
+            });
+        }
+        Ok(_) => {
+            log::debug!("[search] DuckDuckGo HTML 无结果，回退 Instant Answer");
+        }
+        Err(error) => {
+            log::debug!("[search] DuckDuckGo HTML 不可用，回退 Instant Answer: {}", error.message);
+        }
+    }
+
+    // 回退 2：DuckDuckGo Instant Answer（实体类问题有知识卡片）
     let url = Url::parse_with_params(
         "https://api.duckduckgo.com/",
         &[
@@ -556,6 +597,7 @@ async fn execute_web_search(params: &Value) -> Result<AssistantToolResponse, App
                     .unwrap_or("https://duckduckgo.com/")
                     .to_string(),
                 snippet,
+                thumbnail: None,
             });
         }
     }
@@ -684,6 +726,7 @@ fn collect_related_results(value: Option<&Value>, out: &mut Vec<SearchResultItem
             title,
             url: url.to_string(),
             snippet: text,
+            thumbnail: None,
         });
     }
 }
