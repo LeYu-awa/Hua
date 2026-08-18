@@ -75,8 +75,15 @@ pub struct CanvasGroup {
 #[serde(rename_all = "camelCase")]
 pub struct CanvasDocument {
     pub id: String,
+    /// 画布标题（多画布工作台的展示名）；旧数据无此字段时默认空串
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    /// 主关联笔记 id（兼容旧单笔记绑定）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note_id: Option<String>,
+    /// 单画布多文件关联：挂载到本画布的全部笔记 id
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub note_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub co_write_session_id: Option<String>,
     pub nodes: Vec<CanvasNode>,
@@ -273,7 +280,9 @@ mod tests {
         let store = temp_store();
         let mut doc = CanvasDocument {
             id: "canvas-know".into(),
+            title: String::new(),
             note_id: None,
+            note_ids: vec![],
             co_write_session_id: None,
             nodes: vec![CanvasNode {
                 id: "k1".into(),
@@ -327,7 +336,9 @@ mod tests {
         let store = temp_store();
         let doc = CanvasDocument {
             id: "canvas-n1".into(),
+            title: String::new(),
             note_id: Some("n1".into()),
+            note_ids: vec![],
             co_write_session_id: None,
             nodes: vec![
                 CanvasNode {
@@ -385,7 +396,9 @@ mod tests {
         store
             .save(CanvasDocument {
                 id: "canvas-n2".into(),
+                title: String::new(),
                 note_id: Some("n2".into()),
+                note_ids: vec![],
                 co_write_session_id: None,
                 nodes: vec![],
                 edges: vec![],
@@ -412,5 +425,30 @@ mod tests {
         assert_eq!(reloaded.nodes.len(), 1);
         assert_eq!(reloaded.nodes[0].source.as_deref(), Some("agent"));
         assert!(reloaded.nodes[0].text.contains("来自聊天"));
+    }
+
+    #[test]
+    fn multi_note_fields_roundtrip() {
+        let store = temp_store();
+        store
+            .save(CanvasDocument {
+                id: "canvas-multi".into(),
+                title: "多文件创作项目".into(),
+                note_id: Some("n1".into()),
+                note_ids: vec!["n1".into(), "n2".into(), "n3".into()],
+                co_write_session_id: None,
+                nodes: vec![],
+                edges: vec![],
+                groups: vec![],
+            })
+            .unwrap();
+
+        let reloaded = store.get("canvas-multi").unwrap();
+        assert_eq!(reloaded.title, "多文件创作项目");
+        assert_eq!(reloaded.note_ids, vec!["n1", "n2", "n3"]);
+        assert_eq!(reloaded.note_id.as_deref(), Some("n1"));
+
+        let listed = store.list().unwrap();
+        assert!(listed.iter().any(|d| d.id == "canvas-multi" && d.title == "多文件创作项目"));
     }
 }

@@ -178,7 +178,9 @@ impl FloralMcp {
                 .next()
                 .unwrap_or_else(|| CanvasDocument {
                     id: format!("canvas-{}", chrono::Utc::now().timestamp_millis()),
+                    title: "未命名画布".to_string(),
                     note_id: None,
+                    note_ids: Vec::new(),
                     co_write_session_id: None,
                     nodes: Vec::new(),
                     edges: Vec::new(),

@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { downloadBlob } from "../../canvas/canvasExport";
 import { createArticle } from "../../garden/api";
+import { useAuthGate } from "../../auth/authGate";
 import {
   SOCIAL_PLATFORMS,
   checkSocialCompliance,
@@ -14,7 +15,8 @@ import {
 } from "../socialCard";
 
 interface SocialPublishPageProps {
-  userId: string;
+  /** 登录用户 id；未登录（游客）时为空，导出/复制可用，发布需登录 */
+  userId?: string;
 }
 
 type PublishStatus =
@@ -33,6 +35,7 @@ function timestampLabel(): string {
  * 发布到内容聚合花园。端到端闭环的交互入口，与 Agent 的 social.generate 工具同源。
  */
 export function SocialPublishPage({ userId }: SocialPublishPageProps) {
+  const { ensureLogin } = useAuthGate();
   const [platform, setPlatform] = useState<SocialPlatformId>("xiaohongshu");
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
@@ -40,6 +43,23 @@ export function SocialPublishPage({ userId }: SocialPublishPageProps) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [status, setStatus] = useState<PublishStatus>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
+
+  // 接收画布「发布编排」生成的草稿：作品标题 / 编排正文 / 话题标签
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("floral.socialDraft");
+      if (!raw) return;
+      const draft = JSON.parse(raw) as { title?: string; text?: string; tags?: string[] };
+      if (draft.title) setTitle(draft.title);
+      if (draft.text) setText(draft.text);
+      if (Array.isArray(draft.tags) && draft.tags.length > 0) {
+        setTagsText(draft.tags.map((tag) => `#${tag}`).join(" "));
+      }
+      localStorage.removeItem("floral.socialDraft");
+    } catch {
+      // 草稿损坏时静默忽略，不阻断发布页
+    }
+  }, []);
 
   const spec = SOCIAL_PLATFORMS.find((item) => item.id === platform) ?? SOCIAL_PLATFORMS[0];
   const tags = useMemo(
@@ -86,6 +106,7 @@ export function SocialPublishPage({ userId }: SocialPublishPageProps) {
   };
 
   const handlePublish = async () => {
+    if (!ensureLogin("发布作品到花园需要登录")) return;
     if (!text.trim()) {
       setStatus({ kind: "error", message: "正文为空，无法发布" });
       return;
@@ -107,7 +128,7 @@ export function SocialPublishPage({ userId }: SocialPublishPageProps) {
           isPublic: true,
           categoryId: undefined,
         },
-        userId,
+        userId as string,
       );
       setStatus(
         article

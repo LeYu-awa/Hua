@@ -38,9 +38,17 @@ vi.mock("../features/social/pages/MyProfilePage", () => ({
   MyProfilePage: ({ userId }: { userId: string }) => <div data-testid="profile-page">{userId}</div>,
 }));
 vi.mock("../features/studio/pages/StudioEditorPage", () => ({
-  StudioEditorPage: ({ userId }: { userId: string }) => (
-    <div data-testid="studio-page">{userId}</div>
+  StudioEditorPage: ({ userId }: { userId: string | undefined }) => (
+    <div data-testid="studio-page">{userId ?? "guest"}</div>
   ),
+}));
+
+vi.mock("../features/auth/authGate", () => ({
+  useAuthGate: () => ({ openLogin: vi.fn() }),
+}));
+
+vi.mock("../features/canvas/pages/CanvasWorkspacePage", () => ({
+  CanvasWorkspacePage: () => <div data-testid="canvas-workspace" />,
 }));
 
 import { renderMainView, renderSpecialRoute } from "./routeViews";
@@ -78,22 +86,22 @@ describe("routeViews", () => {
     expect(screen.getByTestId("dashboard-page")).toBeTruthy();
   });
 
-  it("登录与未登录状态统一渲染本地画布", () => {
+  it("登录与未登录状态统一渲染多画布工作台", () => {
     render(renderMainView({ ...baseParams, sidebarView: "canvas", userId: null }));
-    expect(screen.getByTestId("canvas-page").textContent).toBe("canvas-note-1:agent");
+    expect(screen.getByTestId("canvas-workspace")).toBeTruthy();
     cleanup();
 
     render(renderMainView({ ...baseParams, sidebarView: "canvas", userId: "u1" }));
-    expect(screen.getByTestId("canvas-page").textContent).toBe("canvas-note-1:agent");
+    expect(screen.getByTestId("canvas-workspace")).toBeTruthy();
   });
 
-  it("需要登录的视图显示登录提示", () => {
+  it("未登录可访问创作台（游客模式），个人主页显示登录引导", () => {
     render(renderMainView({ ...baseParams, sidebarView: "studio", userId: null }));
-    expect(screen.getByText("请先登录")).toBeTruthy();
+    expect(screen.getByTestId("studio-page").textContent).toBe("guest");
     cleanup();
 
     render(renderMainView({ ...baseParams, sidebarView: "profile", userId: null }));
-    expect(screen.getByText("请先登录")).toBeTruthy();
+    expect(screen.getByText("登录后查看你的个人花园")).toBeTruthy();
   });
 
   it("登录后懒加载个人主页", async () => {

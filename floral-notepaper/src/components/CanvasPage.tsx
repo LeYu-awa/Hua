@@ -40,6 +40,10 @@ import { getTemplateById } from "../features/canvas/onboarding/templates";
 import { dispatchOpenNote } from "../features/notes/openNoteEvents";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listNotes } from "../features/notes/api";
+import { getNote } from "../features/notes/api";
+import { NoteTreePanel } from "../features/canvas/components/NoteTreePanel";
+import { SocialComposerPanel } from "../features/canvas/components/SocialComposerPanel";
+import { buildContentVisual } from "../features/canvas/contentVisualizer";
 import { agentSignalQueue } from "../features/agent/signalQueue";
 
 /** 卡片颜色标记可选值（card 灵感卡） */
@@ -93,6 +97,10 @@ function domainInitial(url?: string | null): string {
 interface CanvasPageProps {
   documentId: string;
   noteId?: string;
+  /** 画布标题（多画布工作台）；旧数据为空串，回退路径写入文档 */
+  title?: string;
+  /** 单画布多文件关联：挂载到本画布的全部笔记 id */
+  noteIds?: string[];
   providers: ProviderConfig[];
   /** Agent 总开关：关闭时不显示任何 AI 建议 */
   agentEnabled?: boolean;
@@ -420,6 +428,18 @@ function QuestionIcon() {
   );
 }
 
+function NoteTreeIcon() {
+  return (
+    <CanvasActionIcon>
+      <path d="M2.8 5.2h7.9L12.8 7v10H2.8z" />
+      <path d="M2.8 9.4h10" />
+      <path d="M6 12.8h3" opacity="0.65" />
+      <path d="M14.6 7.2h2.6v8.2H10.4" opacity="0.55" />
+      <path d="M10.4 3.4v3.8" opacity="0.45" />
+    </CanvasActionIcon>
+  );
+}
+
 function SaveIcon() {
   return (
     <CanvasActionIcon>
@@ -537,6 +557,8 @@ function generateId() {
 export function CanvasPage({
   documentId,
   noteId,
+  title,
+  noteIds,
   providers,
   agentEnabled = false,
   initialDocument,
@@ -548,7 +570,9 @@ export function CanvasPage({
   const svgRef = useRef<SVGSVGElement>(null);
   const [doc, setDoc] = useState<CanvasDocument>(() => ({
     id: documentId,
-    noteId,
+    title: initialDocument?.title ?? title ?? "",
+    noteId: noteId ?? initialDocument?.noteId,
+    noteIds: initialDocument?.noteIds ?? noteIds ?? [],
     nodes: initialDocument?.nodes ?? [],
     edges: initialDocument?.edges ?? [],
   }));
@@ -591,6 +615,8 @@ export function CanvasPage({
   // ── 卡片增强（P0-1）：分组/泳道折叠 + resource 笔记列表 ────────────────────
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [noteOptions, setNoteOptions] = useState<{ id: string; title: string; preview: string }[]>([]);
+  const [noteTreeOpen, setNoteTreeOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   /** 节点属性面板：编辑 task 截止日期 / card 颜色标签 / resource 绑定笔记 */
   const [nodeMetaPanelId, setNodeMetaPanelId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
@@ -660,6 +686,14 @@ export function CanvasPage({
     [marqueeState],
   );
   const canvasBounds = useMemo(() => getCanvasBounds(doc.nodes), [doc.nodes]);
+  /** 当前选中卡片的文本集合（发布编排「素材整理」的输入源） */
+  const selectedTexts = useMemo(
+    () =>
+      selectedNodeIds
+        .map((id) => doc.nodes.find((n) => n.id === id)?.text ?? "")
+        .filter((text) => text.trim().length > 0),
+    [selectedNodeIds, doc.nodes],
+  );
   const viewportWorld = useMemo(() => {
     const rect = svgRef.current?.getBoundingClientRect();
     const width = rect?.width ?? 960;
@@ -822,6 +856,21 @@ export function CanvasPage({
     },
     [patchNode],
   );
+
+  /** 单画布多文件关联：勾选/取消某篇笔记的挂载状态（写回 noteIds 并触发自动保存） */
+  const toggleNoteMount = useCallback((noteId: string, checked: boolean) => {
+    const current = docRef.current.noteIds ?? [];
+    const nextIds = checked
+      ? current.includes(noteId)
+        ? current
+        : [...current, noteId]
+      : current.filter((id) => id !== noteId);
+    const next = { ...docRef.current, noteIds: nextIds };
+    docRef.current = next;
+    dirtyRef.current = true;
+    setSaveStatus("idle");
+    setDoc(next);
+  }, []);
 
   /** 新建分组：把当前选中节点归入新组 */
   const createGroupFromSelection = useCallback(() => {
@@ -1106,6 +1155,61 @@ export function CanvasPage({
     [conversationId, userId],
   );
 
+  /** 文章内容智能绘图：把文本片段解析为内容结构图（主题 + 要点 + 连线）插入画布 */
+  const visualizeTextToCanvas = useCallback(
+    (text: string, anchor?: { x: number; y: number }) => {
+      const visual = buildContentVisual(text);
+      if (visual.nodes.length === 0) return;
+      const idMap = new Map<string, string>();
+      const nodes = visual.nodes.map((n) => {
+        const newId = generateId();
+        idMap.set(n.id, newId);
+        return { ...n, id: newId };
+      });
+      const edges = visual.edges.map((e) => ({
+        ...e,
+        id: generateId(),
+        fromNodeId: idMap.get(e.fromNodeId) ?? e.fromNodeId,
+        toNodeId: idMap.get(e.toNodeId) ?? e.toNodeId,
+      }));
+      const root = nodes[0];
+      let base = anchor;
+      if (!base) {
+        const selected = selectedNodeIds[0]
+          ? docRef.current.nodes.find((n) => n.id === selectedNodeIds[0])
+          : null;
+        base = selected
+          ? { x: selected.x + 440, y: selected.y }
+          : { x: viewportWorld.x + 120, y: viewportWorld.y + 90 };
+      }
+      const shifted = nodes.map((n) => ({ ...n, x: n.x + base.x - root.x, y: n.y + base.y - root.y }));
+      commitDoc((prev) => ({
+        ...prev,
+        nodes: [...prev.nodes, ...shifted],
+        edges: [...prev.edges, ...edges],
+      }));
+      setSelectedNodeIds(shifted.map((n) => n.id));
+      trackCanvasEvent("canvas_shape_added", {
+        action: "content_visualize",
+        nodeCount: shifted.length,
+      });
+    },
+    [selectedNodeIds, viewportWorld, commitDoc, trackCanvasEvent],
+  );
+
+  /** 从笔记工作树触发：读取笔记全文 → 智能绘图插入画布 */
+  const visualizeNoteToCanvas = useCallback(
+    async (noteId: string) => {
+      try {
+        const note = await getNote(noteId);
+        visualizeTextToCanvas(note.content || note.title);
+      } catch {
+        // 笔记读取失败时静默降级（工作树列表仍可用）
+      }
+    },
+    [visualizeTextToCanvas],
+  );
+
   // 接受一条隐含连接建议：写入一条 dashed 连线（可追溯到来源两节点），并从建议列表移除
   const acceptConnection = useCallback(
     (c: ImplicitConnection) => {
@@ -1177,7 +1281,9 @@ export function CanvasPage({
         if (cancelled) return;
         const fallback: CanvasDocument = {
           id: documentId,
-          noteId,
+          title: initialDocument?.title ?? title ?? "",
+          noteId: noteId ?? initialDocument?.noteId,
+          noteIds: initialDocument?.noteIds ?? noteIds ?? [],
           nodes: initialDocument?.nodes ?? [],
           edges: initialDocument?.edges ?? [],
         };
@@ -2074,6 +2180,32 @@ export function CanvasPage({
         </button>
         <button
           type="button"
+          onClick={() => setNoteTreeOpen((v) => !v)}
+          className={`canvas-control-button ${
+            noteTreeOpen ? "canvas-button-ai" : "canvas-button-secondary"
+          }`}
+          title={t("canvas.noteTreeTip", {
+            defaultValue: "笔记工作树：挂载多篇笔记到当前画布",
+          })}
+        >
+          <NoteTreeIcon />
+          {t("canvas.notes", { defaultValue: "笔记" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => setComposerOpen((v) => !v)}
+          className={`canvas-control-button ${
+            composerOpen ? "canvas-button-ai" : "canvas-button-secondary"
+          }`}
+          title={t("canvas.composerTip", {
+            defaultValue: "发布编排：文案/素材/整编/总结/绘图，组合社交作品",
+          })}
+        >
+          <span className="text-[13px] leading-none">✎</span>
+          {t("canvas.publish", { defaultValue: "发布" })}
+        </button>
+        <button
+          type="button"
           onClick={createGroupFromSelection}
           disabled={selectedNodeIds.length === 0}
           className="canvas-control-button canvas-button-secondary"
@@ -2655,7 +2787,28 @@ export function CanvasPage({
         </div>
       )}
 
-      {!archiveDismissed && archiveSuggestions.length > 0 && (
+      {noteTreeOpen && (
+        <div className="canvas-floating-panel absolute top-16 left-4 bottom-4 z-10 w-[248px] p-3 flex flex-col min-h-0">
+          <NoteTreePanel
+            mountedIds={doc.noteIds ?? []}
+            onToggle={toggleNoteMount}
+            onSelectNote={(note) => {
+              setNoteTreeOpen(false);
+              dispatchOpenNote(note.id);
+            }}
+            onVisualize={(note) => {
+              setNoteTreeOpen(false);
+              void visualizeNoteToCanvas(note.id);
+            }}
+          />
+        </div>
+      )}
+
+      {composerOpen && (
+        <SocialComposerPanel materials={selectedTexts} onClose={() => setComposerOpen(false)} />
+      )}
+
+      {!archiveDismissed && !noteTreeOpen && archiveSuggestions.length > 0 && (
         <div className="canvas-floating-panel absolute top-16 left-4 z-10 w-[220px] p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="canvas-panel-title">
@@ -2772,7 +2925,7 @@ export function CanvasPage({
         })()}
 
       {/* 场景三：共识/分歧面板（分组标识 + 桥梁方案）*/}
-      {agent.discussion && (
+      {!composerOpen && agent.discussion && (
         <div className="canvas-floating-panel absolute top-16 right-4 z-20 w-[240px] p-3 animate-fade-in">
           <div className="flex items-center justify-between mb-2">
             <span className="canvas-panel-title">
@@ -3335,6 +3488,24 @@ export function CanvasPage({
             const canOpenNote = menuNode?.type === "resource" && Boolean(menuNode.noteId);
             return (
               <>
+                {menuNode && menuNode.text.trim().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      visualizeTextToCanvas(menuNode.text, {
+                        x: menuNode.x + 440,
+                        y: menuNode.y,
+                      });
+                      setNodeContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition hover:bg-paper-warm/60"
+                  >
+                    <span>
+                      {t("canvas.visualizeNode", { defaultValue: "内容智能绘图" })}
+                    </span>
+                    <span className="text-[10px] text-ink-ghost">🎨</span>
+                  </button>
+                )}
                 {canOpenNote && (
                   <button
                     type="button"

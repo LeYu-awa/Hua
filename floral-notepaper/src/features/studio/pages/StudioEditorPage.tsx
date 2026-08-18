@@ -8,11 +8,13 @@ import { ActivityTimeline } from "../components/ActivityTimeline";
 import { SharePanel } from "../components/SharePanel";
 import { useStudioStore } from "../stores/useStudioStore";
 import { useActivityLog } from "../hooks/useActivityLog";
+import { useAuthGate } from "../../auth/authGate";
 import { supabase } from "../../auth/supabase";
 import type { GardenArticle } from "../../garden/types";
 
 interface StudioEditorPageProps {
-  userId: string;
+  /** 登录用户 id；未登录（游客）时为空，页面进入只读浏览模式 */
+  userId?: string;
 }
 
 export function StudioEditorPage({ userId }: StudioEditorPageProps) {
@@ -26,13 +28,18 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
     setArticles,
   } = useStudioStore();
   const { logActivity } = useActivityLog();
+  const { ensureLogin } = useAuthGate();
   const [showInspiration, setShowInspiration] = useState(false);
   const [showMaterial, setShowMaterial] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const editorRef = useRef<EditorCanvasHandle>(null);
 
-  // 加载文章列表
+  // 加载文章列表（游客跳过云端拉取，页面保持空态可浏览）
   const loadArticles = useCallback(async () => {
+    if (!userId) {
+      setArticles([]);
+      return;
+    }
     const { data } = await supabase
       .from("garden_articles")
       .select("*")
@@ -115,7 +122,11 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
       </button>
       <button
         type="button"
-        onClick={() => setShowSharePanel(true)}
+        onClick={() => {
+          if (ensureLogin("登录后可将作品分享发布到花园")) {
+            setShowSharePanel(true);
+          }
+        }}
         className="px-3 py-1.5 text-[11px] bg-bamboo text-cloud rounded-lg hover:bg-bamboo-light transition-colors cursor-pointer"
       >
         分享
@@ -125,6 +136,21 @@ export function StudioEditorPage({ userId }: StudioEditorPageProps) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-paper">
+      {/* 游客模式提示条：未登录可浏览创作台，登录后解锁云端创作能力 */}
+      {!userId && (
+        <div className="flex items-center justify-between gap-3 px-4 py-1.5 bg-amber-50/70 border-b border-amber-200/60 shrink-0">
+          <span className="text-[11px] text-amber-700">
+            游客模式：可浏览创作台与本地操作，登录后可保存作品、发布到花园
+          </span>
+          <button
+            type="button"
+            onClick={() => ensureLogin("登录后解锁完整创作能力")}
+            className="text-[11px] text-bamboo hover:underline cursor-pointer shrink-0"
+          >
+            登录 →
+          </button>
+        </div>
+      )}
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-paper-deep/10 bg-paper-warm/20 shrink-0">
         <div className="flex items-center gap-2">

@@ -1301,7 +1301,9 @@ impl<'a> TaskRunner<'a> {
                 let mut doc = if id == "first" {
                     canvas.list()?.into_iter().next().unwrap_or_else(|| CanvasDocument {
                         id: format!("canvas-{}", chrono::Utc::now().timestamp_millis()),
+                        title: "未命名画布".into(),
                         note_id: None,
+                        note_ids: Vec::new(),
                         co_write_session_id: None,
                         nodes: Vec::new(),
                         edges: Vec::new(),
@@ -2567,7 +2569,9 @@ mod tests {
         let canvas = CanvasStore::new(dir.clone());
         let doc = CanvasDocument {
             id: "canvas-1".into(),
+            title: "未命名画布".into(),
             note_id: None,
+            note_ids: Vec::new(),
             co_write_session_id: None,
             nodes: vec![
                 CanvasNode { id: "n1".into(), node_type: "text".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "a".into(), source: None, z_index: 0, ..CanvasNode::default() },
@@ -2660,7 +2664,9 @@ mod tests {
         canvas
             .save(CanvasDocument {
                 id: "canvas-wb".into(),
+                title: "未命名画布".into(),
                 note_id: None,
+                note_ids: Vec::new(),
                 co_write_session_id: None,
                 nodes: vec![
                     CanvasNode {
@@ -2747,7 +2753,9 @@ mod tests {
         canvas
             .save(CanvasDocument {
                 id: "canvas-e1".into(),
+                title: "未命名画布".into(),
                 note_id: None,
+                note_ids: Vec::new(),
                 co_write_session_id: None,
                 nodes: vec![CanvasNode {
                     id: "n1".into(),
@@ -3005,7 +3013,9 @@ mod tests {
         canvas
             .save(CanvasDocument {
                 id: "canvas-d1".into(),
+                title: "未命名画布".into(),
                 note_id: None,
+                note_ids: Vec::new(),
                 co_write_session_id: None,
                 nodes: vec![
                     CanvasNode { id: "n1".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "卡片一".into(), source: None, z_index: 0, ..CanvasNode::default() },
@@ -3134,7 +3144,9 @@ mod tests {
     fn apply_ai_groups_writes_groups_and_preserves_manual() {
         let mut doc = CanvasDocument {
             id: "c".into(),
+            title: "未命名画布".into(),
             note_id: None,
+            note_ids: Vec::new(),
             co_write_session_id: None,
             nodes: vec![
                 CanvasNode { id: "n1".into(), node_type: "card".into(), x: 0.0, y: 0.0, width: 200.0, height: 80.0, text: "a".into(), source: None, z_index: 0, ..CanvasNode::default() },
@@ -3175,7 +3187,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let mut doc = CanvasDocument {
             id: "c-safe".into(),
+            title: "未命名画布".into(),
             note_id: None,
+            note_ids: Vec::new(),
             co_write_session_id: None,
             nodes: vec![
                 CanvasNode { id: "n1".into(), text: "A".into(), ..CanvasNode::default() },
@@ -3200,7 +3214,9 @@ mod tests {
         // 全部为幻觉 id → 不生成幽灵分组
         let mut doc2 = CanvasDocument {
             id: "c-safe2".into(),
+            title: "未命名画布".into(),
             note_id: None,
+            note_ids: Vec::new(),
             co_write_session_id: None,
             nodes: vec![],
             edges: vec![],
@@ -3303,7 +3319,9 @@ mod tests {
         canvas
             .save(CanvasDocument {
                 id: "canvas-c1".into(),
+                title: "未命名画布".into(),
                 note_id: None,
+                note_ids: Vec::new(),
                 co_write_session_id: None,
                 nodes: vec![],
                 edges: vec![],

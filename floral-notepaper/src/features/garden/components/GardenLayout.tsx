@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuthGate } from "../../auth/authGate";
 import { SpaceSwitcher } from "./SpaceSwitcher";
 import { PublicGardenPage } from "../pages/PublicGardenPage";
 import { PersonalGardenPage } from "../pages/PersonalGardenPage";
@@ -12,6 +13,7 @@ interface GardenLayoutProps {
 
 export function GardenLayout({ userId }: GardenLayoutProps) {
   const { t } = useTranslation();
+  const { openLogin } = useAuthGate();
   const [space, setSpace] = useState<"public" | "personal">("public");
   const [selectedArticle, setSelectedArticle] = useState<GardenArticle | null>(null);
 
@@ -37,12 +39,20 @@ export function GardenLayout({ userId }: GardenLayoutProps) {
           <div className="text-[13px] text-ink-ghost">
             {t("garden.loginRequired", "请登录后访问个人花园")}
           </div>
-          <button
-            onClick={() => setSpace("public")}
-            className="mt-3 px-4 py-1.5 text-[13px] bg-bamboo text-cloud rounded-lg hover:bg-bamboo-light transition-colors cursor-pointer"
-          >
-            {t("garden.browsePublic", "浏览公共花园")}
-          </button>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setSpace("public")}
+              className="px-4 py-1.5 text-[13px] bg-paper-warm/80 text-ink-soft rounded-lg border border-paper-deep/30 hover:bg-paper-warm transition-colors cursor-pointer"
+            >
+              {t("garden.browsePublic", "浏览公共花园")}
+            </button>
+            <button
+              onClick={() => openLogin("登录后管理个人花园")}
+              className="px-4 py-1.5 text-[13px] bg-bamboo text-cloud rounded-lg hover:bg-bamboo-light transition-colors cursor-pointer"
+            >
+              {t("garden.login", "去登录")}
+            </button>
+          </div>
         </div>
       </div>
     );

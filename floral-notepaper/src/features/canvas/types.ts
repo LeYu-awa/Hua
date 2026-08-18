@@ -85,7 +85,12 @@ export interface CanvasGroup {
 
 export interface CanvasDocument {
   id: string;
+  /** 画布标题（多画布工作台展示名）；旧数据无此字段时为空串 */
+  title?: string;
+  /** 主关联笔记 id（兼容旧单笔记绑定） */
   noteId?: string;
+  /** 单画布多文件关联：挂载到本画布的全部笔记 id */
+  noteIds?: string[];
   coWriteSessionId?: string;
   nodes: CanvasNode[];
   edges: CanvasEdge[];

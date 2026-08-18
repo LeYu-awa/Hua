@@ -5,6 +5,7 @@ import { AppSidebar } from "../components/AppSidebar";
 import type { AppView } from "../components/AppSidebar";
 import { ContextMenuProvider } from "../components/ContextMenu";
 import { WindowFrame } from "../components/WindowFrame";
+import { AuthGateProvider } from "../features/auth/authGate";
 import { supabase } from "../features/auth/supabase";
 import { listNotes, getNote } from "../features/notes/api";
 import { getConfig, saveConfig } from "../features/settings/api";
@@ -18,6 +19,7 @@ import { Live2DCompanionLayer } from "../features/live2d/Live2DCompanionLayer";
 import { SidebarChat } from "../features/sidebarChat";
 import { onOpenNote } from "../features/notes/openNoteEvents";
 import { renderMainView, renderSpecialRoute } from "./routeViews";
+import { NAVIGATE_EVENT } from "./navigation";
 
 export function AppShell() {
   const route = getInitialRoute();
@@ -168,6 +170,16 @@ export function AppShell() {
     return () => document.removeEventListener("keydown", preventSystemMenu, true);
   }, []);
 
+  // 跨组件视图导航：画布「发布编排」等深层组件通过全局事件请求切换侧边栏视图
+  useEffect(() => {
+    const onNavigate = (event: Event) => {
+      const view = (event as CustomEvent<AppView>).detail;
+      if (view) setSidebarView(view);
+    };
+    window.addEventListener(NAVIGATE_EVENT, onNavigate);
+    return () => window.removeEventListener(NAVIGATE_EVENT, onNavigate);
+  }, []);
+
   const handleProvidersChange = useCallback(
     async (newProviders: ProviderConfig[]) => {
       setProviders(newProviders);
@@ -215,39 +227,41 @@ export function AppShell() {
 
   return (
     <ContextMenuProvider>
-      <WindowFrame>
-        <div className="h-full font-body text-ink overflow-hidden flex">
-          <AppSidebar
-            activeView={sidebarView}
-            onViewChange={setSidebarView}
-            chatOpen={chatOpen}
-            onToggleChat={() => setChatOpen((v) => !v)}
-          />
-          {/* 左侧 AI 对话窗口（类 workbuddy 首页对话模式，可展开/收起） */}
-          <SidebarChat
-            open={chatOpen}
-            onClose={() => setChatOpen(false)}
-            providers={providers}
-            onRequestOpen={() => setChatOpen(true)}
-          />
-          <div className="app-main-content flex-1 flex flex-col min-w-0">
-            {renderMainView({
-              sidebarView,
-              currentNoteId,
-              providers,
-              settingsConfig,
-              userId,
-              openNoteId: pendingOpenNoteId,
-              onConfigChange: handleConfigChange,
-              onProvidersChange: handleProvidersChange,
-              onCurrentNoteChange: handleCurrentNoteChange,
-              onCloseSettings: () => setSidebarView("home"),
-            })}
+      <AuthGateProvider userId={userId}>
+        <WindowFrame>
+          <div className="h-full font-body text-ink overflow-hidden flex">
+            <AppSidebar
+              activeView={sidebarView}
+              onViewChange={setSidebarView}
+              chatOpen={chatOpen}
+              onToggleChat={() => setChatOpen((v) => !v)}
+            />
+            {/* 左侧 AI 对话窗口（类 workbuddy 首页对话模式，可展开/收起） */}
+            <SidebarChat
+              open={chatOpen}
+              onClose={() => setChatOpen(false)}
+              providers={providers}
+              onRequestOpen={() => setChatOpen(true)}
+            />
+            <div className="app-main-content flex-1 flex flex-col min-w-0">
+              {renderMainView({
+                sidebarView,
+                currentNoteId,
+                providers,
+                settingsConfig,
+                userId,
+                openNoteId: pendingOpenNoteId,
+                onConfigChange: handleConfigChange,
+                onProvidersChange: handleProvidersChange,
+                onCurrentNoteChange: handleCurrentNoteChange,
+                onCloseSettings: () => setSidebarView("home"),
+              })}
+            </div>
           </div>
-        </div>
-        {/* 主窗口嵌入式 Live2D 层（surface=embedded，position:fixed 覆盖在主界面之上） */}
-        <Live2DCompanionLayer surface="embedded" providers={providers} />
-      </WindowFrame>
+          {/* 主窗口嵌入式 Live2D 层（surface=embedded，position:fixed 覆盖在主界面之上） */}
+          <Live2DCompanionLayer surface="embedded" providers={providers} />
+        </WindowFrame>
+      </AuthGateProvider>
     </ContextMenuProvider>
   );
 }
