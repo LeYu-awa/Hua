@@ -2954,3 +2954,74 @@ html.companion-transparent-window #root {
     transition: none !important;
   }
 }
+
+/* ===== 桌宠模式（Pet Mode，移植自 LingChat PetMode.vue，MIT）===== */
+/* 开启时主 UI 隐藏，Live2D 角色 + 对话气泡独占透明小窗 */
+body.pet-mode-active {
+  user-select: none;
+  overflow: hidden;
+}
+
+.pet-dialogue-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: calc(250px * var(--pet-scale, 1));
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(200px, calc(220px * var(--pet-scale, 1)));
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 112, 84, 0.18);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f8f4 100%);
+  box-shadow: 0 10px 26px rgba(26, 74, 46, 0.16);
+  color: #2c3a33;
+  font-size: 12.5px;
+  line-height: 1.65;
+  text-align: left;
+  cursor: pointer;
+  animation: pet-bubble-in 0.22s ease both;
+}
+
+.pet-dialogue-overlay::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #ffffff;
+  border-bottom: none;
+  pointer-events: none;
+}
+
+.pet-dialogue-emoji {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(56, 112, 84, 0.1);
+  color: #387054;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pet-dialogue-text {
+  word-break: break-word;
+}
+
+@keyframes pet-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}

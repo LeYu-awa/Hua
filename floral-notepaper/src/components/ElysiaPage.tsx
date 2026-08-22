@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Live2DCompanionSettings } from "../features/companion/components/Live2DCompanionSettings";
 import {
   DEFAULT_TTS,
@@ -10,6 +10,7 @@ import {
   stopSpeech,
   type TTSConfig,
 } from "../features/tts";
+import { LocalTtsPanel } from "../features/tts/LocalTtsPanel";
 
 // ---- Elysia 导航选项卡 ----
 type ElysiaTab = "general" | "live2d" | "tts" | "memory" | "rag" | "mcp" | "appearance";
@@ -57,6 +58,30 @@ function TTSSettings({
   onChange: (c: TTSConfig) => void;
 }) {
   const update = (patch: Partial<TTSConfig>) => onChange({ ...config, ...patch });
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testOk, setTestOk] = useState(false);
+
+  // 订阅语音合成失败详情（speakText 会把错误广播出来，这里就地展示）
+  useEffect(() => {
+    const handler = (event: Event) => {
+      setTestOk(false);
+      setTestError((event as CustomEvent<string>).detail ?? "未知错误");
+    };
+    window.addEventListener("tts-speech-error", handler);
+    return () => window.removeEventListener("tts-speech-error", handler);
+  }, []);
+
+  const handleTest = async () => {
+    setTestError(null);
+    setTestOk(false);
+    const ok = await speakText(
+      config.engine === "local"
+        ? "こんにちは、私は花箋の音声アシスタントです。今日も一緒に頑張りましょう。"
+        : "你好，我是花笺的语音助手，很高兴见到你。",
+      { emotion: "happy" },
+    );
+    if (ok) setTestOk(true);
+  };
 
   const handleBrowseFile = async (key: "gptWeightsPath" | "sovitsWeightsPath") => {
     try {
@@ -142,6 +167,14 @@ function TTSSettings({
             ))}
           </select>
         </div>
+
+        {/* 本地 SBV2 引擎：资产下载面板 */}
+        {config.engine === "local" && (
+          <LocalTtsPanel
+            voice={config.voice}
+            onChangeVoice={(v) => update({ voice: v })}
+          />
+        )}
 
         {/* 模型（GPT-SoVITS / OpenAI 为文本输入，其余沿用占位） */}
         <div className="mb-5">
@@ -412,9 +445,7 @@ function TTSSettings({
         {/* 操作按钮 */}
         <div className="flex items-center gap-3 pt-2 border-t border-paper-deep/20">
           <button
-            onClick={() =>
-              void speakText("你好，我是花笺的语音助手，很高兴见到你。", { emotion: "happy" })
-            }
+            onClick={handleTest}
             className="px-5 h-9 rounded-lg text-xs font-medium text-cloud bg-bamboo hover:bg-bamboo-light transition-all cursor-pointer"
           >
             试听
@@ -431,6 +462,16 @@ function TTSSettings({
           >
             恢复默认
           </button>
+          {testOk && (
+            <span className="text-[11px] font-medium text-bamboo">
+              ✓ 已开始播放（请留意音量/静音）
+            </span>
+          )}
+          {testError && (
+            <span className="text-[11px] font-medium text-danger break-all">
+              播放失败：{testError}
+            </span>
+          )}
         </div>
       </div>
     </div>

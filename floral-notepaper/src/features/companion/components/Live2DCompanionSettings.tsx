@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   COMPANION_MAX_SCALE,
   COMPANION_MIN_SCALE,
@@ -9,9 +9,15 @@ import {
   saveCompanionConfig,
 } from "../companionConfig";
 import type { CompanionConfig, CompanionSensitivity } from "../types";
+import { applyPetMode, loadPetMode, subscribePetMode } from "../petModeStore";
 
 export function Live2DCompanionSettings() {
   const [config, setConfig] = useState<CompanionConfig>(() => loadCompanionConfig());
+  const [petMode, setPetMode] = useState<boolean>(() => loadPetMode().enabled);
+
+  useEffect(() => {
+    return subscribePetMode((state) => setPetMode(state.enabled));
+  }, []);
 
   const update = (patch: Partial<CompanionConfig>) => {
     setConfig(() => {
@@ -135,6 +141,18 @@ export function Live2DCompanionSettings() {
             >
               {config.visible ? "隐藏 Live2D" : "显示 Live2D"}
             </button>
+          </Field>
+          <Field label="桌宠模式">
+            <button
+              type="button"
+              onClick={() => void applyPetMode(!petMode, config.scale)}
+              className="companion-action-button w-full"
+            >
+              {petMode ? "关闭桌宠模式（恢复窗口）" : "开启桌宠模式（透明小窗置顶）"}
+            </button>
+            <p className="mt-1.5 text-[11px] leading-5 text-ink-ghost">
+              将主窗口缩为透明置顶小窗，仅保留 Live2D 角色与对话气泡，空白区域点击穿透。
+            </p>
           </Field>
         </section>
 

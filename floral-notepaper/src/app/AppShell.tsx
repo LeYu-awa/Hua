@@ -20,6 +20,8 @@ import { SidebarChat } from "../features/sidebarChat";
 import { onOpenNote } from "../features/notes/openNoteEvents";
 import { renderMainView, renderSpecialRoute } from "./routeViews";
 import { NAVIGATE_EVENT } from "./navigation";
+import { PetDialogueOverlay } from "../features/companion/PetDialogueOverlay";
+import { loadPetMode, restorePetModeIfNeeded, subscribePetMode } from "../features/companion/petModeStore";
 
 export function AppShell() {
   const route = getInitialRoute();
@@ -32,7 +34,18 @@ export function AppShell() {
   const [userId, setUserId] = useState<string | null>(null);
   /** Agent 产出落盘后的待打开笔记（切到笔记视图时传给 MainWindow） */
   const [pendingOpenNoteId, setPendingOpenNoteId] = useState<string | null>(null);
+  /** 桌宠模式：开启时隐藏主 UI，仅保留 Live2D 角色 + 气泡层 */
+  const [petMode, setPetMode] = useState<boolean>(() => loadPetMode().enabled);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return subscribePetMode((state) => setPetMode(state.enabled));
+  }, []);
+
+  useEffect(() => {
+    // 上次退出时若停留在桌宠模式，启动后自动恢复
+    restorePetModeIfNeeded();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -229,35 +242,40 @@ export function AppShell() {
     <ContextMenuProvider>
       <AuthGateProvider userId={userId}>
         <WindowFrame>
-          <div className="h-full font-body text-ink overflow-hidden flex">
-            <AppSidebar
-              activeView={sidebarView}
-              onViewChange={setSidebarView}
-              chatOpen={chatOpen}
-              onToggleChat={() => setChatOpen((v) => !v)}
-            />
-            {/* 左侧 AI 对话窗口（类 workbuddy 首页对话模式，可展开/收起） */}
-            <SidebarChat
-              open={chatOpen}
-              onClose={() => setChatOpen(false)}
-              providers={providers}
-              onRequestOpen={() => setChatOpen(true)}
-            />
-            <div className="app-main-content flex-1 flex flex-col min-w-0">
-              {renderMainView({
-                sidebarView,
-                currentNoteId,
-                providers,
-                settingsConfig,
-                userId,
-                openNoteId: pendingOpenNoteId,
-                onConfigChange: handleConfigChange,
-                onProvidersChange: handleProvidersChange,
-                onCurrentNoteChange: handleCurrentNoteChange,
-                onCloseSettings: () => setSidebarView("home"),
-              })}
+          {petMode ? (
+            // 桌宠模式：隐藏主 UI，仅保留 Live2D 角色层与台词气泡
+            <PetDialogueOverlay />
+          ) : (
+            <div className="h-full font-body text-ink overflow-hidden flex">
+              <AppSidebar
+                activeView={sidebarView}
+                onViewChange={setSidebarView}
+                chatOpen={chatOpen}
+                onToggleChat={() => setChatOpen((v) => !v)}
+              />
+              {/* 左侧 AI 对话窗口（类 workbuddy 首页对话模式，可展开/收起） */}
+              <SidebarChat
+                open={chatOpen}
+                onClose={() => setChatOpen(false)}
+                providers={providers}
+                onRequestOpen={() => setChatOpen(true)}
+              />
+              <div className="app-main-content flex-1 flex flex-col min-w-0">
+                {renderMainView({
+                  sidebarView,
+                  currentNoteId,
+                  providers,
+                  settingsConfig,
+                  userId,
+                  openNoteId: pendingOpenNoteId,
+                  onConfigChange: handleConfigChange,
+                  onProvidersChange: handleProvidersChange,
+                  onCurrentNoteChange: handleCurrentNoteChange,
+                  onCloseSettings: () => setSidebarView("home"),
+                })}
+              </div>
             </div>
-          </div>
+          )}
           {/* 主窗口嵌入式 Live2D 层（surface=embedded，position:fixed 覆盖在主界面之上） */}
           <Live2DCompanionLayer surface="embedded" providers={providers} />
         </WindowFrame>

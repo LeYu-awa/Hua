@@ -27,6 +27,8 @@ import type { AgentUICommand } from "../../features/agent/types";
 import { analyzeAgentConversation } from "../../features/agent/api";
 import type { ProviderConfig } from "../settings/types";
 import { shouldAutoSpeak, speakText, subscribeMouthValue, unlockSpeechPlayback } from "../tts";
+import { subscribeLive2DEmotion } from "./emotionBus";
+import type { SoullinkLocalMood } from "./soullinkLocalEngine";
 
 interface Live2DCompanionLayerProps {
   conversationId?: string | null;
@@ -43,6 +45,16 @@ const LIVE2D_LONG_PRESS_MS = 50;
 const LIVE2D_CHAT_STORAGE_KEY = "live2d_companion_chat_messages";
 const LIVE2D_CHAT_POSITION_STORAGE_KEY = "live2d_companion_chat_position";
 const LIVE2D_CHAT_CONTEXT_LIMIT = 10;
+
+/** 6 元情绪 → Haru 表情 Name（F01-F08 系列；其他模型无对应表情时静默跳过） */
+const MOOD_TO_EXPRESSION: Record<SoullinkLocalMood, string> = {
+  happy: "F01",
+  neutral: "F02",
+  sleepy: "F03",
+  excited: "F04",
+  worried: "F05",
+  curious: "F06",
+};
 
 type Live2DModel3Json = {
   FileReferences?: {
@@ -749,6 +761,23 @@ export function Live2DCompanionLayer({
     });
   }, []);
 
+  // 对话情绪驱动（移植自 LingChat，MIT）：SidebarChat 解析【情绪】标签 / 分类器预测
+  // → live2d-emotion 事件 → triggerEmotion + setExpression
+  useEffect(() => {
+    return subscribeLive2DEmotion(({ mood, intensity, label }) => {
+      const controller = controllerRef.current;
+      if (!controller?.model) return;
+      controller.triggerEmotion(mood, Math.min(1, Math.max(0.35, intensity)));
+      const expression = MOOD_TO_EXPRESSION[mood];
+      if (expression) {
+        controller.setExpression(expression).catch(() => undefined);
+      }
+      if (label) {
+        console.debug(`[live2d-emotion] ${label} → ${mood} (${intensity.toFixed(2)})`);
+      }
+    });
+  }, []);
+
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller?.model) return;
@@ -981,6 +1010,7 @@ export function Live2DCompanionLayer({
     <>
       <aside
         ref={layerRef}
+        className="live2d-companion-layer"
         style={{
           position: surface === "embedded" ? "fixed" : "relative",
           left: surface === "embedded" ? config.position.x : undefined,

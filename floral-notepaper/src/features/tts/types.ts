@@ -7,7 +7,13 @@
  * 本模块的 `synthesizeWithConfig` 即为该端口的本地实现，`speakText` 对应 `session.speak`。
  */
 
-export type TTSEngineKey = "gpt-sovits" | "vits" | "edge" | "openai" | "dashscope";
+export type TTSEngineKey =
+  | "gpt-sovits"
+  | "vits"
+  | "edge"
+  | "openai"
+  | "dashscope"
+  | "local";
 
 export interface TTSConfig {
   /** 引擎标识（对应 TTSEngineKey） */
@@ -48,6 +54,7 @@ export const TTS_ENGINE_OPTIONS: Array<{ key: TTSEngineKey; label: string }> = [
   { key: "edge", label: "Edge TTS (云端)" },
   { key: "openai", label: "OpenAI 兼容 / VibeVoice (本地)" },
   { key: "dashscope", label: "阿里云 CosyVoice (云端)" },
+  { key: "local", label: "本地 SBV2 引擎 (LingChat)" },
 ];
 
 export const OPENAI_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];

@@ -32,7 +32,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 tauri-plugin-clipboard-manager = "2"
 trash = "5"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
 # 向量检索：SQLite 扩展，嵌入现有 rusqlite（event_store 同库模式）
 sqlite-vec = "0.1"
 # MCP 工具协议化：官方 Rust SDK（模型上下文协议），stdio 服务器暴露 orchestrator 工具
@@ -40,10 +40,37 @@ rmcp = { version = "0.16", features = ["server", "macros", "schemars", "transpor
 tokio = { version = "1", features = ["rt-multi-thread", "io-std", "macros", "sync"] }
 schemars = { version = "0.8", features = ["derive"] }
 
+# 本地 TTS（SBV2 进程内推理，LingChat 同源方案，MIT）
+# - ort 锁定 2.0.0-rc.13：与 sbv2_core 编译期绑定的 ONNX Runtime 版本
+# - sbv2_core 直接以 git 依赖引用本地推理库（file:// 免网络克隆）
+# - tokio-util 提供 CancellationToken（下载取消）；futures-util 提供流式下载
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "download-binaries"] }
+sbv2_core = { git = "file:///D:/花箴/Aigalgame/sbv2-api-local", default-features = false, features = ["std"] }
+futures-util = "0.3"
+tokio-util = { version = "0.7", features = ["io"] }
+
 # macOS-only: used to toggle NSWindow.documentEdited (the unsaved dot in the red
 # traffic-light button). Already present transitively via Tauri.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+
+# Windows: DirectML 推理后端（GPU 加速），与基础 std 特性合并
+[target.'cfg(target_os = "windows")'.dependencies]
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["directml"] }
+sbv2_core = { git = "file:///D:/花箴/Aigalgame/sbv2-api-local", default-features = false, features = ["directml"] }
+
+# esaxx-rs 默认静态 CRT (/MT) 会与 ort 的动态 CRT (/MD) 冲突（LNK2038/LNK2005），
+# 这里用 patch 替换为动态 CRT 版本（复制自 LingChat，MIT）。
+# jpreprocess-naist-jdic 的词典下载在部分网络下会超时，改为本地 git 仓库（已内置
+# 词典缓存逻辑，避免重复下载）。
+[patch.crates-io]
+esaxx-rs = { path = "patches/esaxx-rs" }
+jpreprocess-naist-jdic = { git = "file:///D:/花箴/Aigalgame/jpreprocess-local", branch = "main" }
+
+# 配置了 rsproxy 源替换后 [patch.crates-io] 不会生效，需要同时补丁 rsproxy 源
+[patch."sparse+https://rsproxy.cn/index/"]
+esaxx-rs = { path = "patches/esaxx-rs" }
+jpreprocess-naist-jdic = { git = "file:///D:/花箴/Aigalgame/jpreprocess-local", branch = "main" }
 
 [dev-dependencies]
 serde_json = "1"

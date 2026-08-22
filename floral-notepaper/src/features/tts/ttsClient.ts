@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { EMOTION_SPEED_ADJUST, type TTSConfig } from "./types";
 
 /**
@@ -207,6 +208,45 @@ async function synthesizeEdge(
 }
 
 /**
+ * 本地 SBV2 引擎（LingChat 同源，进程内推理）：
+ * 调用 `tts_local_synthesize_preview` 返回原始 WAV 字节（不落盘），
+ * 前端包成 objectURL 播放。语音需要先下载 DeBERTa + Ling-v2 资产。
+ */
+async function synthesizeLocal(
+  text: string,
+  config: TTSConfig,
+  emotion?: string,
+): Promise<TtsResult> {
+  const bytes = await invoke<ArrayBuffer>("tts_local_synthesize_preview", {
+    text,
+    voiceId: await resolveLocalVoiceId(config.voice),
+    lengthScale: speedForEmotion(config.defaultSpeed, emotion),
+    sdpRatio: 0.2,
+  });
+  const blob = new Blob([bytes], { type: "audio/wav" });
+  return { url: URL.createObjectURL(blob) };
+}
+
+/**
+ * 解析本地引擎使用的音色：
+ * - 配置的 voice 是已安装音色 → 直接用
+ * - 否则回退到第一个已安装音色（防止默认值如 "furina" 未被安装导致合成失败）
+ * - 都没有 → 回退 "ling-v2"（后端会再报缺资产）
+ */
+async function resolveLocalVoiceId(configured: string | undefined): Promise<string> {
+  try {
+    const { localTtsListInstalled } = await import("./localTtsApi");
+    const snapshot = await localTtsListInstalled();
+    const voices = snapshot.voices.map((v) => v.voice_id);
+    const wanted = (configured ?? "").trim();
+    if (wanted && voices.includes(wanted)) return wanted;
+    return voices[0] ?? "ling-v2";
+  } catch {
+    return (configured ?? "").trim() || "ling-v2";
+  }
+}
+
+/**
  * 统一入口：按配置引擎合成文本 → 返回可播放 URL。
  * 满足 SDK `TtsClient.synthesize(text, ctx)` 契约。
  */
@@ -226,6 +266,8 @@ export async function synthesizeWithConfig(
       return synthesizeDashScope(text, config, ctx.emotion);
     case "edge":
       return synthesizeEdge(text, config);
+    case "local":
+      return synthesizeLocal(text, config, ctx.emotion);
     default:
       throw new Error(`未支持的 TTS 引擎: ${config.engine}`);
   }

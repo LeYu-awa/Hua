@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { ProviderConfig } from "../settings/types";
 import { logUsage } from "../settings/stats";
 import {
+  loadTTSConfig,
   shouldAutoSpeak,
   speakText,
   stopSpeech,
@@ -72,6 +73,8 @@ import { useDiarySuggestion } from "../diary/useDiarySuggestion";
 import { recallBaseline, recallMemory } from "../agent/memoryRecall";
 import { saveChatScreenshot } from "./chatCapture";
 import type { StructuredReply } from "./structuredReply";
+import { useAssistantEmotion } from "../live2d/useAssistantEmotion";
+import { emotionTagToMood } from "../live2d/emotionMapping";
 
 export interface SidebarChatMessage {
   role: "user" | "assistant";
@@ -119,9 +122,21 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-const SYSTEM_PROMPT =
-  "你是「花笺」内置的 AI 助手，风格温和、表达简洁。你可以围绕笔记写作、复盘、灵感收集、时间管理等方面提供帮助。回答使用中文，使用 Markdown 排版，保持简洁。" +
-  `上下文记忆：对话历史会自动保存在本机，并随请求附带最近 ${CONTEXT_WINDOW} 条消息作为上下文，因此你可以引用之前聊过的内容。`;
+/**
+ * 构建 AI 助手系统提示词。回复语言跟随 TTS 引擎：
+ * - 本地 SBV2（ling-v2 日语音色 + 日文 DeBERTa 编码）：要求正文用日语回复，
+ *   否则日语模型合成中文会产生乱码/卡顿听感（已诊断确认的根因）
+ * - 其他引擎（OpenAI / Edge 等）：保持中文
+ */
+function buildSystemPrompt(localTts: boolean): string {
+  const languageRule = localTts
+    ? "回复正文一律使用日语（日本語）撰写，语气温柔自然；代码、文件名、专有名词等可保留原文。"
+    : "回答使用中文。";
+  return (
+    `你是「花笺」内置的 AI 助手，风格温和、表达简洁。你可以围绕笔记写作、复盘、灵感收集、时间管理等方面提供帮助。${languageRule} 使用 Markdown 排版，保持简洁。` +
+    `上下文记忆：对话历史会自动保存在本机，并随请求附带最近 ${CONTEXT_WINDOW} 条消息作为上下文，因此你可以引用之前聊过的内容。`
+  );
+}
 
 /** 标准 Agent 模式下追加的系统指令：模型自主决定调用哪个工具、传什么参数 */
 const AGENT_SYSTEM_SUFFIX =
@@ -186,10 +201,13 @@ function extractReferencedNotes(
 
 function getAutoSpeakText(text: string): string {
   const normalized = text
+    // 剥离【情绪】标签段（如【开心】），避免中文标签混入日语正文导致合成乱码/卡顿
+    .replace(/【[^】]*】/g, " ")
     .replace(/```[\s\S]*?```/g, "")
     .replace(/[#>*_`\-[\]]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+  if (!normalized) return "";
   if (normalized.length <= AUTO_SPEAK_MAX_CHARS) return normalized;
   const sentence = normalized.match(/^.{12,72}?[。！？!?]/)?.[0]?.trim();
   return sentence || `${normalized.slice(0, AUTO_SPEAK_MAX_CHARS)}……`;
@@ -379,6 +397,10 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(true);
   const [speechPlaying, setSpeechPlaying] = useState(false);
+  /** 对话 → 情绪 → Live2D：流式标签触发 + 全文分类兜底（移植自 LingChat，MIT） */
+  const { processStreamText, finalize: finalizeEmotion, lastEmotionLabel } = useAssistantEmotion();
+  /** 流式草稿累积文本（draftId → 已渲染全文），供情绪标签增量检测 */
+  const draftAccumRef = useRef<Record<number, string>>({});
   /** 日记跳转提示（diary S1）：来源对话已清空时显示短暂提示 */
   const [chatTaskNotice, setChatTaskNotice] = useState<string | null>(null);
   const chatTaskNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -555,17 +577,23 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
     }
   }, [messages, loading, pendingTool]);
 
-  const speakAssistantReply = useCallback((reply: string) => {
-    const text = reply.trim();
-    if (!text || !shouldAutoSpeak()) return;
-    const speechText = getAutoSpeakText(text);
-    void speakText(speechText, { emotion: "happy" }).then((ok) => {
-      if (!ok)
-        console.warn("[tts] AI 助手回复未能开始播放，请检查 TTS 配置或本地服务。", {
-          text: speechText.slice(0, 80),
-        });
-    });
-  }, []);
+  const speakAssistantReply = useCallback(
+    (reply: string) => {
+      const text = reply.trim();
+      if (!text || !shouldAutoSpeak()) return;
+      const speechText = getAutoSpeakText(text);
+      // 用本轮对话检测到的情绪标签驱动 TTS 语速/音色（无标签时保持 happy 默认）
+      const label = lastEmotionLabel();
+      const emotion = label ? emotionTagToMood(label) : "happy";
+      void speakText(speechText, { emotion }).then((ok) => {
+        if (!ok)
+          console.warn("[tts] AI 助手回复未能开始播放，请检查 TTS 配置或本地服务。", {
+            text: speechText.slice(0, 80),
+          });
+      });
+    },
+    [lastEmotionLabel],
+  );
 
   /** AI 回复最终化：默认保留普通 Markdown 文本，不再强制解析成四模块卡片。 */
   const finalizeAssistantMessage = useCallback(
@@ -581,9 +609,10 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
     (reply: string) => {
       const createdAt = Date.now();
       setMessages((prev) => [...prev, finalizeAssistantMessage(prev, reply, createdAt)]);
+      void finalizeEmotion(reply);
       speakAssistantReply(reply);
     },
-    [setMessages, speakAssistantReply, finalizeAssistantMessage],
+    [setMessages, speakAssistantReply, finalizeAssistantMessage, finalizeEmotion],
   );
 
   const appendAssistantDraft = useCallback(
@@ -598,13 +627,17 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
   const appendAssistantDelta = useCallback(
     (createdAt: number, delta: string) => {
       if (!delta) return;
+      // 累积流式文本并增量检测【情绪】标签（每个标签首次出现触发一次 Live2D 表情）
+      const next = (draftAccumRef.current[createdAt] ?? "") + delta;
+      draftAccumRef.current[createdAt] = next;
+      processStreamText(next);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.createdAt === createdAt ? { ...msg, content: msg.content + delta } : msg,
         ),
       );
     },
-    [setMessages],
+    [setMessages, processStreamText],
   );
 
   const replaceAssistantDraft = useCallback(
@@ -1004,11 +1037,19 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
           recallBaseline(),
         ]);
 
+        // 回复语言跟随当前 TTS 引擎：本地 SBV2（日语音色）要求日语回复，
+        // 否则日语模型合成中文会产生乱码/卡顿听感；同步读取配置保证即时生效
+        const { engine: ttsEngine } = loadTTSConfig();
+
         const contextMessages: ModelRequestMessage[] = [
           {
             role: "system",
             content:
-              SYSTEM_PROMPT + AGENT_SYSTEM_SUFFIX + referenceContext + memoryBlock + baselineBlock,
+              buildSystemPrompt(ttsEngine === "local") +
+              AGENT_SYSTEM_SUFFIX +
+              referenceContext +
+              memoryBlock +
+              baselineBlock,
           },
           ...nextMessages.slice(-contextWindow).map((m) => ({ role: m.role, content: m.content })),
         ];

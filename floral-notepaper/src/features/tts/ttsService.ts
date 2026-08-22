@@ -275,6 +275,11 @@ async function speakTextNow(
     return true;
   } catch (error) {
     console.warn("[tts] 语音合成或播放失败", error);
+    // 广播失败详情，供 TTS 设置页 / 对话窗口展示（默认静默吞掉会导致"没声音但不知道原因"）
+    const detail = error instanceof Error ? error.message : String(error);
+    window.dispatchEvent(
+      new CustomEvent("tts-speech-error", { detail: detail || "未知错误" }),
+    );
     emitSpeechStateChange();
     return false;
   }

@@ -632,6 +632,38 @@ pub fn run() {
                 app.manage(VectorStore::new(agent_dir.join("agent-vectors.sqlite")));
                 app.manage(AgentTaskStore::new(agent_dir.join("agent-tasks.sqlite")));
             }
+            // 本地 TTS（SBV2 进程内引擎）：按需下载 + 合成
+            if let Ok(tts_local_state) =
+                services::tts_local::LocalTtsState::from_app(app.handle())
+            {
+                // 离线导入：本地资产缺失但 LingChat（开发数据目录）已下载时直接复制就位
+                // （MIT 同源复用，无需联网下载；面板中仍可手动导入其他目录）
+                if !tts_local_state.paths.asset_present("deberta") {
+                    let lingchat_dir = std::path::PathBuf::from(
+                        r"D:\花箴\Aigalgame\LingChat\data\models\tts-local",
+                    );
+                    if lingchat_dir
+                        .join("assets")
+                        .join("deberta")
+                        .join("deberta.onnx")
+                        .exists()
+                    {
+                        if let Err(e) = services::tts_local::import_assets_from(
+                            &tts_local_state.paths,
+                            &lingchat_dir,
+                        ) {
+                            log::warn!("自动离线导入 LingChat TTS 资产失败: {e}");
+                        }
+                    }
+                }
+                app.manage(tts_local_state);
+            }
+            // 情绪识别（ONNX 19 类）：对话流驱动 Live2D 表情
+            if let Ok(emotion_state) = services::emotion::EmotionState::from_app() {
+                app.manage(emotion_state);
+            }
+            // 桌宠模式：窗口缩放 + solid regions 点击穿透
+            app.manage(services::pet::PetHitTestState::default());
             desktop::setup_desktop(app)?;
             Ok(())
         })
@@ -735,7 +767,19 @@ pub fn run() {
             agent_embed_text,
             agent_rag_index,
             agent_rag_retrieve,
-            agent_rag_delete_source
+            agent_rag_delete_source,
+            services::tts_local::tts_local_status,
+            services::tts_local::tts_local_list_catalog,
+            services::tts_local::tts_local_list_installed,
+            services::tts_local::tts_local_download,
+            services::tts_local::tts_local_delete_voice,
+            services::tts_local::tts_local_synthesize_preview,
+            services::tts_local::tts_local_import_offline,
+            services::emotion::emotion_status,
+            services::emotion::emotion_predict,
+            services::emotion::emotion_download,
+            services::pet::set_pet_mode,
+            services::pet::update_solid_regions
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

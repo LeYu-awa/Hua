@@ -57,3 +57,7 @@ EchoBot/
 live2d-widget-models/
 neko-realtime-api/
 next-site/
+
+# Local model assets & LingChat copies (large binaries, never commit)
+models/
+Aigalgame/
