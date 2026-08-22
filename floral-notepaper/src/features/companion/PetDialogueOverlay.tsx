@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { subscribeLive2DSpeak, type Live2DSpeakPayload } from "../live2d/speechBus";
 import { subscribeLive2DEmotion } from "../live2d/emotionBus";
 import { loadPetMode, subscribePetMode } from "./petModeStore";
+import { loadCompanionConfig, subscribeCompanionConfig } from "./companionConfig";
 
 interface BubbleState {
   text: string;
@@ -20,10 +21,20 @@ export function PetDialogueOverlay() {
   const [active, setActive] = useState<boolean>(() => loadPetMode().enabled);
   const [bubble, setBubble] = useState<BubbleState | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [lingchatRenderer, setLingchatRenderer] = useState<boolean>(
+    () => loadCompanionConfig().renderer === "lingchat",
+  );
   const counterRef = useRef(0);
 
   useEffect(() => {
     return subscribePetMode((state) => setActive(state.enabled));
+  }, []);
+
+  // LingChat 桌宠自带完整三段式 UI（立绘/气泡/输入），让位避免重复气泡
+  useEffect(() => {
+    return subscribeCompanionConfig((config) => {
+      setLingchatRenderer(config.renderer === "lingchat");
+    });
   }, []);
 
   useEffect(() => {
@@ -46,6 +57,7 @@ export function PetDialogueOverlay() {
   }, [active]);
 
   if (!active) return null;
+  if (lingchatRenderer) return null;
   if (!bubble || hidden) return null;
 
   return (

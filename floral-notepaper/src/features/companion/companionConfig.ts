@@ -53,6 +53,44 @@ export const BUILT_IN_LIVE2D_MODEL_OPTIONS = [
   { skinId: "miku", label: "Miku", revision: "miku-local-v1", modelPath: MIKU_LOCAL_MODEL_PATH },
 ] satisfies Array<{ skinId: CompanionSkinId; label: string; revision: string; modelPath: string }>;
 
+// ---- LingChat 桌宠角色（2D 情绪立绘，非 Live2D）----
+export const LINGCHAT_PET_ASSET_ROOT = "/lingchat-pet";
+export const LINGCHAT_PET_CHARACTERS_ROOT = `${LINGCHAT_PET_ASSET_ROOT}/characters`;
+export const LINGCHAT_PET_ANIMATION_ROOT = `${LINGCHAT_PET_ASSET_ROOT}/animation`;
+export const LINGCHAT_PET_AUDIO_ROOT = `${LINGCHAT_PET_ASSET_ROOT}/audio_effects`;
+
+export const BUILT_IN_LINGCHAT_PET_OPTIONS = [
+  {
+    skinId: "lingchat-nuoyi",
+    label: "诺一钦灵",
+    roleFolder: "诺一钦灵",
+    revision: "lingchat-nuoyi-v1",
+  },
+  {
+    skinId: "lingchat-fengxue",
+    label: "风雪",
+    roleFolder: "风雪",
+    revision: "lingchat-fengxue-v1",
+  },
+  {
+    skinId: "lingchat-deepseek",
+    label: "DeepSeek",
+    roleFolder: "DeepSeek",
+    revision: "lingchat-deepseek-v1",
+  },
+] satisfies Array<{
+  skinId: CompanionSkinId;
+  label: string;
+  roleFolder: string;
+  revision: string;
+}>;
+
+/** 解析角色立绘 URL：clothesName 非空时指向其子目录（如 诺一钦灵/avatar/泳装/高兴.webp） */
+export function resolveLingChatAvatarUrl(roleFolder: string, clothesName: string, emotion: string) {
+  const clothes = clothesName && clothesName !== "默认" ? `${clothesName}/` : "";
+  return `${LINGCHAT_PET_CHARACTERS_ROOT}/${encodeURIComponent(roleFolder)}/avatar/${clothes}${encodeURIComponent(emotion)}.webp`;
+}
+
 const KEYBOARD_HAND_FRAMES = [0, 1, 2, 3, "leftup", "rightup"];
 export const BUILT_IN_YUNO_STANDARD_HAND_IMAGES = Array.from(
   { length: 90 },
@@ -154,6 +192,14 @@ export const DEFAULT_COMPANION_CONFIG: CompanionConfig = {
     save: "Idle",
     complete: "TapBody",
     hidden: "Idle",
+  },
+  pet: {
+    roleFolder: "诺一钦灵",
+    clothesName: "",
+    effect: "none",
+    bubbleVolume: 70,
+    characterVolume: 80,
+    typeWriterSpeed: 30,
   },
 };
 
@@ -278,14 +324,17 @@ function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig 
     sensitivity: { ...DEFAULT_COMPANION_CONFIG.sensitivity, ...value.sensitivity },
     carousel: { ...DEFAULT_COMPANION_CONFIG.carousel, ...value.carousel },
     motionMap: { ...DEFAULT_COMPANION_CONFIG.motionMap, ...value.motionMap },
+    pet: { ...DEFAULT_COMPANION_CONFIG.pet, ...value.pet },
   };
   const isLegacyConfig = !value.skinId;
   const isBuiltInSkin = isBuiltInYunoSkin(merged.skinId);
   const builtInLive2DOption = getBuiltInLive2DModelOption(merged.skinId);
+  const lingChatOption = getBuiltInLingChatPetOption(merged.skinId);
   const isStaleBuiltInSkin =
     value.skinRevision !== BUILT_IN_YUNO_SKIN_REVISION &&
     value.skinId !== "custom" &&
-    !builtInLive2DOption;
+    !builtInLive2DOption &&
+    !lingChatOption;
   const isLegacySpriteSkin = merged.renderer === "sprite" || merged.skinId === "bongocat-classic";
 
   if (isLegacyConfig || isBuiltInSkin || isStaleBuiltInSkin || isLegacySpriteSkin) {
@@ -315,6 +364,26 @@ function mergeCompanionConfig(value: Partial<CompanionConfig>): CompanionConfig 
       skinId: builtInLive2DOption.skinId,
       skinRevision: builtInLive2DOption.revision,
       modelPath: builtInLive2DOption.modelPath,
+      carousel: {
+        ...merged.carousel,
+        enabled: false,
+        images: [],
+        currentIndex: 0,
+      },
+    };
+  }
+
+  if (lingChatOption) {
+    // LingChat 桌宠：2D 情绪立绘渲染，无 Live2D 模型路径
+    return {
+      ...merged,
+      mode: "embedded",
+      renderer: "lingchat",
+      inputMode: "keyboard",
+      skinId: lingChatOption.skinId,
+      skinRevision: lingChatOption.revision,
+      modelPath: "",
+      pet: { ...merged.pet, roleFolder: lingChatOption.roleFolder, clothesName: "" },
       carousel: {
         ...merged.carousel,
         enabled: false,
@@ -367,6 +436,15 @@ function isBuiltInYunoSkin(skinId: CompanionSkinId) {
 
 export function getBuiltInLive2DModelOption(skinId: CompanionSkinId) {
   return BUILT_IN_LIVE2D_MODEL_OPTIONS.find((option) => option.skinId === skinId);
+}
+
+export function getBuiltInLingChatPetOption(skinId: CompanionSkinId) {
+  return BUILT_IN_LINGCHAT_PET_OPTIONS.find((option) => option.skinId === skinId);
+}
+
+/** 是否内置 LingChat 桌宠角色 */
+export function isBuiltInLingChatPet(skinId: CompanionSkinId) {
+  return Boolean(getBuiltInLingChatPetOption(skinId));
 }
 
 function sanitizePosition(

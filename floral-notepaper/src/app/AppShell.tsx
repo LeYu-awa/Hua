@@ -16,6 +16,7 @@ import { installExternalLinkHandler } from "../features/windows/externalLinks";
 import { getInitialRoute } from "../features/windows/windowRoutes";
 import { syncLanguage } from "../locales";
 import { Live2DCompanionLayer } from "../features/live2d/Live2DCompanionLayer";
+import { LingChatCompanionLayer } from "../features/companion/components/LingChatCompanionLayer";
 import { SidebarChat } from "../features/sidebarChat";
 import { onOpenNote } from "../features/notes/openNoteEvents";
 import { renderMainView, renderSpecialRoute } from "./routeViews";
@@ -278,6 +279,8 @@ export function AppShell() {
           )}
           {/* 主窗口嵌入式 Live2D 层（surface=embedded，position:fixed 覆盖在主界面之上） */}
           <Live2DCompanionLayer surface="embedded" providers={providers} />
+          {/* LingChat 桌宠层（renderer=lingchat 时渲染，与 Live2D 层互斥，内部自行门控） */}
+          <LingChatCompanionLayer surface="embedded" providers={providers} />
         </WindowFrame>
       </AuthGateProvider>
     </ContextMenuProvider>

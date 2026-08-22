@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Live2DCompanionSettings } from "../features/companion/components/Live2DCompanionSettings";
+import { LingChatPetSettings } from "../features/companion/components/LingChatPetSettings";
 import {
   DEFAULT_TTS,
   OPENAI_TTS_VOICES,
@@ -13,7 +14,7 @@ import {
 import { LocalTtsPanel } from "../features/tts/LocalTtsPanel";
 
 // ---- Elysia 导航选项卡 ----
-type ElysiaTab = "general" | "live2d" | "tts" | "memory" | "rag" | "mcp" | "appearance";
+type ElysiaTab = "general" | "live2d" | "tts" | "pet" | "memory" | "rag" | "mcp" | "appearance";
 
 interface TabDef {
   key: ElysiaTab;
@@ -25,6 +26,7 @@ const TABS: TabDef[] = [
   { key: "general", label: "通用", icon: "⚙" },
   { key: "live2d", label: "Live2D", icon: "▣" },
   { key: "tts", label: "TTS", icon: "♪" },
+  { key: "pet", label: "桌宠", icon: "☾" },
   { key: "memory", label: "记忆", icon: "◈" },
   { key: "rag", label: "RAG", icon: "◫" },
   { key: "mcp", label: "MCP", icon: "⎔" },
@@ -37,6 +39,7 @@ function PlaceholderContent({ tab }: { tab: ElysiaTab }) {
     general: "通用设置",
     live2d: "Live2D 角色配置",
     tts: "TTS 语音合成",
+    pet: "LingChat 桌宠",
     memory: "记忆管理",
     rag: "RAG 检索增强",
     mcp: "MCP 协议配置",
@@ -492,6 +495,8 @@ export function ElysiaPage() {
     switch (activeTab) {
       case "live2d":
         return <Live2DCompanionSettings />;
+      case "pet":
+        return <LingChatPetSettings />;
       case "tts":
         return <TTSSettings config={ttsConfig} onChange={handleTTSChange} />;
       default:

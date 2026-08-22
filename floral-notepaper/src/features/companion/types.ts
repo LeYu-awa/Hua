@@ -1,5 +1,5 @@
 export type CompanionMode = "embedded" | "floating";
-export type CompanionRenderer = "sprite" | "live2d";
+export type CompanionRenderer = "sprite" | "live2d" | "lingchat";
 export type CompanionInputMode = "keyboard" | "gamepad" | "standard";
 export type CompanionSkinId =
   | "a-yuno-keyboard"
@@ -10,7 +10,12 @@ export type CompanionSkinId =
   | "hiyori"
   | "aquarius-love"
   | "miku"
+  | "lingchat-nuoyi"
+  | "lingchat-fengxue"
+  | "lingchat-deepseek"
   | "custom";
+/** 桌宠粒子特效（对标 LingChat PetTab：None / StarField / BA） */
+export type PetEffectId = "none" | "starfield" | "ba";
 export type Live2DCarouselOrder = "sequential" | "reverse" | "random";
 
 export type CompanionAction =
@@ -57,6 +62,22 @@ export interface Live2DCarouselConfig {
   currentIndex: number;
 }
 
+/** LingChat 桌宠角色配置（渲染器为 lingchat 时生效） */
+export interface LingChatPetConfig {
+  /** 角色文件夹名（诺一钦灵 / 风雪 / DeepSeek），对应 public/lingchat-pet/characters/ 下的目录 */
+  roleFolder: string;
+  /** 服装名（诺一钦灵有"泳装"子目录，默认空 = 根目录立绘） */
+  clothesName: string;
+  /** 粒子特效：None / StarField / BA */
+  effect: PetEffectId;
+  /** 气泡表情音效音量 0~100 */
+  bubbleVolume: number;
+  /** 角色语音音量 0~100 */
+  characterVolume: number;
+  /** 气泡打字机速度（字符/秒） */
+  typeWriterSpeed: number;
+}
+
 export interface CompanionConfig {
   enabled: boolean;
   mode: CompanionMode;
@@ -73,6 +94,7 @@ export interface CompanionConfig {
   sensitivity: CompanionSensitivity;
   carousel: Live2DCarouselConfig;
   motionMap: BongocatMotionMap;
+  pet: LingChatPetConfig;
 }
 
 export interface CompanionInputEvent {
