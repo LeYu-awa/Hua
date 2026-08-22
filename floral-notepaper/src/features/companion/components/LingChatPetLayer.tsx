@@ -25,8 +25,13 @@ export interface LingChatPetLayerProps {
   /** 角色名（右上角铭牌） */
   name?: string;
   subTitle?: string;
-  /** 视觉缩放 */
+  /** 视觉缩放（LingChat --pet-ui-scale 的立绘放大倍数） */
   scale?: number;
+  /** 角色桌宠缩放（settings.yml scale_p，原版 GameRoleAvatar 对图片做 scale(scaleP)） */
+  scaleP?: number;
+  /** 角色桌宠位移（settings.yml offset_x_p / offset_y_p） */
+  offsetXP?: number;
+  offsetYP?: number;
   effect?: "none" | "starfield" | "ba";
   bubbleVolume?: number;
   thinking?: boolean;
@@ -43,6 +48,9 @@ export function LingChatPetLayer({
   name,
   subTitle,
   scale = 1,
+  scaleP = 1.6,
+  offsetXP = 0,
+  offsetYP = 0,
   effect = "none",
   bubbleVolume = 70,
   thinking = false,
@@ -148,7 +156,11 @@ export function LingChatPetLayer({
     };
   }, []);
 
-  const avatarStyle = { transform: `scale(${scale})`, transformOrigin: "center bottom" };
+  // 原版 GameRoleAvatar：scale(scaleP) translate(offsetXP, offsetYP)，origin-top 保持头部贴近圆框上缘
+  const avatarStyle = {
+    transform: `scale(${scale * scaleP}) translate(${offsetXP}px, ${offsetYP}px)`,
+    transformOrigin: "top",
+  };
 
   return (
     <div className="relative flex h-full w-full items-center justify-center" onClick={onAvatarClick}>
@@ -186,7 +198,8 @@ export function LingChatPetLayer({
             <img
               src={displayUrl}
               alt={name ?? "桌宠"}
-              className="lc-avatar-container h-full w-full rounded-full object-cover object-top transition-opacity duration-300"
+              className="lc-avatar-container relative h-full w-full rounded-full object-cover object-top transition-opacity duration-300"
+              style={{ top: "-10px" }}
               draggable={false}
             />
           </div>

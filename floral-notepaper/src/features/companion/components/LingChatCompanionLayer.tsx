@@ -1,18 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type PointerEventHandler,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   BUILT_IN_LINGCHAT_PET_OPTIONS,
   COMPANION_MAX_SCALE,
   COMPANION_MIN_SCALE,
   loadCompanionConfig,
-  saveCompanionPosition,
   subscribeCompanionConfig,
 } from "../companionConfig";
 import type { CompanionConfig } from "../types";
@@ -26,6 +17,11 @@ import { emotionTagToMood, splitEmotionSegments } from "../../live2d/emotionMapp
 import type { SoullinkLocalMood } from "../../live2d/soullinkLocalEngine";
 import type { ProviderConfig } from "../../settings/types";
 import { shouldAutoSpeak, speakText, unlockSpeechPlayback } from "../../tts";
+import {
+  buildLingChatSystemPrompt,
+  loadLingChatCharacter,
+  type LingChatCharacterSettings,
+} from "../lingchatPersona";
 
 interface LingChatCompanionLayerProps {
   surface?: "embedded" | "floating";
@@ -37,7 +33,6 @@ const PET_AVATAR_SIZE = 240;
 const PET_DIALOGUE_HEIGHT = 200;
 const PET_INPUT_HEIGHT = 45;
 const PET_SAFE_MARGIN = 8;
-const PET_LONG_PRESS_MS = 50;
 const PET_CHAT_STORAGE_KEY = "lingchat_pet_chat_messages";
 const PET_CHAT_CONTEXT_LIMIT = 10;
 
@@ -45,19 +40,19 @@ const PET_CHAT_CONTEXT_LIMIT = 10;
  * LingChat 桌宠完整渲染层（移植自 LingChat PetMode.vue + components/pet/*，MIT）。
  *
  * 三段式窗口布局（宽度 240×scale，高度 (240+200+45)×scale）：
- *   立绘区（GameRoleAvatar）→ 台词气泡（DialogueBox）→ 输入条（ChatInput）
+ *   台词气泡（DialogueBox，顶部，底部贴合立绘）→ 立绘区（GameRoleAvatar）→ 输入条（ChatInput，悬停显示）
  *
  * - 渲染门控：仅当 config.renderer === "lingchat" 且 enabled/visible 时渲染，
  *   其余情况返回 null（与 Live2DCompanionLayer 互斥，可无条件挂载于 AppShell）。
- * - 情绪驱动：订阅 live2d-emotion（SidebarChat 解析【情绪】标签 / 分类器）→ 切立绘；
- *   订阅 live2d-speak（SidebarChat 朗读）→ 气泡打字机展示。
- * - 交互：点按立绘聚焦输入，长按拖动（嵌入式），输入回车请求 AI 回复并朗读。
+ * - 交互（与花笺 Live2D 的点击展开/长按拖拽解耦，完全按 LingChat 原生）：
+ *   悬停显示输入条，离开隐藏；点击立绘聚焦输入；点击气泡收起。
+ * - 后端逻辑：运行时加载 `characters/{角色}/settings.yml` 人设，
+ *   用 `buildLingChatSystemPrompt`（复刻 sys_prompt_builder）组装 system prompt 请求 AI。
  */
 export function LingChatCompanionLayer({
   surface = "embedded",
   providers = [],
 }: LingChatCompanionLayerProps) {
-  const configRef = useRef<CompanionConfig>(loadCompanionConfig());
   const [config, setConfig] = useState<CompanionConfig>(loadCompanionConfig());
   const [petMode, setPetModeState] = useState<boolean>(() => loadPetMode().enabled);
   const [emotion, setEmotion] = useState<string | undefined>();
@@ -67,15 +62,9 @@ export function LingChatCompanionLayer({
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<PetChatMessage[]>(loadPetChatMessages);
-  const [dragging, setDragging] = useState(false);
-  const [showDragHandle, setShowDragHandle] = useState(false);
+  const [showChatInput, setShowChatInput] = useState(false);
+  const [persona, setPersona] = useState<LingChatCharacterSettings | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const layerRef = useRef<HTMLElement | null>(null);
-  const dragStateRef = useRef<LingChatDragState | null>(null);
-  const dragTimerRef = useRef<number | null>(null);
-  const dragHandleTimerRef = useRef<number | null>(null);
-  const latestPositionRef = useRef(config.position);
-  const dragIntentRef = useRef<"idle" | "pressing" | "dragging">("idle");
 
   const enabledProviders = useMemo(
     () => providers.filter((provider) => provider.enabled && provider.models.length > 0),
@@ -103,12 +92,7 @@ export function LingChatCompanionLayer({
   }, []);
 
   useEffect(() => {
-    latestPositionRef.current = config.position;
-  }, [config.position]);
-
-  useEffect(() => {
     return subscribeCompanionConfig((next) => {
-      configRef.current = next;
       setConfig(next);
     });
   }, [surface]);
@@ -150,145 +134,35 @@ export function LingChatCompanionLayer({
     return () => window.clearInterval(timer);
   }, []);
 
+  // 后端逻辑：按当前角色加载 settings.yml 人设（scale_p 驱动立绘、system_prompt 驱动对话）
   useEffect(() => {
+    let cancelled = false;
+    loadLingChatCharacter(pet.roleFolder)
+      .then((settings) => {
+        if (!cancelled) setPersona(settings);
+      })
+      .catch((error) => console.warn("[lingchat-pet] 加载角色人设失败", error));
     return () => {
-      if (dragTimerRef.current !== null) window.clearTimeout(dragTimerRef.current);
-      if (dragHandleTimerRef.current !== null) window.clearTimeout(dragHandleTimerRef.current);
-      dragIntentRef.current = "idle";
+      cancelled = true;
     };
-  }, []);
+  }, [pet.roleFolder]);
 
-  const showDragHandleBriefly = useCallback(() => {
-    setShowDragHandle(true);
-    if (dragHandleTimerRef.current !== null) {
-      window.clearTimeout(dragHandleTimerRef.current);
+  // ---- 交互（LingChat 原生）：悬停显示输入条，离开隐藏（输入中保持） ----
+  const handleMouseEnter = useCallback(() => setShowChatInput(true), []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (chatInput.trim().length > 0 || chatLoading) {
+      setShowChatInput(true);
+      return;
     }
-    dragHandleTimerRef.current = window.setTimeout(() => {
-      dragHandleTimerRef.current = null;
-      setShowDragHandle(false);
-    }, 2000);
+    setShowChatInput(false);
+  }, [chatInput, chatLoading]);
+
+  const handleAvatarClick = useCallback(() => {
+    void unlockSpeechPlayback();
+    setShowChatInput(true);
+    inputRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
-      const layer = layerRef.current;
-      if (!layer || dragging || petMode) return;
-      const rect = layer.getBoundingClientRect();
-      const inside =
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top &&
-        event.clientY <= rect.bottom;
-      if (inside) showDragHandleBriefly();
-    };
-    window.addEventListener("pointermove", handlePointerMove, { passive: true });
-    return () => window.removeEventListener("pointermove", handlePointerMove);
-  }, [dragging, petMode, showDragHandleBriefly]);
-
-  // ---- 拖拽（嵌入式）：长按 50ms 进入拖动，短按聚焦输入 ----
-  const handleDragEnd = useCallback(() => {
-    if (dragTimerRef.current !== null) {
-      window.clearTimeout(dragTimerRef.current);
-      dragTimerRef.current = null;
-    }
-    const dragState = dragStateRef.current;
-    if (dragState?.active) {
-      const next = saveCompanionPosition(latestPositionRef.current);
-      configRef.current = next;
-      setConfig(next);
-    }
-    dragStateRef.current = null;
-    dragIntentRef.current = "idle";
-    setDragging(false);
-  }, []);
-
-  const handleDragMove = useCallback((event: PointerEvent) => {
-    const dragState = dragStateRef.current;
-    if (!dragState?.active) return;
-    const scale = clampScale(dragState.scale);
-    const size = getPetSize(scale);
-    const next = {
-      x: dragState.originX + event.clientX - dragState.startX,
-      y: dragState.originY + event.clientY - dragState.startY,
-    };
-    const position = {
-      x: clampAxisPosition(next.x, size.width, window.innerWidth),
-      y: clampAxisPosition(next.y, size.height, window.innerHeight),
-    };
-    latestPositionRef.current = position;
-    setConfig((current) => ({ ...current, position }));
-  }, []);
-
-  useEffect(() => {
-    if (!dragging) return;
-    window.addEventListener("pointermove", handleDragMove);
-    window.addEventListener("pointerup", handleDragEnd, { once: true });
-    window.addEventListener("pointercancel", handleDragEnd, { once: true });
-    return () => {
-      window.removeEventListener("pointermove", handleDragMove);
-      window.removeEventListener("pointerup", handleDragEnd);
-      window.removeEventListener("pointercancel", handleDragEnd);
-    };
-  }, [dragging, handleDragEnd, handleDragMove]);
-
-  const handleAvatarPointerDown: PointerEventHandler<HTMLDivElement> = useCallback(
-    (event) => {
-      if (petMode) return; // 桌宠模式窗口固定尺寸，不拖拽
-      event.preventDefault();
-      event.stopPropagation();
-      const pointerId = event.pointerId;
-      event.currentTarget.setPointerCapture(pointerId);
-      dragIntentRef.current = "pressing";
-      dragStateRef.current = {
-        pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        originX: configRef.current.position.x,
-        originY: configRef.current.position.y,
-        scale: configRef.current.scale,
-        active: false,
-      };
-      if (dragTimerRef.current !== null) {
-        window.clearTimeout(dragTimerRef.current);
-        dragTimerRef.current = null;
-      }
-      if (dragHandleTimerRef.current !== null) {
-        window.clearTimeout(dragHandleTimerRef.current);
-        dragHandleTimerRef.current = null;
-      }
-      setShowDragHandle(true);
-      void unlockSpeechPlayback();
-      dragTimerRef.current = window.setTimeout(() => {
-        const current = dragStateRef.current;
-        if (!current || current.pointerId !== pointerId || dragIntentRef.current !== "pressing")
-          return;
-        current.active = true;
-        dragIntentRef.current = "dragging";
-        setDragging(true);
-      }, PET_LONG_PRESS_MS);
-    },
-    [petMode],
-  );
-
-  const handleAvatarPointerUp: PointerEventHandler<HTMLDivElement> = useCallback(
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (dragTimerRef.current !== null) {
-        window.clearTimeout(dragTimerRef.current);
-        dragTimerRef.current = null;
-      }
-      const wasDragging = dragIntentRef.current === "dragging";
-      if (wasDragging) {
-        handleDragEnd();
-        return;
-      }
-      dragIntentRef.current = "idle";
-      // 短按（点击）：聚焦输入
-      if (!chatLoading) inputRef.current?.focus();
-    },
-    [chatLoading, handleDragEnd],
-  );
 
   // ---- 对话 ----
   const requestLingChatReply = useCallback(
@@ -297,18 +171,15 @@ export function LingChatCompanionLayer({
       const apiUrl = activeProvider.baseUrl.replace(/\/+$/, "") + activeProvider.apiPath;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (activeProvider.apiKey) headers.Authorization = `Bearer ${activeProvider.apiKey}`;
+      const systemPrompt = persona
+        ? buildLingChatSystemPrompt(persona)
+        : `你是花笺桌宠角色「${roleOption?.label ?? "桌宠"}」。你像 LingChat 桌宠一样陪用户写作与聊天，语气自然亲切。回复时用【情绪】标签分段表达情绪（如【高兴】【生气】【难过】），情绪标签只用于驱动立绘表情，不解释。回复正文一律使用中文。`;
       const response = await fetch(apiUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({
           model: activeModel.modelId,
-          messages: [
-            {
-              role: "system",
-              content: `你是花笺桌宠角色「${roleOption?.label ?? "桌宠"}」。你像 LingChat 桌宠一样陪用户写作与聊天，语气自然亲切。回复时用【情绪】标签分段表达情绪（如【高兴】【生气】【难过】），情绪标签只用于驱动立绘表情，不解释。回复正文一律使用中文。`,
-            },
-            ...nextMessages.slice(-PET_CHAT_CONTEXT_LIMIT),
-          ],
+          messages: [{ role: "system", content: systemPrompt }, ...nextMessages.slice(-PET_CHAT_CONTEXT_LIMIT)],
           stream: false,
         }),
       });
@@ -319,7 +190,7 @@ export function LingChatCompanionLayer({
       const data = await response.json();
       return getCompletionText(data) || "我刚刚有点走神了，可以再和我说一遍吗？";
     },
-    [activeModel, activeProvider, roleOption?.label],
+    [activeModel, activeProvider, persona, roleOption?.label],
   );
 
   const handleChatSubmit = useCallback(
@@ -392,9 +263,10 @@ export function LingChatCompanionLayer({
 
   return (
     <aside
-      ref={layerRef}
       className="lingchat-pet-layer"
       aria-label="LingChat 桌宠"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         position: "fixed",
         left: petMode ? 0 : clampedPosition.x,
@@ -403,20 +275,36 @@ export function LingChatCompanionLayer({
         height: petMode ? "100%" : scaledSize.height,
         zIndex: 999,
         opacity: clamp(config.opacity, 0.2, 1),
-        pointerEvents: petMode || dragging || showDragHandle ? "auto" : "none",
+        pointerEvents: "auto",
         overflow: "hidden",
         background: "transparent",
         isolation: "isolate",
       }}
     >
       <div className="flex h-full w-full flex-col items-center" style={{ background: "transparent" }}>
-        {/* 立绘区（点按聊天，长按拖动） */}
+        {/* 台词气泡区（顶部，justify-end 让气泡底部贴合立绘，LingChat 原版顺序） */}
+        <div
+          className="flex w-full flex-shrink-0 flex-col justify-end"
+          style={{ height: dialogueArea }}
+        >
+          <div className="mt-1 flex items-end justify-center">
+            <PetDialogueBox
+              text={dialogue?.text ?? ""}
+              emotion={dialogue?.emotion}
+              mood={dialogue ? mood : undefined}
+              speed={pet.typeWriterSpeed}
+              visible={Boolean(dialogue)}
+              scale={petScale}
+              maxHeight={dialogueArea - 12}
+              onContinue={() => setDialogue(null)}
+            />
+          </div>
+        </div>
+
+        {/* 立绘区（LingChat GameRoleAvatar，点击聚焦输入，无拖拽） */}
         <div
           className="relative flex-shrink-0"
           style={{ width: avatarArea, height: avatarArea }}
-          onPointerDown={handleAvatarPointerDown}
-          onPointerUp={handleAvatarPointerUp}
-          onPointerCancel={handleDragEnd}
         >
           <LingChatPetLayer
             roleFolder={pet.roleFolder}
@@ -424,112 +312,63 @@ export function LingChatCompanionLayer({
             emotion={emotion}
             mood={mood}
             name={roleOption?.label}
-            subTitle="桌宠"
-            scale={1}
+            subTitle={persona?.aiSubtitle}
+            scaleP={persona?.scaleP}
+            offsetXP={persona?.offsetXP}
+            offsetYP={persona?.offsetYP}
             effect={pet.effect}
             bubbleVolume={pet.bubbleVolume}
             thinking={chatLoading}
-            onAvatarClick={() => {
-              if (dragIntentRef.current === "dragging") return;
-              if (!chatLoading) inputRef.current?.focus();
-            }}
+            onAvatarClick={handleAvatarClick}
           />
-          {/* 拖拽手柄（悬停出现，长按拖动） */}
-          <button
-            type="button"
-            aria-label="拖动桌宠"
-            title="点按聊天，长按拖动"
-            style={{
-              position: "absolute",
-              left: PET_SAFE_MARGIN,
-              bottom: PET_SAFE_MARGIN,
-              width: 34,
-              height: 34,
-              zIndex: 2,
-              borderRadius: 999,
-              background: dragging ? "rgba(34,211,238,0.78)" : "rgba(20,20,20,0.36)",
-              color: "#fff",
-              cursor: dragging ? "grabbing" : "pointer",
-              fontSize: 16,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: dragging || showDragHandle ? 1 : 0,
-              pointerEvents: dragging || showDragHandle ? "auto" : "none",
-              userSelect: "none",
-              backdropFilter: "blur(6px)",
-              transition: "opacity 0.2s ease, background-color 0.2s ease",
-            }}
-          >
-            <svg
-              width="17"
-              height="17"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M8 1.9 9.2 5.6 13 6.8 9.2 8 8 11.8 6.8 8 3 6.8l3.8-1.2Z" />
-              <path d="M12.4 10.8v2.4" opacity="0.55" />
-              <path d="M11.2 12h2.4" opacity="0.55" />
-            </svg>
-          </button>
         </div>
 
-        {/* 台词气泡（打字机） */}
+        {/* 输入条（ChatInput，悬停显示） */}
         <div
           className="flex w-full flex-shrink-0 items-start justify-center"
-          style={{ height: dialogueArea, paddingTop: 4 * petScale }}
+          style={{ height: inputArea }}
         >
-          <PetDialogueBox
-            text={dialogue?.text ?? ""}
-            emotion={dialogue?.emotion}
-            mood={dialogue ? mood : undefined}
-            speed={pet.typeWriterSpeed}
-            visible={Boolean(dialogue)}
-            scale={petScale}
-            maxHeight={dialogueArea - 12}
-            onContinue={() => setDialogue(null)}
-          />
-        </div>
-
-        {/* 输入条（ChatInput） */}
-        <form
-          onSubmit={(event) => void handleChatSubmit(event)}
-          className="flex w-full flex-shrink-0 items-center gap-1.5 px-2"
-          style={{ height: inputArea, pointerEvents: "auto" }}
-        >
-          <input
-            ref={inputRef}
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            disabled={chatLoading}
-            placeholder={activeProvider ? "和桌宠说点什么…" : "请先配置 AI 供应商"}
-            className="min-w-0 flex-1 rounded-full border border-white/10 bg-neutral-950/50 px-3 text-white placeholder-white/40 outline-none backdrop-blur-md focus:border-cyan-400/50"
-            style={{
-              height: Math.max(26, inputArea - 14),
-              fontSize: `${13 * petScale}px`,
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="flex-shrink-0 rounded-full font-bold text-white transition-opacity"
-            style={{
-              height: Math.max(26, inputArea - 14),
-              paddingLeft: `${12 * petScale}px`,
-              paddingRight: `${12 * petScale}px`,
-              fontSize: `${12 * petScale}px`,
-              background: canSubmit ? "rgba(34,211,238,0.92)" : "rgba(34,211,238,0.4)",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-            }}
+          <form
+            onSubmit={(event) => void handleChatSubmit(event)}
+            className={`w-full px-2 transition-all duration-300 ease-out ${
+              showChatInput ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
+            }`}
           >
-            {chatLoading ? "…" : "发送"}
-          </button>
-        </form>
+            <div className="flex items-center gap-1.5 rounded-[20px] border border-white/10 bg-neutral-950/50 px-2 py-1 backdrop-blur-xl backdrop-saturate-200">
+              <input
+                ref={inputRef}
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                disabled={chatLoading}
+                placeholder={
+                  chatLoading
+                    ? "灵灵正在思考中..."
+                    : activeProvider
+                      ? "和桌宠说点什么…"
+                      : "请先配置 AI 供应商"
+                }
+                className="min-w-0 flex-1 bg-transparent px-1 text-white placeholder-white/40 outline-none [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]"
+                style={{
+                  height: Math.max(26, inputArea - 14),
+                  fontSize: `${13 * petScale}px`,
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="flex-shrink-0 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-400 font-bold text-white shadow-[0_4px_15px_rgba(6,182,212,0.4)] transition-all duration-300 hover:from-cyan-400 hover:to-blue-300 active:scale-95 disabled:opacity-50 disabled:hover:from-cyan-500 disabled:hover:to-blue-400"
+                style={{
+                  height: Math.max(26, inputArea - 14),
+                  paddingLeft: `${12 * petScale}px`,
+                  paddingRight: `${12 * petScale}px`,
+                  fontSize: `${12 * petScale}px`,
+                }}
+              >
+                {chatLoading ? "…" : "发送"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </aside>
   );
@@ -574,16 +413,6 @@ type PetDialogueState = {
   text: string;
   emotion?: string;
   id: number;
-};
-
-type LingChatDragState = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
-  scale: number;
-  active: boolean;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

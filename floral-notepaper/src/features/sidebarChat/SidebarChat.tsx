@@ -75,6 +75,7 @@ import { saveChatScreenshot } from "./chatCapture";
 import type { StructuredReply } from "./structuredReply";
 import { useAssistantEmotion } from "../live2d/useAssistantEmotion";
 import { emotionTagToMood } from "../live2d/emotionMapping";
+import { emitLive2DSpeak } from "../live2d/speechBus";
 
 export interface SidebarChatMessage {
   role: "user" | "assistant";
@@ -582,9 +583,12 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
       const text = reply.trim();
       if (!text || !shouldAutoSpeak()) return;
       const speechText = getAutoSpeakText(text);
+      if (!speechText) return;
       // 用本轮对话检测到的情绪标签驱动 TTS 语速/音色（无标签时保持 happy 默认）
       const label = lastEmotionLabel();
       const emotion = label ? emotionTagToMood(label) : "happy";
+      // 广播给桌宠层（Live2D 气泡 / LingChat 桌宠气泡打字机）
+      emitLive2DSpeak({ text: speechText, emotion: label ?? emotion });
       void speakText(speechText, { emotion }).then((ok) => {
         if (!ok)
           console.warn("[tts] AI 助手回复未能开始播放，请检查 TTS 配置或本地服务。", {
