@@ -2121,9 +2121,20 @@ export function CanvasPage({
   }
 
   // 底部任务面板是否打开：面板统一排进底部 Dock 互不遮挡；打开时提问条停靠右下
-  const panelsOpen = Boolean(
-    enhanceGoal || writeupGoal || chapterGoal || groupTaskGoal,
-  );
+  const panelsOpen = Boolean(enhanceGoal || writeupGoal || chapterGoal || groupTaskGoal);
+  const archivePanelOpen = !archiveDismissed && !noteTreeOpen && archiveSuggestions.length > 0;
+  const rightRailOpen = Boolean(composerOpen || nodeMetaPanelId || agent.discussion);
+  const onboardingOpen = onboardingPhase === "intro" || onboardingPhase === "demo";
+  const quickHelpVisible =
+    !panelsOpen &&
+    !onboardingOpen &&
+    !noteTreeOpen &&
+    !archivePanelOpen &&
+    !composerOpen &&
+    !nodeMetaPanelId &&
+    !agent.discussion &&
+    agent.connections.length === 0 &&
+    !agent.gap;
 
   return (
     <div className="canvas-home-surface flex-1 flex flex-col min-h-0 relative overflow-hidden select-none">
@@ -2808,7 +2819,7 @@ export function CanvasPage({
         <SocialComposerPanel materials={selectedTexts} onClose={() => setComposerOpen(false)} />
       )}
 
-      {!archiveDismissed && !noteTreeOpen && archiveSuggestions.length > 0 && (
+      {archivePanelOpen && (
         <div className="canvas-floating-panel absolute top-16 left-4 z-10 w-[220px] p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="canvas-panel-title">
@@ -3701,6 +3712,7 @@ export function CanvasPage({
               stepDef?.target === "toolbar" ? "toolbar" : stepDef?.target === "node" ? "node" : null
             }
             templatesVisible={!templatesDismissed}
+            templateDock={rightRailOpen || panelsOpen ? "bottom" : "right"}
             onIntroDone={() => {
               markOnboardingSeen();
               setOnboardingPhase("demo");
@@ -3714,8 +3726,8 @@ export function CanvasPage({
         );
       })()}
 
-      {/* 常驻快捷操作提示（ob-3）；任务面板打开时隐藏，避免与底部 Dock 遮挡 */}
-      {!panelsOpen && <CanvasQuickHelp />}
+      {/* 常驻快捷操作提示（ob-3）：仅画布空闲时显示，避免挡住引导、侧栏、属性和任务 Dock */}
+      {quickHelpVisible && <CanvasQuickHelp />}
     </div>
   );
 }

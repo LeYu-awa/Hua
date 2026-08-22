@@ -27,7 +27,7 @@ import { loadPetMode, restorePetModeIfNeeded, subscribePetMode } from "../featur
 export function AppShell() {
   const route = getInitialRoute();
 
-  const [sidebarView, setSidebarView] = useState<AppView>("home");
+  const [sidebarView, setSidebarView] = useState<AppView>("canvas");
   const [chatOpen, setChatOpen] = useState(false);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [settingsConfig, setSettingsConfig] = useState<AppConfig | null>(null);

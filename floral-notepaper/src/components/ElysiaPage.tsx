@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { OPEN_PET_SETTINGS_EVENT } from "../app/navigation";
 import { Live2DCompanionSettings } from "../features/companion/components/Live2DCompanionSettings";
 import { LingChatPetSettings } from "../features/companion/components/LingChatPetSettings";
 import {
@@ -482,9 +483,19 @@ function TTSSettings({
 }
 
 // ---- Elysia 主页面 ----
-export function ElysiaPage() {
-  const [activeTab, setActiveTab] = useState<ElysiaTab>("live2d");
+interface ElysiaPageProps {
+  initialTab?: ElysiaTab;
+}
+
+export function ElysiaPage({ initialTab = "live2d" }: ElysiaPageProps) {
+  const [activeTab, setActiveTab] = useState<ElysiaTab>(initialTab);
   const [ttsConfig, setTTSConfig] = useState<TTSConfig>(() => loadTTSConfig());
+
+  useEffect(() => {
+    const handler = () => setActiveTab("pet");
+    window.addEventListener(OPEN_PET_SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(OPEN_PET_SETTINGS_EVENT, handler);
+  }, []);
 
   const handleTTSChange = useCallback((config: TTSConfig) => {
     setTTSConfig(config);

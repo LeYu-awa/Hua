@@ -28,6 +28,7 @@ import { CoWritePage } from "./CoWritePage";
 import { InkPlaybackPage } from "./InkPlaybackPage";
 import { ElysiaPage } from "./ElysiaPage";
 import { WritingReportPage } from "./WritingReportPage";
+import { OPEN_PET_SETTINGS_EVENT, consumePetSettingsDeepLink } from "../app/navigation";
 
 const AccountPanel = lazy(() =>
   import("./AccountPanel").then((module) => ({ default: module.AccountPanel })),
@@ -87,7 +88,16 @@ export function SettingsPage({
   onConfigChange,
   onProvidersChange,
 }: SettingsPageProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>("preferences");
+  // 桌宠「设置」按钮深链：挂载时直接进入 elysia 分区；已挂载时由事件切换
+  const elysiaTabRef = useRef<"pet" | undefined>(consumePetSettingsDeepLink()?.tab ?? undefined);
+  const [activeSection, setActiveSection] = useState<SettingsSection>(
+    elysiaTabRef.current ? "elysia" : "preferences",
+  );
+  useEffect(() => {
+    const handler = () => setActiveSection("elysia");
+    window.addEventListener(OPEN_PET_SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(OPEN_PET_SETTINGS_EVENT, handler);
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-paper">
@@ -122,6 +132,7 @@ export function SettingsPage({
             config={config}
             providers={providers}
             currentNoteId={currentNoteId}
+            initialElysiaTab={elysiaTabRef.current}
             onConfigChange={onConfigChange}
             onProvidersChange={onProvidersChange}
           />
@@ -347,6 +358,7 @@ function SectionContent({
   config,
   providers,
   currentNoteId,
+  initialElysiaTab,
   onConfigChange,
   onProvidersChange,
 }: {
@@ -354,6 +366,7 @@ function SectionContent({
   config: AppConfig;
   providers: ProviderConfig[];
   currentNoteId: string;
+  initialElysiaTab?: "pet";
   onConfigChange: (config: AppConfig) => void;
   onProvidersChange: (providers: ProviderConfig[]) => void;
 }) {
@@ -383,7 +396,7 @@ function SectionContent({
     case "cowrite":
       return <CoWritePage />;
     case "elysia":
-      return <ElysiaPage />;
+      return <ElysiaPage initialTab={initialElysiaTab} />;
     case "report":
       return <WritingReportPage noteId={currentNoteId} providers={providers} />;
   }

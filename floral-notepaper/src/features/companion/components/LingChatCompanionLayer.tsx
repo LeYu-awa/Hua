@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEventHandler, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   BUILT_IN_LINGCHAT_PET_OPTIONS,
   COMPANION_MAX_SCALE,
   COMPANION_MIN_SCALE,
   loadCompanionConfig,
+  saveCompanionPosition,
   subscribeCompanionConfig,
 } from "../companionConfig";
 import type { CompanionConfig } from "../types";
-import { loadPetMode, subscribePetMode } from "../petModeStore";
-import { loadProactiveConfig, PET_PROACTIVE_GREETINGS } from "../lingchatProactive";
+import { loadPetMode, applyPetMode, subscribePetMode } from "../petModeStore";
+import { loadProactiveConfig, saveProactiveConfig, PET_PROACTIVE_GREETINGS } from "../lingchatProactive";
 import { emitLive2DSpeak, subscribeLive2DSpeak } from "../../live2d/speechBus";
 import { LingChatPetLayer } from "./LingChatPetLayer";
 import { PetDialogueBox } from "./PetDialogueBox";
@@ -22,6 +24,8 @@ import {
   loadLingChatCharacter,
   type LingChatCharacterSettings,
 } from "../lingchatPersona";
+import { openPetSettings } from "../../../app/navigation";
+import { startCurrentWindowDrag } from "../../windows/controls";
 
 interface LingChatCompanionLayerProps {
   surface?: "embedded" | "floating";
@@ -35,6 +39,8 @@ const PET_INPUT_HEIGHT = 45;
 const PET_SAFE_MARGIN = 8;
 const PET_CHAT_STORAGE_KEY = "lingchat_pet_chat_messages";
 const PET_CHAT_CONTEXT_LIMIT = 10;
+const PET_DRAG_THRESHOLD = 4;
+const PET_LEFT_CONTROLS_WIDTH = 42;
 
 /**
  * LingChat 桌宠完整渲染层（移植自 LingChat PetMode.vue + components/pet/*，MIT）。
@@ -64,7 +70,12 @@ export function LingChatCompanionLayer({
   const [chatMessages, setChatMessages] = useState<PetChatMessage[]>(loadPetChatMessages);
   const [showChatInput, setShowChatInput] = useState(false);
   const [persona, setPersona] = useState<LingChatCharacterSettings | null>(null);
+  const [autoMode, setAutoMode] = useState(() => loadProactiveConfig().enabled);
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const configRef = useRef(config);
+  const dragStateRef = useRef<PetDragState | null>(null);
+  const suppressClickRef = useRef(false);
 
   const enabledProviders = useMemo(
     () => providers.filter((provider) => provider.enabled && provider.models.length > 0),
@@ -92,7 +103,12 @@ export function LingChatCompanionLayer({
   }, []);
 
   useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
+  useEffect(() => {
     return subscribeCompanionConfig((next) => {
+      configRef.current = next;
       setConfig(next);
     });
   }, [surface]);
@@ -159,10 +175,103 @@ export function LingChatCompanionLayer({
   }, [chatInput, chatLoading]);
 
   const handleAvatarClick = useCallback(() => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     void unlockSpeechPlayback();
     setShowChatInput(true);
     inputRef.current?.focus();
   }, []);
+
+  const handlePetDragEnd = useCallback(() => {
+    const state = dragStateRef.current;
+    if (state?.active) {
+      const latest = saveCompanionPosition(state.latestPosition);
+      configRef.current = latest;
+      setConfig(latest);
+      suppressClickRef.current = true;
+    }
+    dragStateRef.current = null;
+    setIsDragging(false);
+  }, []);
+
+  const handlePetDragMove = useCallback((event: PointerEvent) => {
+    const state = dragStateRef.current;
+    if (!state) return;
+    const deltaX = event.clientX - state.startX;
+    const deltaY = event.clientY - state.startY;
+    if (!state.active && Math.hypot(deltaX, deltaY) >= PET_DRAG_THRESHOLD) {
+      state.active = true;
+      setIsDragging(true);
+    }
+    if (!state.active) return;
+    const size = getPetSize(state.scale);
+    const latestPosition = {
+      x: clampAxisPosition(state.originX + deltaX, size.width + PET_LEFT_CONTROLS_WIDTH, window.innerWidth),
+      y: clampAxisPosition(state.originY + deltaY, size.height, window.innerHeight),
+    };
+    state.latestPosition = latestPosition;
+    configRef.current = { ...configRef.current, position: latestPosition };
+    setConfig((current) => ({ ...current, position: latestPosition }));
+  }, []);
+
+  useEffect(() => {
+    if (!dragStateRef.current) return;
+    window.addEventListener("pointermove", handlePetDragMove);
+    window.addEventListener("pointerup", handlePetDragEnd, { once: true });
+    window.addEventListener("pointercancel", handlePetDragEnd, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePetDragMove);
+      window.removeEventListener("pointerup", handlePetDragEnd);
+      window.removeEventListener("pointercancel", handlePetDragEnd);
+    };
+  }, [handlePetDragEnd, handlePetDragMove, isDragging]);
+
+  const handleAvatarPointerDown: PointerEventHandler<HTMLDivElement> = useCallback(
+    (event) => {
+      if (event.button !== 0) return;
+      if (event.target instanceof HTMLElement && event.target.closest("button,input,textarea,select")) return;
+      void unlockSpeechPlayback();
+      if (petMode) {
+        void startCurrentWindowDrag().catch((error) =>
+          console.warn("[lingchat-pet] 原生窗口拖动失败", error),
+        );
+        return;
+      }
+      dragStateRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: configRef.current.position.x,
+        originY: configRef.current.position.y,
+        latestPosition: configRef.current.position,
+        scale: configRef.current.scale,
+        active: false,
+      };
+      setIsDragging(true);
+    },
+    [petMode],
+  );
+
+  const handleToggleAutoMode = useCallback(() => {
+    const current = loadProactiveConfig();
+    const next = { ...current, enabled: !current.enabled };
+    saveProactiveConfig(next);
+    setAutoMode(next.enabled);
+    showDialogue(next.enabled ? "自动模式已开启，我会偶尔来找你聊天。" : "自动模式已关闭。", next.enabled ? "高兴" : "平静");
+  }, [showDialogue]);
+
+  const handleExitPetMode = useCallback(() => {
+    void applyPetMode(false, petScale).catch((error) =>
+      console.warn("[lingchat-pet] 退出桌宠模式失败", error),
+    );
+  }, [petScale]);
+
+  const handleStartScreenshot = useCallback(() => {
+    invoke("start_screenshot").catch(() => {
+      showDialogue("截图功能还没有接入花笺后端，我先帮你保留 LingChat 的入口。", "疑惑");
+    });
+  }, [showDialogue]);
 
   // ---- 对话 ----
   const requestLingChatReply = useCallback(
@@ -252,8 +361,9 @@ export function LingChatCompanionLayer({
     return null;
 
   const scaledSize = getPetSize(petScale);
+  const layerWidth = scaledSize.width + (petMode ? 0 : PET_LEFT_CONTROLS_WIDTH);
   const clampedPosition = {
-    x: clampAxisPosition(config.position.x, scaledSize.width, window.innerWidth),
+    x: clampAxisPosition(config.position.x, layerWidth, window.innerWidth),
     y: clampAxisPosition(config.position.y, scaledSize.height, window.innerHeight),
   };
   const avatarArea = PET_AVATAR_SIZE * petScale;
@@ -271,7 +381,7 @@ export function LingChatCompanionLayer({
         position: "fixed",
         left: petMode ? 0 : clampedPosition.x,
         top: petMode ? 0 : clampedPosition.y,
-        width: petMode ? "100%" : scaledSize.width,
+        width: petMode ? "100%" : layerWidth,
         height: petMode ? "100%" : scaledSize.height,
         zIndex: 999,
         opacity: clamp(config.opacity, 0.2, 1),
@@ -281,7 +391,15 @@ export function LingChatCompanionLayer({
         isolation: "isolate",
       }}
     >
-      <div className="flex h-full w-full flex-col items-center" style={{ background: "transparent" }}>
+      <div
+        className="flex h-full flex-col items-center"
+        style={{
+          width: scaledSize.width,
+          marginLeft: petMode ? "auto" : PET_LEFT_CONTROLS_WIDTH,
+          marginRight: petMode ? "auto" : 0,
+          background: "transparent",
+        }}
+      >
         {/* 台词气泡区（顶部，justify-end 让气泡底部贴合立绘，LingChat 原版顺序） */}
         <div
           className="flex w-full flex-shrink-0 flex-col justify-end"
@@ -301,11 +419,28 @@ export function LingChatCompanionLayer({
           </div>
         </div>
 
-        {/* 立绘区（LingChat GameRoleAvatar，点击聚焦输入，无拖拽） */}
+        {/* 立绘区（LingChat GameRoleAvatar，左侧悬浮按钮 + 可拖拽头像区） */}
         <div
-          className="relative flex-shrink-0"
+          className="group relative flex-shrink-0"
           style={{ width: avatarArea, height: avatarArea }}
+          onPointerDown={handleAvatarPointerDown}
         >
+          <PetSideControls
+            autoMode={autoMode}
+            onOpenSettings={openPetSettings}
+            onToggleAutoMode={handleToggleAutoMode}
+            onExitPetMode={handleExitPetMode}
+            onStartScreenshot={handleStartScreenshot}
+          />
+          {isDragging && (
+            <div className="pointer-events-none absolute inset-0 z-[80] flex flex-col items-center justify-center gap-1 rounded-full">
+              <div className="absolute inset-0 rounded-full border-2 border-cyan-400/60 animate-pulse" />
+              <div className="absolute inset-2 rounded-full border border-cyan-200/40 animate-pulse [animation-delay:0.3s]" />
+              <span className="relative text-lg font-bold text-cyan-200 drop-shadow-[0_0_8px_rgba(6,182,212,0.65)]">
+                拖动中
+              </span>
+            </div>
+          )}
           <LingChatPetLayer
             roleFolder={pet.roleFolder}
             clothesName={pet.clothesName}
@@ -400,6 +535,137 @@ function clampAxisPosition(position: number, size: number, viewportSize: number)
     return clamp(position, minWhenFits, maxWhenFits);
   }
   return clamp(position, maxWhenFits, minWhenFits);
+}
+
+type PetDragState = {
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+  latestPosition: CompanionConfig["position"];
+  scale: number;
+  active: boolean;
+};
+
+function PetSideControls({
+  autoMode,
+  onOpenSettings,
+  onToggleAutoMode,
+  onExitPetMode,
+  onStartScreenshot,
+}: {
+  autoMode: boolean;
+  onOpenSettings: () => void;
+  onToggleAutoMode: () => void;
+  onExitPetMode: () => void;
+  onStartScreenshot: () => void;
+}) {
+  return (
+    <div className="absolute left-[-14px] top-1 z-[90] flex flex-col gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+      <PetControlButton title="设置" onClick={onOpenSettings}>
+        <SettingsGlyph />
+      </PetControlButton>
+      <PetControlButton title={autoMode ? "关闭自动模式" : "开启自动模式"} active={autoMode} onClick={onToggleAutoMode}>
+        {autoMode ? <PauseGlyph /> : <PlayGlyph />}
+      </PetControlButton>
+      <PetControlButton title="退出桌宠模式" onClick={onExitPetMode}>
+        <ExitGlyph />
+      </PetControlButton>
+      <PetControlButton title="截图" onClick={onStartScreenshot} onContextMenu={onStartScreenshot}>
+        <CameraGlyph />
+      </PetControlButton>
+    </div>
+  );
+}
+
+function PetControlButton({
+  title,
+  active = false,
+  onClick,
+  onContextMenu,
+  children,
+}: {
+  title: string;
+  active?: boolean;
+  onClick: () => void;
+  onContextMenu?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onContextMenu?.();
+      }}
+      className={`flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-[0_8px_20px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 hover:scale-110 active:scale-95 ${
+        active
+          ? "border-cyan-300/60 bg-cyan-500/85"
+          : "border-white/15 bg-neutral-950/65 hover:border-cyan-300/35 hover:bg-cyan-500/75"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PetGlyph({ children }: { children: ReactNode }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+function SettingsGlyph() {
+  return (
+    <PetGlyph>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.84l.04.04a2 2 0 1 1-2.83 2.83l-.04-.04A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.04a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.84.34l-.04.04a2 2 0 1 1-2.83-2.83l.04-.04A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.04A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.84l-.04-.04a2 2 0 1 1 2.83-2.83l.04.04A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.04A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.84-.34l.04-.04a2 2 0 1 1 2.83 2.83l-.04.04A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.04A1.7 1.7 0 0 0 19.4 15Z" />
+    </PetGlyph>
+  );
+}
+
+function PlayGlyph() {
+  return (
+    <PetGlyph>
+      <path d="m8 5 11 7-11 7Z" />
+    </PetGlyph>
+  );
+}
+
+function PauseGlyph() {
+  return (
+    <PetGlyph>
+      <path d="M9 5v14M15 5v14" />
+    </PetGlyph>
+  );
+}
+
+function ExitGlyph() {
+  return (
+    <PetGlyph>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+    </PetGlyph>
+  );
+}
+
+function CameraGlyph() {
+  return (
+    <PetGlyph>
+      <path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3Z" />
+      <circle cx="12" cy="13" r="3" />
+    </PetGlyph>
+  );
 }
 
 // ---- 聊天工具 ----

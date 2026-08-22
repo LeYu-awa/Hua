@@ -5,8 +5,8 @@ import { DEMO_STEPS } from "./types";
 /**
  * 常驻快捷操作提示（ob-3）
  * 画布角落可折叠迷你引导窗：长期展示快捷键与手势，可展开查看操作演示回放。
- * 深色画布面板风格（canvas-onboarding-panel + --canvas-* tokens），
- * 固定于左下角，避免与右侧模板坞（TemplateDock）互相遮挡。
+ * 深色画布面板风格（canvas-onboarding-panel + --canvas-* tokens）。
+ * 由 CanvasPage 统一控制显隐：仅在画布空闲时贴左下角，避免与引导、面板和 Dock 互挡。
  */
 
 const SHORTCUTS: { keys: string; desc: string }[] = [
@@ -235,7 +235,7 @@ export function CanvasQuickHelp() {
   const [replaying, setReplaying] = useState(false);
 
   return (
-    <div className="absolute bottom-20 left-4 z-20">
+    <div className="absolute bottom-4 left-4 z-20 max-w-[calc(100vw-2rem)]">
       {!open ? (
         <button
           type="button"

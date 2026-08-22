@@ -12,6 +12,8 @@ interface CanvasOnboardingProps {
   highlight: "toolbar" | "node" | null;
   /** 模板坞是否可见（首次进入悬浮展示，用户可收起） */
   templatesVisible: boolean;
+  /** 模板坞停靠位：右侧空闲时靠右，右侧有面板时退到底部 */
+  templateDock?: "right" | "bottom";
   onIntroDone: () => void;
   onSkipGuide: () => void;
   onFinishGuide: () => void;
@@ -281,19 +283,26 @@ function DemoCard({
   );
 }
 
-/** 场景化快速入门模板坞（ob-2）：首次进入悬浮在右侧 */
+/** 场景化快速入门模板坞（ob-2）：贴右下角，避开顶部工具栏和右侧属性面板 */
 function TemplateDock({
+  dock = "right",
   onApply,
   onDismiss,
   onAskAi,
 }: {
+  dock?: "right" | "bottom";
   onApply: (templateId: string) => void;
   onDismiss: () => void;
   onAskAi: (prompt: string, autoSend?: boolean) => void;
 }) {
   const [activeTemplate, setActiveTemplate] = useState<CanvasTemplate | null>(null);
+  const dockClass =
+    dock === "bottom"
+      ? "absolute bottom-4 right-4 z-30 w-[216px]"
+      : "absolute right-[292px] top-20 z-30 w-[216px]";
+
   return (
-    <div className="absolute right-4 top-1/2 z-30 w-[216px] -translate-y-1/2">
+    <div className={dockClass}>
       <div className="canvas-onboarding-panel p-3 animate-fade-in">
         <div className="flex items-center justify-between">
           <span className="text-[12px] font-semibold text-[var(--canvas-control-text)]">
@@ -412,6 +421,7 @@ export function CanvasOnboarding({
   demoAnchor,
   highlight,
   templatesVisible,
+  templateDock = "right",
   onIntroDone,
   onSkipGuide,
   onAskAi,
@@ -434,6 +444,7 @@ export function CanvasOnboarding({
           />
           {templatesVisible && (
             <TemplateDock
+              dock={templateDock}
               onApply={onApplyTemplate}
               onDismiss={onDismissTemplates}
               onAskAi={onAskAi}
