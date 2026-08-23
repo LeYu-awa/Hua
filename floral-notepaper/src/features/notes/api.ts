@@ -1,6 +1,6 @@
 import { t, type TFunction } from "i18next";
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, NoteMetadata, SaveNoteRequest } from "./types";
+import type { Note, NoteMetadata, NoteTreeState, SaveNoteRequest } from "./types";
 
 interface SerializedAppError {
   code?: unknown;
@@ -45,6 +45,21 @@ export function deleteNote(id: string): Promise<void> {
 
 export function moveNoteCategory(id: string, category: string): Promise<NoteMetadata> {
   return invoke("notes_move_category", { id, category });
+}
+
+export function getNoteTreeState(): Promise<NoteTreeState> {
+  return invoke("note_tree_state_get");
+}
+
+export function saveNoteTreeState(state: NoteTreeState): Promise<NoteTreeState> {
+  return invoke("note_tree_state_save", { state });
+}
+
+export function reorderCategoryNotes(
+  category: string,
+  orderedNoteIds: string[],
+): Promise<NoteTreeState> {
+  return invoke("notes_reorder_category", { category, orderedNoteIds });
 }
 
 export function listCategories(): Promise<string[]> {

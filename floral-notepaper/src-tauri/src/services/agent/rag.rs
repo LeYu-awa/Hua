@@ -5,7 +5,7 @@
 
 use crate::services::agent::llm_provider::{resolve_endpoint, HttpEmbeddingProvider};
 use crate::services::agent::vector_store::{RetrievedChunk, VectorChunkInput, VectorStore};
-use crate::services::notes::{default_store, AppError};
+use crate::services::notes::{default_store, AppConfig, AppError};
 use std::future::Future;
 
 /// 默认分块参数
@@ -137,8 +137,11 @@ pub fn build_context(chunks: &[RetrievedChunk], max_chars: usize) -> String {
 }
 
 /// 解析 embedding 端点并构造 provider（生产路径共用）
-fn embedding_provider() -> Result<HttpEmbeddingProvider, AppError> {
-    let config = default_store()?.load_config()?;
+fn embedding_provider(runtime_config: Option<AppConfig>) -> Result<HttpEmbeddingProvider, AppError> {
+    let config = match runtime_config {
+        Some(config) => config,
+        None => default_store()?.load_config()?,
+    };
     let endpoint = resolve_endpoint(&config)?;
     HttpEmbeddingProvider::new(endpoint)
 }
@@ -156,7 +159,7 @@ pub async fn index_source(
     if trimmed.is_empty() {
         return Ok(Vec::new());
     }
-    let provider = embedding_provider()?;
+    let provider = embedding_provider(None)?;
     let model = provider.model().to_string();
     let _ = store.delete_by_source(&model, source_id);
     index_text(store, &model, source_id, trimmed, |t| provider.embed(t)).await
@@ -168,8 +171,9 @@ pub async fn agent_rag_index(
     store: tauri::State<'_, VectorStore>,
     source_id: String,
     text: String,
+    runtime_config: Option<AppConfig>,
 ) -> Result<Vec<String>, AppError> {
-    let provider = embedding_provider()?;
+    let provider = embedding_provider(runtime_config)?;
     let model = provider.model().to_string();
     index_text(&store, &model, &source_id, &text, |t| provider.embed(t)).await
 }
@@ -180,8 +184,9 @@ pub async fn agent_rag_retrieve(
     store: tauri::State<'_, VectorStore>,
     query: String,
     top_k: Option<usize>,
+    runtime_config: Option<AppConfig>,
 ) -> Result<Vec<RetrievedChunk>, AppError> {
-    let provider = embedding_provider()?;
+    let provider = embedding_provider(runtime_config)?;
     let model = provider.model().to_string();
     retrieve(&store, &model, &query, top_k.unwrap_or(5), |t| provider.embed(t)).await
 }
@@ -192,7 +197,7 @@ pub async fn agent_rag_delete_source(
     store: tauri::State<'_, VectorStore>,
     source_id: String,
 ) -> Result<(), AppError> {
-    let provider = embedding_provider()?;
+    let provider = embedding_provider(None)?;
     let model = provider.model().to_string();
     store.delete_by_source(&model, &source_id)
 }

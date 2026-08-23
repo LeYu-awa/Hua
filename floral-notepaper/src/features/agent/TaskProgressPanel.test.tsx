@@ -104,10 +104,16 @@ describe("TaskProgressPanel 组卡成文预览（可产出 Agent）", () => {
     fireEvent.click(screen.getByText("确认落盘"));
 
     await waitFor(() => expect(confirmAgentTask).toHaveBeenCalled());
-    expect(confirmAgentTask).toHaveBeenCalledWith("t1", "w3", true, {
-      title: "新标题",
-      content: "编辑后的成文",
-    });
+    expect(confirmAgentTask).toHaveBeenCalledWith(
+      "t1",
+      "w3",
+      true,
+      {
+        title: "新标题",
+        content: "编辑后的成文",
+      },
+      undefined,
+    );
   });
 
   it("落盘成功后显示横幅并可打开笔记", async () => {

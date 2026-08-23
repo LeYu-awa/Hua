@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { hydrateConfigFromCache, prepareConfigForStorage } from "./apiKeyCache";
 import type { AppConfig, ViewMode } from "./types";
 
 export interface ShortcutCheckResult {
@@ -8,12 +9,18 @@ export interface ShortcutCheckResult {
   message: string;
 }
 
-export function getConfig(): Promise<AppConfig> {
-  return invoke("config_get");
+export async function getConfig(): Promise<AppConfig> {
+  const config = await invoke<AppConfig>("config_get");
+  const hydrated = hydrateConfigFromCache(config);
+  if ((config.providers ?? []).some((provider) => provider.apiKey?.trim())) {
+    void invoke<AppConfig>("config_save", { config: prepareConfigForStorage(config) }).catch(() => {});
+  }
+  return hydrated;
 }
 
-export function saveConfig(config: AppConfig): Promise<AppConfig> {
-  return invoke("config_save", { config });
+export async function saveConfig(config: AppConfig): Promise<AppConfig> {
+  const saved = await invoke<AppConfig>("config_save", { config: prepareConfigForStorage(config) });
+  return hydrateConfigFromCache(saved);
 }
 
 export function checkGlobalShortcut(shortcut: string): Promise<ShortcutCheckResult> {

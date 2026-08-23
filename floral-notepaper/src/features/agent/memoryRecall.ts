@@ -1,5 +1,6 @@
 import { ragRetrieve } from "./api";
 import { getBaseline } from "./profileApi";
+import type { ProviderConfig } from "../settings/types";
 
 /**
  * 对话记忆召回（记忆层闭环：写入 → 检索 → 引用）
@@ -12,9 +13,13 @@ import { getBaseline } from "./profileApi";
  */
 
 /** 按用户消息召回相关记忆片段，拼成系统上下文块；失败返回空串 */
-export async function recallMemory(query: string, topK = 4): Promise<string> {
+export async function recallMemory(
+  query: string,
+  topK = 4,
+  providers?: ProviderConfig[],
+): Promise<string> {
   try {
-    const chunks = await ragRetrieve(query, topK);
+    const chunks = await ragRetrieve(query, topK, providers);
     if (!chunks || chunks.length === 0) return "";
     const lines = chunks
       .map((chunk) => {

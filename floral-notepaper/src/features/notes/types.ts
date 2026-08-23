@@ -22,6 +22,11 @@ export interface SaveNoteRequest {
   category: string;
 }
 
+export interface NoteTreeState {
+  collapsedCategories: string[];
+  categoryNoteOrder: Record<string, string[]>;
+}
+
 export interface ExternalFile {
   id: string;
   title: string;

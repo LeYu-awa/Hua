@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { withCachedProviderApiKeys } from "../settings/apiKeyCache";
+import type { ProviderConfig } from "../settings/types";
 import type {
   AgentAnalysisResult,
   AgentAwaitingConfirmEvent,
@@ -85,12 +87,12 @@ export function createAgentTask(goal: string): Promise<AgentTask> {
 }
 
 /** 最小闭环入口：TS 发目标 → Rust 规划执行 → 返回最终任务（含 plan/logs/context） */
-export function createAndRunAgentTask(goal: string): Promise<AgentTask> {
-  return invoke("agent_task_create_and_run", { goal });
+export function createAndRunAgentTask(goal: string, providers?: ProviderConfig[]): Promise<AgentTask> {
+  return invoke("agent_task_create_and_run", { goal, runtimeConfig: runtimeConfig(providers) });
 }
 
-export function runAgentTask(taskId: string): Promise<AgentTask> {
-  return invoke("agent_task_run", { taskId });
+export function runAgentTask(taskId: string, providers?: ProviderConfig[]): Promise<AgentTask> {
+  return invoke("agent_task_run", { taskId, runtimeConfig: runtimeConfig(providers) });
 }
 
 export function getAgentTask(taskId: string): Promise<AgentTask | null> {
@@ -122,8 +124,15 @@ export function confirmAgentTask(
   stepId: string,
   ok: boolean,
   payload?: { title?: string; content?: string },
+  providers?: ProviderConfig[],
 ): Promise<AgentTask> {
-  return invoke("agent_task_confirm", { taskId, stepId, ok, payload });
+  return invoke("agent_task_confirm", {
+    taskId,
+    stepId,
+    ok,
+    payload,
+    runtimeConfig: runtimeConfig(providers),
+  });
 }
 
 /** 列出全部产品 Agent 技能（技能注册表，供技能面板/对话侧选择） */
@@ -157,16 +166,24 @@ export function onAgentExport(callback: (event: AgentExportEvent) => void): Prom
 
 // ── RAG（向量检索） ────────────────────────────────────────────────────────────
 
-export function embedAgentText(text: string): Promise<number[]> {
-  return invoke("agent_embed_text", { text });
+function runtimeConfig(providers?: ProviderConfig[]) {
+  return providers ? withCachedProviderApiKeys({ providers }) : null;
 }
 
-export function ragIndex(sourceId: string, text: string): Promise<string[]> {
-  return invoke("agent_rag_index", { sourceId, text });
+export function embedAgentText(text: string, providers?: ProviderConfig[]): Promise<number[]> {
+  return invoke("agent_embed_text", { text, runtimeConfig: runtimeConfig(providers) });
 }
 
-export function ragRetrieve(query: string, topK?: number): Promise<AgentRetrievedChunk[]> {
-  return invoke("agent_rag_retrieve", { query, topK });
+export function ragIndex(sourceId: string, text: string, providers?: ProviderConfig[]): Promise<string[]> {
+  return invoke("agent_rag_index", { sourceId, text, runtimeConfig: runtimeConfig(providers) });
+}
+
+export function ragRetrieve(
+  query: string,
+  topK?: number,
+  providers?: ProviderConfig[],
+): Promise<AgentRetrievedChunk[]> {
+  return invoke("agent_rag_retrieve", { query, topK, runtimeConfig: runtimeConfig(providers) });
 }
 
 export function ragDeleteSource(sourceId: string): Promise<void> {

@@ -82,11 +82,14 @@ export function groupNotesByCategory(
 
   const result: CategoryGroup[] = [];
   for (const [category, categoryNotes] of groups) {
-    categoryNotes.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const latestUpdatedAt = categoryNotes.reduce(
+      (latest, note) => (note.updatedAt > latest ? note.updatedAt : latest),
+      "",
+    );
     result.push({
       category,
       notes: categoryNotes,
-      latestUpdatedAt: categoryNotes[0]?.updatedAt ?? "",
+      latestUpdatedAt,
     });
   }
 

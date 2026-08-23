@@ -1,4 +1,5 @@
 import { supabase } from "../auth/supabase";
+import { hydrateConfigFromCache, prepareConfigForStorage } from "../settings/apiKeyCache";
 import type { AppConfig } from "../settings/types";
 
 export interface NoteSyncData {
@@ -16,7 +17,7 @@ export async function uploadConfig(userId: string, config: AppConfig): Promise<v
   const { error } = await supabase.from("config_sync").upsert(
     {
       user_id: userId,
-      config: config as unknown as Record<string, unknown>,
+      config: prepareConfigForStorage(config) as unknown as Record<string, unknown>,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },
@@ -31,7 +32,8 @@ export async function downloadConfig(userId: string): Promise<AppConfig | null> 
     .eq("user_id", userId)
     .single();
   if (error || !data) return null;
-  return (data.config as unknown as AppConfig) ?? null;
+  const config = (data.config as unknown as AppConfig) ?? null;
+  return config ? hydrateConfigFromCache(config) : null;
 }
 
 // ─── 笔记同步 ───

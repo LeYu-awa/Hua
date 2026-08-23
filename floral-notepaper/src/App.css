@@ -428,6 +428,27 @@ input::placeholder {
   font-weight: 500;
 }
 
+.note-tree-file-row.is-drop-before::after,
+.note-tree-file-row.is-drop-after::after {
+  content: "";
+  position: absolute;
+  left: 31px;
+  right: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background-color: var(--color-bamboo);
+  box-shadow: 0 0 0 2px var(--color-bamboo-mist);
+  pointer-events: none;
+}
+
+.note-tree-file-row.is-drop-before::after {
+  top: -1px;
+}
+
+.note-tree-file-row.is-drop-after::after {
+  bottom: -1px;
+}
+
 .note-tree-folder-row:hover,
 .note-tree-file-row:hover {
   color: var(--color-ink);

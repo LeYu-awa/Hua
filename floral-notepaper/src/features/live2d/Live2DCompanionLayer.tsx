@@ -39,12 +39,10 @@ interface Live2DCompanionLayerProps {
 const LIVE2D_WIDTH = 260;
 const LIVE2D_HEIGHT = 380;
 const LIVE2D_SCALE_STEP = 0.05;
-const LIVE2D_DRAG_HANDLE_SIZE = 34;
 const LIVE2D_SAFE_MARGIN = 8;
-const LIVE2D_LONG_PRESS_MS = 50;
+const LIVE2D_LONG_PRESS_MS = 180;
 const LIVE2D_CHAT_STORAGE_KEY = "live2d_companion_chat_messages";
-const LIVE2D_CHAT_POSITION_STORAGE_KEY = "live2d_companion_chat_position";
-const LIVE2D_CHAT_CONTEXT_LIMIT = 10;
+const LIVE2D_CHAT_CONTEXT_LIMIT = 4;
 
 /** 6 元情绪 → Haru 表情 Name（F01-F08 系列；其他模型无对应表情时静默跳过） */
 const MOOD_TO_EXPRESSION: Record<SoullinkLocalMood, string> = {
@@ -73,14 +71,6 @@ type EmbeddedDragState = {
   originY: number;
   scale: number;
   active: boolean;
-};
-
-type Live2DChatDragState = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
 };
 
 type Live2DChatMessage = {
@@ -136,6 +126,28 @@ function getCompletionText(data: unknown) {
   return typeof message === "string" ? message.trim() : "";
 }
 
+function formatProviderChatError(prefix: string, status: number, errorText: string, providerName: string) {
+  const normalized = errorText.toLowerCase();
+  if (status === 402 || normalized.includes("insufficient balance") || normalized.includes("余额不足")) {
+    return `${prefix}：${providerName} 账户余额不足，请充值或切换其他可用 AI 供应商。`;
+  }
+  return `${prefix} (${status}): ${extractProviderErrorMessage(errorText)}`;
+}
+
+function extractProviderErrorMessage(errorText: string) {
+  try {
+    const parsed = JSON.parse(errorText) as unknown;
+    if (isRecord(parsed)) {
+      const error = isRecord(parsed.error) ? parsed.error : parsed;
+      const message = error.message;
+      if (typeof message === "string" && message.trim()) return message.trim();
+    }
+  } catch {
+    // 保留原始错误文本
+  }
+  return errorText || "未知错误";
+}
+
 function loadLive2DChatMessages(): Live2DChatMessage[] {
   try {
     const raw = localStorage.getItem(LIVE2D_CHAT_STORAGE_KEY);
@@ -156,37 +168,6 @@ function loadLive2DChatMessages(): Live2DChatMessage[] {
 
 function saveLive2DChatMessages(messages: Live2DChatMessage[]) {
   localStorage.setItem(LIVE2D_CHAT_STORAGE_KEY, JSON.stringify(messages.slice(-30)));
-}
-
-function getDefaultLive2DChatPosition() {
-  return { x: Math.round(window.innerWidth / 2 - 170), y: Math.round(window.innerHeight - 96) };
-}
-
-function getClampedLive2DChatPosition(position: { x: number; y: number }) {
-  return {
-    x: clamp(position.x, 12, Math.max(12, window.innerWidth - 360)),
-    y: clamp(position.y, 48, Math.max(48, window.innerHeight - 64)),
-  };
-}
-
-function loadLive2DChatPosition() {
-  try {
-    const raw = localStorage.getItem(LIVE2D_CHAT_POSITION_STORAGE_KEY);
-    if (!raw) return getDefaultLive2DChatPosition();
-    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
-    if (typeof parsed.x !== "number" || typeof parsed.y !== "number")
-      return getDefaultLive2DChatPosition();
-    return getClampedLive2DChatPosition({ x: parsed.x, y: parsed.y });
-  } catch {
-    return getDefaultLive2DChatPosition();
-  }
-}
-
-function saveLive2DChatPosition(position: { x: number; y: number }) {
-  localStorage.setItem(
-    LIVE2D_CHAT_POSITION_STORAGE_KEY,
-    JSON.stringify(getClampedLive2DChatPosition(position)),
-  );
 }
 
 function getCenteredScalePosition(
@@ -328,12 +309,11 @@ export function Live2DCompanionLayer({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [draggingEmbedded, setDraggingEmbedded] = useState(false);
-  const [showDragHandle, setShowDragHandle] = useState(false);
+  const [, setShowDragHandle] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<Live2DChatMessage[]>(loadLive2DChatMessages);
-  const [chatPosition, setChatPosition] = useState(loadLive2DChatPosition);
   const [chatDots, setChatDots] = useState(".");
   const dragStateRef = useRef<EmbeddedDragState | null>(null);
   const dragTimerRef = useRef<number | null>(null);
@@ -341,7 +321,6 @@ export function Live2DCompanionLayer({
   const latestPositionRef = useRef(config.position);
   const dragIntentRef = useRef<"idle" | "pressing" | "dragging">("idle");
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const chatDragStateRef = useRef<Live2DChatDragState | null>(null);
   const enabledProviders = useMemo(
     () => providers.filter((provider) => provider.enabled && provider.models.length > 0),
     [providers],
@@ -381,10 +360,6 @@ export function Live2DCompanionLayer({
   useEffect(() => {
     saveLive2DChatMessages(chatMessages);
   }, [chatMessages]);
-
-  useEffect(() => {
-    saveLive2DChatPosition(chatPosition);
-  }, [chatPosition]);
 
   useEffect(() => {
     if (!chatLoading) {
@@ -460,7 +435,7 @@ export function Live2DCompanionLayer({
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Live2D 对话失败 (${response.status}): ${errorText}`);
+        throw new Error(formatProviderChatError("Live2D 对话失败", response.status, errorText, activeProvider.name));
       }
       const data = await response.json();
       return getCompletionText(data) || "我刚刚有点走神了，可以再和我说一遍吗？";
@@ -922,49 +897,11 @@ export function Live2DCompanionLayer({
       }
       dragStateRef.current = null;
       dragIntentRef.current = "idle";
-      setChatOpen((open) => !open);
+      setChatOpen(true);
       setShowDragHandle(true);
     },
     [handleEmbeddedDragEnd],
   );
-
-  const handleChatDragStart: PointerEventHandler<HTMLElement> = useCallback(
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      chatDragStateRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        originX: chatPosition.x,
-        originY: chatPosition.y,
-      };
-    },
-    [chatPosition.x, chatPosition.y],
-  );
-
-  const handleChatDragMove: PointerEventHandler<HTMLElement> = useCallback((event) => {
-    const state = chatDragStateRef.current;
-    if (!state || state.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setChatPosition(
-      getClampedLive2DChatPosition({
-        x: state.originX + event.clientX - state.startX,
-        y: state.originY + event.clientY - state.startY,
-      }),
-    );
-  }, []);
-
-  const handleChatDragEnd: PointerEventHandler<HTMLElement> = useCallback((event) => {
-    const state = chatDragStateRef.current;
-    if (state?.pointerId === event.pointerId) {
-      event.preventDefault();
-      event.stopPropagation();
-      chatDragStateRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -1007,165 +944,134 @@ export function Live2DCompanionLayer({
   const scaledSize = getScaledLive2DSize(config.scale);
 
   return (
-    <>
-      <aside
-        ref={layerRef}
-        className="live2d-companion-layer"
+    <aside
+      ref={layerRef}
+      className="live2d-companion-layer"
+      style={{
+        position: surface === "embedded" ? "fixed" : "relative",
+        left: surface === "embedded" ? config.position.x : undefined,
+        top: surface === "embedded" ? config.position.y : undefined,
+        width: scaledSize.width,
+        height: chatOpen ? scaledSize.height + 52 : scaledSize.height,
+        zIndex: 999,
+        opacity: clamp(config.opacity, 0.2, 1),
+        pointerEvents: "auto",
+        overflow: "visible",
+        background: "transparent",
+        backgroundColor: "transparent",
+        isolation: "isolate",
+      }}
+      aria-label="Live2D 写作陪伴"
+    >
+      <div
+        className="live2d-companion-card"
         style={{
-          position: surface === "embedded" ? "fixed" : "relative",
-          left: surface === "embedded" ? config.position.x : undefined,
-          top: surface === "embedded" ? config.position.y : undefined,
-          width: scaledSize.width,
+          width: "100%",
           height: scaledSize.height,
-          zIndex: 999,
-          opacity: clamp(config.opacity, 0.2, 1),
-          pointerEvents: draggingEmbedded || showDragHandle || chatOpen ? "auto" : "none",
-          overflow: "visible",
+          position: "relative",
           background: "transparent",
-          backgroundColor: "transparent",
-          isolation: "isolate",
+          border: "none",
+          boxShadow: "none",
+          outline: "none",
+          backdropFilter: "none",
+          overflow: "visible",
+          pointerEvents: "none",
         }}
-        aria-label="Live2D 写作陪伴"
       >
-        <div
-          className="live2d-companion-card"
+        <button
+          type="button"
+          aria-label="和 Live2D 角色聊天，长按拖动"
+          title="点按聊天，长按拖动"
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handleEmbeddedDragEnd}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            border: "none",
+            padding: 0,
+            background: "transparent",
+            cursor: draggingEmbedded ? "grabbing" : "pointer",
+            opacity: 1,
+            pointerEvents: "auto",
+            userSelect: "none",
+            touchAction: "none",
+          }}
+        />
+        <canvas
+          ref={canvasRef}
+          className="live2d-canvas"
           style={{
             width: "100%",
             height: "100%",
-            position: "relative",
+            display: "block",
             background: "transparent",
-            border: "none",
-            boxShadow: "none",
-            outline: "none",
-            backdropFilter: "none",
-            overflow: "visible",
+            backgroundColor: "transparent",
             pointerEvents: "none",
           }}
-        >
-          <button
-            type="button"
-            aria-label="和 Live2D 角色聊天，长按拖动"
-            title="点按聊天，长按拖动"
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handleEmbeddedDragEnd}
+        />
+
+        {loadError && (
+          <div
             style={{
               position: "absolute",
-              left: LIVE2D_SAFE_MARGIN,
-              bottom: LIVE2D_SAFE_MARGIN,
-              width: LIVE2D_DRAG_HANDLE_SIZE,
-              height: LIVE2D_DRAG_HANDLE_SIZE,
-              zIndex: 2,
-              borderRadius: 999,
-              background: draggingEmbedded
-                ? "rgba(85, 124, 96, 0.78)"
-                : chatOpen
-                  ? "rgba(134,170,142,0.92)"
-                  : "rgba(20,20,20,0.36)",
-              color: "#fff",
-              cursor: draggingEmbedded ? "grabbing" : "pointer",
-              fontSize: 16,
-              lineHeight: "30px",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: draggingEmbedded || showDragHandle || chatOpen ? 1 : 0,
-              pointerEvents: draggingEmbedded || showDragHandle || chatOpen ? "auto" : "none",
-              userSelect: "none",
-              backdropFilter: "blur(6px)",
-              transition: "opacity 0.2s ease, background-color 0.2s ease",
-            }}
-          >
-            <svg
-              width="17"
-              height="17"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              style={{ transform: "translateY(0.5px)" }}
-            >
-              <path d="M8 1.9 9.2 5.6 13 6.8 9.2 8 8 11.8 6.8 8 3 6.8l3.8-1.2Z" />
-              <path d="M12.4 10.8v2.4" opacity="0.55" />
-              <path d="M11.2 12h2.4" opacity="0.55" />
-            </svg>
-          </button>
-          <canvas
-            ref={canvasRef}
-            className="live2d-canvas"
-            style={{
-              width: "100%",
-              height: "100%",
-              display: "block",
-              background: "transparent",
-              backgroundColor: "transparent",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              fontSize: 11,
+              color: "#ff6b6b",
+              textAlign: "center",
+              wordBreak: "break-all",
               pointerEvents: "none",
             }}
-          />
+          >
+            {loadError}
+          </div>
+        )}
 
-          {loadError && (
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: 0,
-                fontSize: 11,
-                color: "#ff6b6b",
-                textAlign: "center",
-                wordBreak: "break-all",
-                pointerEvents: "none",
-              }}
-            >
-              {loadError}
-            </div>
-          )}
+        {!modelLoaded && !loadError ? null : null}
 
-          {!modelLoaded && !loadError ? null : null}
-
-          {bubbleText && (
-            <div
-              className="live2d-bubble"
-              style={{
-                position: "absolute",
-                top: "calc(100% - 20px)",
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "rgba(38, 40, 38, 0.92)",
-                color: "#f5f7f2",
-                border: "1px solid rgba(134, 170, 142, 0.32)",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.24)",
-                backdropFilter: "blur(12px)",
-                padding: "7px 12px",
-                borderRadius: 14,
-                fontSize: 12,
-                lineHeight: 1.45,
-                minWidth: 96,
-                width: "max-content",
-                maxWidth: "min(320px, calc(100vw - 32px))",
-                whiteSpace: "pre-wrap",
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-                pointerEvents: "none",
-              }}
-            >
-              {bubbleText}
-            </div>
-          )}
-        </div>
-      </aside>
+        {bubbleText && (
+          <div
+            className="live2d-bubble"
+            style={{
+              position: "absolute",
+              bottom: "calc(100% - 12px)",
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "rgba(38, 40, 38, 0.92)",
+              color: "#f5f7f2",
+              border: "1px solid rgba(134, 170, 142, 0.32)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.24)",
+              backdropFilter: "blur(12px)",
+              padding: "7px 12px",
+              borderRadius: 14,
+              fontSize: 12,
+              lineHeight: 1.45,
+              minWidth: 96,
+              width: "max-content",
+              maxWidth: "min(320px, calc(100vw - 32px))",
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+              wordBreak: "break-word",
+              pointerEvents: "none",
+            }}
+          >
+            {bubbleText}
+          </div>
+        )}
+      </div>
 
       {chatOpen && (
         <form
           onSubmit={(event) => void handleChatSubmit(event)}
           style={{
-            position: "fixed",
-            left: chatPosition.x,
-            top: chatPosition.y,
-            zIndex: 1001,
+            position: "absolute",
+            left: "50%",
+            top: scaledSize.height + 8,
+            transform: "translateX(-50%)",
+            zIndex: 3,
             width: "min(340px, calc(100vw - 32px))",
             display: "flex",
             alignItems: "center",
@@ -1179,43 +1085,6 @@ export function Live2DCompanionLayer({
             pointerEvents: "auto",
           }}
         >
-          <span
-            onPointerDown={handleChatDragStart}
-            onPointerMove={handleChatDragMove}
-            onPointerUp={handleChatDragEnd}
-            onPointerCancel={handleChatDragEnd}
-            title="拖动对话框"
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 999,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#86aa8e",
-              background: "rgba(134,170,142,0.14)",
-              flex: "0 0 auto",
-              cursor: "grab",
-              touchAction: "none",
-              userSelect: "none",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M8 1.9 9.2 5.6 13 6.8 9.2 8 8 11.8 6.8 8 3 6.8l3.8-1.2Z" />
-              <path d="M12.4 10.8v2.4" opacity="0.55" />
-              <path d="M11.2 12h2.4" opacity="0.55" />
-            </svg>
-          </span>
           <input
             ref={inputRef}
             value={chatInput}
@@ -1256,6 +1125,6 @@ export function Live2DCompanionLayer({
           </button>
         </form>
       )}
-    </>
+    </aside>
   );
 }

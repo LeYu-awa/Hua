@@ -29,7 +29,9 @@ use services::embedding_cache::{
     embedding_cache_clear, embedding_cache_get, embedding_cache_put, EmbeddingCacheStore,
 };
 use services::ink::{ink_append_events, ink_clear, ink_get_session, ink_list_sessions, InkStore};
-use services::notes::{default_store, AppConfig, AppError, Note, NoteMetadata, SaveNoteRequest};
+use services::notes::{
+    default_store, AppConfig, AppError, Note, NoteMetadata, NoteTreeState, SaveNoteRequest,
+};
 use services::profile::{
     profile_add_historical_doc, profile_clear, profile_get_baseline, profile_list_historical_docs,
     profile_save_baseline, ProfileStore,
@@ -214,6 +216,27 @@ fn notes_move_category(
     category: String,
 ) -> Result<NoteMetadata, AppError> {
     let result = default_store()?.move_note_to_category(&id, &category)?;
+    let _ = app.emit("notes-changed", ());
+    Ok(result)
+}
+
+#[tauri::command]
+fn note_tree_state_get() -> Result<NoteTreeState, AppError> {
+    default_store()?.load_note_tree_state()
+}
+
+#[tauri::command]
+fn note_tree_state_save(state: NoteTreeState) -> Result<NoteTreeState, AppError> {
+    default_store()?.save_note_tree_state(state)
+}
+
+#[tauri::command]
+fn notes_reorder_category(
+    app: AppHandle,
+    category: String,
+    ordered_note_ids: Vec<String>,
+) -> Result<NoteTreeState, AppError> {
+    let result = default_store()?.reorder_category_notes(&category, ordered_note_ids)?;
     let _ = app.emit("notes-changed", ());
     Ok(result)
 }
@@ -496,8 +519,11 @@ fn cowrite_append_ai(session_id: String, text: String) -> Result<CoWriteSession,
 }
 
 #[tauri::command]
-async fn cowrite_request_ai(session_id: String) -> Result<CoWriteSession, AppError> {
-    cowrite::request_ai_turn(&session_id).await
+async fn cowrite_request_ai(
+    session_id: String,
+    runtime_config: Option<AppConfig>,
+) -> Result<CoWriteSession, AppError> {
+    cowrite::request_ai_turn(&session_id, runtime_config).await
 }
 
 #[tauri::command]
@@ -678,6 +704,9 @@ pub fn run() {
             notes_import_markdown,
             notes_export_markdown,
             notes_move_category,
+            note_tree_state_get,
+            note_tree_state_save,
+            notes_reorder_category,
             read_external_file,
             save_external_file,
             save_binary_file,

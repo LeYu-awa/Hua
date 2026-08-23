@@ -329,8 +329,14 @@ impl BearerAuthExt for reqwest::RequestBuilder {
 
 /// IPC：单条文本转向量（供前端 embeddingService 复用 Rust 端协议客户端）
 #[tauri::command]
-pub async fn agent_embed_text(text: String) -> Result<Vec<f32>, AppError> {
-    let config = default_store()?.load_config()?;
+pub async fn agent_embed_text(
+    text: String,
+    runtime_config: Option<AppConfig>,
+) -> Result<Vec<f32>, AppError> {
+    let config = match runtime_config {
+        Some(config) => config,
+        None => default_store()?.load_config()?,
+    };
     let endpoint = resolve_endpoint(&config)?;
     HttpEmbeddingProvider::new(endpoint)?.embed(text).await
 }

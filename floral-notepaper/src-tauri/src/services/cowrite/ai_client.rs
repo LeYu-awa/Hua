@@ -48,10 +48,16 @@ fn active_api_config(config: &AppConfig) -> Result<(String, String, String), App
     Ok((api_url, provider.api_key.clone(), model_id))
 }
 
-pub async fn request_ai_turn(session_id: &str) -> Result<CoWriteSession, AppError> {
+pub async fn request_ai_turn(
+    session_id: &str,
+    runtime_config: Option<AppConfig>,
+) -> Result<CoWriteSession, AppError> {
     let session = get_session(session_id)?;
     let store = default_store()?;
-    let config = store.load_config()?;
+    let config = match runtime_config {
+        Some(config) => config,
+        None => store.load_config()?,
+    };
     let (api_url, api_key, model_id) = active_api_config(&config)?;
 
     eprintln!(

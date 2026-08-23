@@ -111,7 +111,7 @@ const LEGACY_MESSAGES_STORAGE_KEY = "sidebar_ai_chat_messages";
 /** 持久化上限（条），超出丢弃最旧消息 */
 const STORAGE_LIMIT = 100;
 /** 请求携带的上下文条数（上下文记忆窗口） */
-const CONTEXT_WINDOW = 16;
+const CONTEXT_WINDOW = 6;
 const CHAT_PANEL_MIN_WIDTH = 340;
 const CHAT_PANEL_MAX_WIDTH = 640;
 const TASK_PANEL_MIN_WIDTH = 180;
@@ -1037,7 +1037,7 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
 
         // 记忆层闭环：召回本地历史（笔记/日记/产出）与用户画像，注入系统上下文
         const [memoryBlock, baselineBlock] = await Promise.all([
-          recallMemory(text),
+          recallMemory(text, 4, providers),
           recallBaseline(),
         ]);
 

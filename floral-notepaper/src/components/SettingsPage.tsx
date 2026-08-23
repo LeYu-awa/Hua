@@ -911,13 +911,13 @@ function providerTemplate(template: string): ProviderConfig {
       apiPath: "/v1/chat/completions",
       models: [
         {
-          modelId: "deepseek-v4-pro",
-          displayName: "DeepSeek V4 Pro",
+          modelId: "deepseek-v4-flash",
+          displayName: "DeepSeek V4 Flash",
           modelTypes: ["chat", "reason"],
         },
         {
-          modelId: "deepseek-v4-flash",
-          displayName: "DeepSeek V4 Flash",
+          modelId: "deepseek-v4-pro",
+          displayName: "DeepSeek V4 Pro",
           modelTypes: ["chat", "reason"],
         },
       ],

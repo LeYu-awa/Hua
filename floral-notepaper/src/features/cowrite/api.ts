@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { withCachedProviderApiKeys } from "../settings/apiKeyCache";
+import type { ProviderConfig } from "../settings/types";
 import type { CoWriteIdentity, CoWriteSession, CoWriteSessionSummary } from "./types";
 
 export interface MergeToNoteResult {
@@ -22,8 +24,12 @@ export function appendAIText(sessionId: string, text: string): Promise<CoWriteSe
   return invoke("cowrite_append_ai", { sessionId, text });
 }
 
-export function requestAITurn(sessionId: string): Promise<CoWriteSession> {
-  return invoke("cowrite_request_ai", { sessionId });
+export function requestAITurn(
+  sessionId: string,
+  providers?: ProviderConfig[],
+): Promise<CoWriteSession> {
+  const runtimeConfig = providers ? withCachedProviderApiKeys({ providers }) : null;
+  return invoke("cowrite_request_ai", { sessionId, runtimeConfig });
 }
 
 export function getCoWriteSession(sessionId: string): Promise<CoWriteSession> {

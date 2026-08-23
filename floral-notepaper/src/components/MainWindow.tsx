@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -31,19 +31,22 @@ import {
   getErrorMessage,
   getFileModifiedTime,
   getNote,
+  getNoteTreeState,
   listCategories,
   listNotes,
   moveNoteCategory,
   readExternalFile,
   renameCategory,
+  reorderCategoryNotes,
   saveExternalFile,
+  saveNoteTreeState,
   updateNote,
 } from "../features/notes/api";
 import { useInkRecorder } from "../hooks/useInkRecorder";
 import type { InkEvent } from "../features/ink/types";
 import { assessAnxiety, DEFAULT_BASELINE } from "../features/agent/moodDetector";
 import { CooldownTracker } from "../features/agent/ruleEngine";
-import type { ExternalFile, Note, NoteMetadata } from "../features/notes/types";
+import type { ExternalFile, Note, NoteMetadata, NoteTreeState } from "../features/notes/types";
 import {
   filterNotes,
   getDisplayTitle,
@@ -77,8 +80,17 @@ interface CategoryMenuState {
   category: string;
 }
 
+interface NoteDropTarget {
+  noteId: string;
+  position: "before" | "after";
+}
+
 const NOTE_CHANGE_HISTORY_STORAGE_KEY = "note_change_history_v1";
 const NOTE_CHANGE_HISTORY_LIMIT = 30;
+const DEFAULT_NOTE_TREE_STATE: NoteTreeState = {
+  collapsedCategories: [],
+  categoryNoteOrder: {},
+};
 
 interface MainWindowProps {
   initialSettingsOpen?: boolean;
@@ -121,6 +133,7 @@ export function MainWindow({
   const [pinnedTileIds, setPinnedTileIds] = useState<Set<string>>(new Set());
   const [categories, setCategories] = useState<string[]>([]);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [noteTreeState, setNoteTreeState] = useState<NoteTreeState>(DEFAULT_NOTE_TREE_STATE);
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [categoryInputValue, setCategoryInputValue] = useState("");
@@ -128,6 +141,7 @@ export function MainWindow({
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [renameCategoryValue, setRenameCategoryValue] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+  const [dragOverNote, setDragOverNote] = useState<NoteDropTarget | null>(null);
   const [settingsOverlay, setSettingsOverlay] = useState(() => window.innerWidth < 1080);
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [sidebarWidth, setSidebarWidth] = useState(200);
@@ -143,6 +157,8 @@ export function MainWindow({
   const skipNextNotesChangedRef = useRef(false);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+  const noteTreeStateRef = useRef(noteTreeState);
+  noteTreeStateRef.current = noteTreeState;
   const lastSavedContentRef = useRef("");
   const [noteChangeHistory, setNoteChangeHistory] = useState<NoteChangeHistoryEntry[]>(() => {
     try {
@@ -328,9 +344,15 @@ export function MainWindow({
   );
 
   const refreshNotes = useCallback(async () => {
-    const [loadedNotes, loadedCategories] = await Promise.all([listNotes(), listCategories()]);
+    const [loadedNotes, loadedCategories, loadedTreeState] = await Promise.all([
+      listNotes(),
+      listCategories(),
+      getNoteTreeState(),
+    ]);
     setNotes(loadedNotes);
     setCategories(loadedCategories);
+    setNoteTreeState(loadedTreeState);
+    setCollapsedCategories(new Set(loadedTreeState.collapsedCategories));
     return loadedNotes;
   }, []);
 
@@ -383,10 +405,11 @@ export function MainWindow({
     async function bootstrap() {
       setIsLoading(true);
       try {
-        const [loadedConfig, loadedNotes, loadedCategories] = await Promise.all([
+        const [loadedConfig, loadedNotes, loadedCategories, loadedTreeState] = await Promise.all([
           getConfig(),
           listNotes(),
           listCategories(),
+          getNoteTreeState(),
         ]);
         if (cancelled) return;
         setSettingsConfig(loadedConfig);
@@ -394,7 +417,8 @@ export function MainWindow({
         setViewMode(normalizeViewMode(loadedConfig.defaultViewMode));
         setNotes(loadedNotes);
         setCategories(loadedCategories);
-        setCollapsedCategories(new Set([...loadedCategories, ""]));
+        setNoteTreeState(loadedTreeState);
+        setCollapsedCategories(new Set(loadedTreeState.collapsedCategories));
         // Agent 产出落盘 → 优先打开指定笔记（组卡成文闭环），否则打开第一篇
         const targetId = initialNoteId ?? loadedNotes[0]?.id;
         if (targetId) {
@@ -1017,6 +1041,72 @@ export function MainWindow({
     }
   };
 
+  const handleReorderNote = async (
+    noteId: string,
+    targetCategory: string,
+    targetNoteId: string | null,
+    position: "before" | "after" = "after",
+  ) => {
+    setNoteMenuClosing(true);
+    setErrorMessage(null);
+    try {
+      const currentNote = notes.find((note) => note.id === noteId);
+      const currentCategory = currentNote?.category ?? "";
+      if (currentCategory !== targetCategory) {
+        await moveNoteCategory(noteId, targetCategory);
+      }
+
+      const sourceOrder = noteTreeStateRef.current.categoryNoteOrder[targetCategory];
+      const categoryOrder = sourceOrder?.length
+        ? sourceOrder
+        : notes.filter((note) => note.category === targetCategory).map((note) => note.id);
+      const orderedNoteIds = categoryOrder.filter((id) => id !== noteId);
+      const targetIndex = targetNoteId ? orderedNoteIds.indexOf(targetNoteId) : -1;
+      const insertIndex =
+        targetIndex === -1 ? orderedNoteIds.length : targetIndex + (position === "after" ? 1 : 0);
+      orderedNoteIds.splice(insertIndex, 0, noteId);
+
+      const savedTreeState = await reorderCategoryNotes(targetCategory, orderedNoteIds);
+      setNoteTreeState(savedTreeState);
+      setCollapsedCategories(new Set(savedTreeState.collapsedCategories));
+      await refreshNotes();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setDragOverCategory(null);
+      setDragOverNote(null);
+    }
+  };
+
+  const handleNoteDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    targetNoteId: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    const { top, height } = event.currentTarget.getBoundingClientRect();
+    const position = event.clientY - top < height / 2 ? "before" : "after";
+    setDragOverCategory(null);
+    setDragOverNote({ noteId: targetNoteId, position });
+  };
+
+  const handleNoteDrop = (
+    event: DragEvent<HTMLDivElement>,
+    targetCategory: string,
+    targetNoteId: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const noteId = event.dataTransfer.getData("text/plain");
+    const position = dragOverNote?.noteId === targetNoteId ? dragOverNote.position : "after";
+    if (!noteId || noteId === targetNoteId) {
+      setDragOverNote(null);
+      return;
+    }
+    void handleReorderNote(noteId, targetCategory, targetNoteId, position);
+  };
+
   const handleCreateCategory = async () => {
     const name = categoryInputValue.trim();
     if (!name) {
@@ -1072,6 +1162,17 @@ export function MainWindow({
       } else {
         next.add(category);
       }
+      const nextState: NoteTreeState = {
+        ...noteTreeStateRef.current,
+        collapsedCategories: Array.from(next),
+      };
+      setNoteTreeState(nextState);
+      void saveNoteTreeState(nextState)
+        .then((savedTreeState) => {
+          setNoteTreeState(savedTreeState);
+          setCollapsedCategories(new Set(savedTreeState.collapsedCategories));
+        })
+        .catch((error) => setErrorMessage(getErrorMessage(error)));
       return next;
     });
   };
@@ -1380,6 +1481,7 @@ export function MainWindow({
                         onDrop={(e) => {
                           e.preventDefault();
                           setDragOverCategory(null);
+                          setDragOverNote(null);
                           const noteId = e.dataTransfer.getData("text/plain");
                           if (noteId) void handleMoveNote(noteId, group.category);
                         }}
@@ -1469,6 +1571,12 @@ export function MainWindow({
                             ) : (
                               group.notes.map((note) => {
                                 const isSelected = note.id === selectedId;
+                                const dropClass =
+                                  dragOverNote?.noteId === note.id
+                                    ? dragOverNote.position === "before"
+                                      ? "is-drop-before"
+                                      : "is-drop-after"
+                                    : "";
 
                                 return (
                                   <div
@@ -1488,12 +1596,23 @@ export function MainWindow({
                                       );
                                       e.dataTransfer.effectAllowed = "move";
                                     }}
+                                    onDragOver={(event) => handleNoteDragOver(event, note.id)}
+                                    onDragLeave={() => {
+                                      setDragOverNote((current) =>
+                                        current?.noteId === note.id ? null : current,
+                                      );
+                                    }}
+                                    onDrop={(event) => handleNoteDrop(event, group.category, note.id)}
+                                    onDragEnd={() => {
+                                      setDragOverCategory(null);
+                                      setDragOverNote(null);
+                                    }}
                                     onClick={() => void handleSelectNote(note.id)}
                                     onKeyDown={(event) => {
                                       if (event.key === "Enter") void handleSelectNote(note.id);
                                     }}
                                     onContextMenu={(event) => handleOpenNoteMenu(event, note.id)}
-                                    className={`note-tree-file-row ${isSelected ? "is-selected" : ""}`}
+                                    className={`note-tree-file-row ${isSelected ? "is-selected" : ""} ${dropClass}`}
                                   >
                                     <span className="note-tree-indent" aria-hidden="true" />
                                     <svg

@@ -18,7 +18,7 @@ use crate::services::agent::task_store::{
 use crate::services::agent::vector_store::VectorStore;
 use crate::services::agent::web_search::searxng_search;
 use crate::services::canvas::{CanvasDocument, CanvasEdge, CanvasGroup, CanvasNode, CanvasStore};
-use crate::services::notes::{default_store, AppError, Note, NoteMetadata, NoteStore, SaveNoteRequest};
+use crate::services::notes::{default_store, AppConfig, AppError, Note, NoteMetadata, NoteStore, SaveNoteRequest};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::{Arc, LazyLock, Mutex as StdMutex};
@@ -902,6 +902,7 @@ pub struct TaskRunner<'a> {
     tasks: &'a AgentTaskStore,
     notes: NoteStore,
     llm: Option<HttpLlmProvider>,
+    runtime_config: Option<AppConfig>,
     vectors: Option<&'a VectorStore>,
     canvas: Option<&'a CanvasStore>,
     /// None 用于测试（不 emit）
@@ -921,6 +922,27 @@ impl<'a> TaskRunner<'a> {
             tasks,
             notes,
             llm,
+            runtime_config: None,
+            vectors,
+            canvas,
+            app,
+        }
+    }
+
+    pub fn new_with_runtime_config(
+        tasks: &'a AgentTaskStore,
+        notes: NoteStore,
+        llm: Option<HttpLlmProvider>,
+        runtime_config: Option<AppConfig>,
+        vectors: Option<&'a VectorStore>,
+        canvas: Option<&'a CanvasStore>,
+        app: Option<&'a AppHandle>,
+    ) -> Self {
+        Self {
+            tasks,
+            notes,
+            llm,
+            runtime_config,
             vectors,
             canvas,
             app,
@@ -1690,8 +1712,12 @@ impl<'a> TaskRunner<'a> {
     /// 绝不因记忆注入失败而拖垮整条任务（与 rag::index_source 的降级语义一致）。
     async fn retrieve_context(&self, query: &str, top_k: usize) -> Result<String, AppError> {
         let Some(vectors) = self.vectors else { return Ok(String::new()) };
-        let Ok(config) = default_store().and_then(|store| store.load_config()) else {
-            return Ok(String::new());
+        let config = match &self.runtime_config {
+            Some(config) => config.clone(),
+            None => match default_store().and_then(|store| store.load_config()) {
+                Ok(config) => config,
+                Err(_) => return Ok(String::new()),
+            },
         };
         let Ok(endpoint) = resolve_endpoint(&config) else {
             return Ok(String::new());
@@ -2015,15 +2041,21 @@ fn production_runner<'a>(
     store: &'a AgentTaskStore,
     vectors: &'a VectorStore,
     canvas: &'a CanvasStore,
+    runtime_config: Option<AppConfig>,
 ) -> Result<TaskRunner<'a>, AppError> {
     let notes = default_store()?;
-    let llm = resolve_endpoint(&notes.load_config()?)
+    let config = match runtime_config.clone() {
+        Some(config) => config,
+        None => notes.load_config()?,
+    };
+    let llm = resolve_endpoint(&config)
         .ok()
         .map(HttpLlmProvider::new);
-    Ok(TaskRunner::new(
+    Ok(TaskRunner::new_with_runtime_config(
         store,
         notes,
         llm,
+        runtime_config,
         Some(vectors),
         Some(canvas),
         Some(app),
@@ -2038,6 +2070,7 @@ pub async fn agent_task_create_and_run(
     vectors: tauri::State<'_, VectorStore>,
     canvas: tauri::State<'_, CanvasStore>,
     goal: String,
+    runtime_config: Option<AppConfig>,
 ) -> Result<Task, AppError> {
     let mut task = Task::new(
         format!(
@@ -2048,7 +2081,7 @@ pub async fn agent_task_create_and_run(
         goal,
     );
     store.create(&task)?;
-    let runner = production_runner(&app, &store, &vectors, &canvas)?;
+    let runner = production_runner(&app, &store, &vectors, &canvas, runtime_config)?;
     runner.run(&mut task).await?;
     Ok(task)
 }
@@ -2061,11 +2094,12 @@ pub async fn agent_task_run(
     vectors: tauri::State<'_, VectorStore>,
     canvas: tauri::State<'_, CanvasStore>,
     task_id: String,
+    runtime_config: Option<AppConfig>,
 ) -> Result<Task, AppError> {
     let mut task = store
         .get(&task_id)?
         .ok_or_else(|| AppError::new("taskNotFound", format!("任务 {task_id} 不存在")))?;
-    let runner = production_runner(&app, &store, &vectors, &canvas)?;
+    let runner = production_runner(&app, &store, &vectors, &canvas, runtime_config)?;
     runner.run(&mut task).await?;
     Ok(task)
 }
@@ -2082,6 +2116,7 @@ pub async fn agent_task_confirm(
     step_id: String,
     ok: bool,
     payload: Option<Value>,
+    runtime_config: Option<AppConfig>,
 ) -> Result<Task, AppError> {
     let mut task = store
         .get(&task_id)?
@@ -2132,7 +2167,7 @@ pub async fn agent_task_confirm(
         }
     }
     store.update(&task)?;
-    let runner = production_runner(&app, &store, &vectors, &canvas)?;
+    let runner = production_runner(&app, &store, &vectors, &canvas, runtime_config)?;
     runner.run(&mut task).await?;
     Ok(task)
 }

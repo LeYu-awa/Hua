@@ -138,6 +138,6 @@ describe("agent loop", () => {
 
     expect(result.finishedByToolLimit).toBe(true);
     expect(result.text).toBe("");
-    expect(executeTool).toHaveBeenCalledTimes(4);
+    expect(executeTool).toHaveBeenCalledTimes(2);
   });
 });

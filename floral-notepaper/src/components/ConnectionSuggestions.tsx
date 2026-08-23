@@ -13,6 +13,9 @@ interface ConnectionSuggestionsProps {
   enabled: boolean;
 }
 
+const RECOMMENDATION_DEBOUNCE_MS = 2500;
+const MIN_RECOMMENDATION_CHARS = 80;
+
 export function ConnectionSuggestions({
   noteId,
   noteTitle,
@@ -26,43 +29,47 @@ export function ConnectionSuggestions({
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!enabled || !noteId || providers.length === 0) {
+    if (!enabled || !noteId || providers.length === 0 || noteContent.trim().length < MIN_RECOMMENDATION_CHARS) {
       setRecommendations([]);
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
 
-    listNotes()
-      .then((notes) => {
-        const candidates = notes.map((n) => ({
-          id: n.id,
-          title: n.title,
-          preview: n.preview,
-        }));
-        return generateConnectionRecommendations(
-          noteId,
-          noteTitle,
-          noteContent,
-          candidates,
-          providers,
-        );
-      })
-      .then((results) => {
-        if (cancelled) return;
-        setRecommendations(results);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setRecommendations([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const timer = window.setTimeout(() => {
+      listNotes()
+        .then((notes) => {
+          const candidates = notes.map((n) => ({
+            id: n.id,
+            title: n.title,
+            preview: n.preview,
+          }));
+          return generateConnectionRecommendations(
+            noteId,
+            noteTitle,
+            noteContent,
+            candidates,
+            providers,
+          );
+        })
+        .then((results) => {
+          if (cancelled) return;
+          setRecommendations(results);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setRecommendations([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, RECOMMENDATION_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [enabled, noteId, noteTitle, noteContent, providers]);
 

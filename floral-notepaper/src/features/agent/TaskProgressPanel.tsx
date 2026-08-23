@@ -14,6 +14,7 @@ import type {
   AgentTask,
 } from "./types";
 import { dispatchOpenNote } from "../notes/openNoteEvents";
+import type { ProviderConfig } from "../settings/types";
 
 const STEP_STATUS_ICON: Record<AgentStepStatus, string> = {
   Pending: "·",
@@ -83,6 +84,8 @@ interface TaskProgressPanelProps {
   autoRun?: boolean;
   /** 已存在的任务（从列表进入时传入，跳过创建） */
   taskId?: string;
+  /** 运行时供应商配置：API Key 来自前端缓存，只透传给本次调用 */
+  providers?: ProviderConfig[];
   /** 组卡成文落盘成功后触发章节续写（由父组件渲染续写任务） */
   onContinueChapter?: (note: { id: string; title: string }) => void;
 }
@@ -95,6 +98,7 @@ export function TaskProgressPanel({
   goal,
   autoRun = true,
   taskId,
+  providers,
   onContinueChapter,
 }: TaskProgressPanelProps) {
   const [task, setTask] = useState<AgentTask | null>(null);
@@ -156,7 +160,7 @@ export function TaskProgressPanel({
     if (!task || !confirmStep) return;
     setConfirming(true);
     try {
-      const next = await confirmAgentTask(task.taskId, confirmStep.stepId, ok, payload);
+      const next = await confirmAgentTask(task.taskId, confirmStep.stepId, ok, payload, providers);
       setTask(next);
       if (ok && payload) {
         setPreviewReady(true);
@@ -206,7 +210,7 @@ export function TaskProgressPanel({
         if (taskId) {
           sync(await getAgentTask(taskId));
         } else if (autoRun) {
-          sync(await createAndRunAgentTask(goal));
+          sync(await createAndRunAgentTask(goal, providers));
         }
       } catch (e) {
         if (alive) setError(String(e));
@@ -220,7 +224,7 @@ export function TaskProgressPanel({
       unsubTask.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goal, taskId, autoRun]);
+  }, [goal, taskId, autoRun, providers]);
 
   if (error) {
     return (

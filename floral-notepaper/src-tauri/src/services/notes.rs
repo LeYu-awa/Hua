@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env, fmt, fs, io,
     path::{Component, Path, PathBuf},
 };
@@ -238,10 +238,21 @@ impl From<tauri::Error> for AppError {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteTreeState {
+    #[serde(default)]
+    pub collapsed_categories: Vec<String>,
+    #[serde(default)]
+    pub category_note_order: BTreeMap<String, Vec<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct MetadataFile {
     notes: Vec<NoteMetadata>,
+    #[serde(default)]
+    tree_state: NoteTreeState,
 }
 
 #[derive(Debug, Clone)]
@@ -388,6 +399,9 @@ impl NoteStore {
         self.ensure_base_dir()?;
         config.notes_dir = ensure_notes_suffix(&config.notes_dir);
         config.tab_indent_size = config.tab_indent_size.clamp(1, 8);
+        for provider in &mut config.providers {
+            provider.api_key.clear();
+        }
         is_safe_notes_dir(Path::new(&config.notes_dir))?;
         fs::create_dir_all(&config.notes_dir)?;
         write_json_atomic(&self.config_path(), &config)?;
@@ -396,12 +410,14 @@ impl NoteStore {
 
     pub fn list_notes(&self) -> Result<Vec<NoteMetadata>, AppError> {
         self.ensure_storage()?;
-        let mut metadata = self.load_metadata()?.notes;
+        let metadata_file = self.load_metadata()?;
+        let mut metadata = metadata_file.notes;
         metadata.retain(|note| {
             self.note_path_in_category(&note.file_name, &note.category)
                 .exists()
         });
-        metadata.sort_by_key(|note| std::cmp::Reverse(note.updated_at));
+        let tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata);
+        sort_notes_by_tree_state(&mut metadata, &tree_state);
         Ok(metadata)
     }
 
@@ -453,6 +469,7 @@ impl NoteStore {
         write_text_atomic(&note_path, &request.content)?;
         let mut metadata_file = self.load_metadata()?;
         metadata_file.notes.push(metadata.clone());
+        metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
         self.save_metadata(&metadata_file)?;
 
         Ok(Note {
@@ -519,6 +536,7 @@ impl NoteStore {
             file_path: new_path.to_string_lossy().to_string(),
         };
 
+        metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
         self.save_metadata(&metadata_file)?;
         Ok(result)
     }
@@ -537,6 +555,7 @@ impl NoteStore {
             trash::delete(&path)
                 .map_err(|e| AppError::new("trash", format!("移入回收站失败: {e}")))?;
         }
+        metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
         self.save_metadata(&metadata_file)?;
         let _ = self.delete_note_images(id);
         Ok(())
@@ -657,6 +676,7 @@ impl NoteStore {
 
         let mut metadata_file = self.load_metadata()?;
         metadata_file.notes.push(metadata);
+        metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
         self.save_metadata(&metadata_file)?;
 
         Ok(Note {
@@ -745,6 +765,18 @@ impl NoteStore {
                 note.category = new_name.to_string();
             }
         }
+        if let Some(order) = metadata_file.tree_state.category_note_order.remove(old_name) {
+            metadata_file
+                .tree_state
+                .category_note_order
+                .insert(new_name.to_string(), order);
+        }
+        for category in &mut metadata_file.tree_state.collapsed_categories {
+            if category == old_name {
+                *category = new_name.to_string();
+            }
+        }
+        metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
         self.save_metadata(&metadata_file)?;
         Ok(())
     }
@@ -781,6 +813,7 @@ impl NoteStore {
                     note.category = String::new();
                 }
             }
+            metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
             self.save_metadata(&metadata_file)?;
 
             // Move to recycle bin instead of permanent deletion
@@ -798,6 +831,7 @@ impl NoteStore {
                 }
             }
             if changed {
+                metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
                 self.save_metadata(&metadata_file)?;
             }
         }
@@ -833,8 +867,58 @@ impl NoteStore {
 
         note.category = new_category.to_string();
         let result = note.clone();
+        metadata_file.tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
         self.save_metadata(&metadata_file)?;
         Ok(result)
+    }
+
+    pub fn load_note_tree_state(&self) -> Result<NoteTreeState, AppError> {
+        self.ensure_storage()?;
+        let metadata_file = self.load_metadata()?;
+        Ok(self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes))
+    }
+
+    pub fn save_note_tree_state(&self, state: NoteTreeState) -> Result<NoteTreeState, AppError> {
+        self.ensure_storage()?;
+        let mut metadata_file = self.load_metadata()?;
+        let normalized = self.normalize_tree_state(state, &metadata_file.notes);
+        metadata_file.tree_state = normalized.clone();
+        self.save_metadata(&metadata_file)?;
+        Ok(normalized)
+    }
+
+    pub fn reorder_category_notes(
+        &self,
+        category: &str,
+        ordered_note_ids: Vec<String>,
+    ) -> Result<NoteTreeState, AppError> {
+        self.ensure_storage()?;
+        let mut metadata_file = self.load_metadata()?;
+        let category_note_ids: BTreeSet<String> = metadata_file
+            .notes
+            .iter()
+            .filter(|note| note.category == category)
+            .map(|note| note.id.clone())
+            .collect();
+        let mut seen = BTreeSet::new();
+        let mut next_order = Vec::new();
+
+        for note_id in ordered_note_ids {
+            if category_note_ids.contains(&note_id) && seen.insert(note_id.clone()) {
+                next_order.push(note_id);
+            }
+        }
+        for note in metadata_file.notes.iter().filter(|note| note.category == category) {
+            if seen.insert(note.id.clone()) {
+                next_order.push(note.id.clone());
+            }
+        }
+
+        let mut tree_state = self.normalize_tree_state(metadata_file.tree_state, &metadata_file.notes);
+        tree_state.category_note_order.insert(category.to_string(), next_order);
+        metadata_file.tree_state = self.normalize_tree_state(tree_state, &metadata_file.notes);
+        self.save_metadata(&metadata_file)?;
+        Ok(metadata_file.tree_state)
     }
 
     fn default_config(&self) -> AppConfig {
@@ -1013,7 +1097,64 @@ impl NoteStore {
             }
         }
 
-        Ok(MetadataFile { notes })
+        Ok(MetadataFile {
+            notes,
+            tree_state: NoteTreeState::default(),
+        })
+    }
+
+    fn normalize_tree_state(
+        &self,
+        state: NoteTreeState,
+        notes: &[NoteMetadata],
+    ) -> NoteTreeState {
+        let mut categories: BTreeSet<String> = BTreeSet::new();
+        categories.insert(String::new());
+        if let Ok(existing_categories) = self.list_categories() {
+            categories.extend(existing_categories);
+        }
+        categories.extend(notes.iter().map(|note| note.category.clone()));
+        let mut seen_collapsed = BTreeSet::new();
+        let collapsed_categories = state
+            .collapsed_categories
+            .into_iter()
+            .filter(|category| categories.contains(category) && seen_collapsed.insert(category.clone()))
+            .collect();
+        let mut category_note_order = BTreeMap::new();
+
+        for category in categories {
+            let category_note_ids: BTreeSet<String> = notes
+                .iter()
+                .filter(|note| note.category == category)
+                .map(|note| note.id.clone())
+                .collect();
+            let mut seen = BTreeSet::new();
+            let mut order = Vec::new();
+
+            if let Some(existing_order) = state.category_note_order.get(&category) {
+                for note_id in existing_order {
+                    if category_note_ids.contains(note_id) && seen.insert(note_id.clone()) {
+                        order.push(note_id.clone());
+                    }
+                }
+            }
+
+            let mut missing: Vec<&NoteMetadata> = notes
+                .iter()
+                .filter(|note| note.category == category && !seen.contains(&note.id))
+                .collect();
+            missing.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+            for note in missing {
+                order.push(note.id.clone());
+            }
+
+            category_note_order.insert(category, order);
+        }
+
+        NoteTreeState {
+            collapsed_categories,
+            category_note_order,
+        }
     }
 
     fn scan_dir_for_notes(
@@ -1111,6 +1252,40 @@ fn shortcuts_equal(left: &str, right: &str) -> bool {
     }
 
     normalize(left) == normalize(right)
+}
+
+fn sort_notes_by_tree_state(notes: &mut [NoteMetadata], tree_state: &NoteTreeState) {
+    let fallback_index: BTreeMap<String, usize> = notes
+        .iter()
+        .enumerate()
+        .map(|(index, note)| (note.id.clone(), index))
+        .collect();
+    let order_index: BTreeMap<String, usize> = tree_state
+        .category_note_order
+        .values()
+        .flat_map(|order| order.iter().enumerate().map(|(index, id)| (id.clone(), index)))
+        .collect();
+
+    notes.sort_by(|left, right| {
+        let left_category = &left.category;
+        let right_category = &right.category;
+        if left_category != right_category {
+            return left_category.cmp(right_category);
+        }
+
+        let left_order = order_index.get(&left.id).copied().unwrap_or(usize::MAX);
+        let right_order = order_index.get(&right.id).copied().unwrap_or(usize::MAX);
+        left_order
+            .cmp(&right_order)
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| {
+                fallback_index
+                    .get(&left.id)
+                    .copied()
+                    .unwrap_or(usize::MAX)
+                    .cmp(&fallback_index.get(&right.id).copied().unwrap_or(usize::MAX))
+            })
+    });
 }
 
 fn safe_file_stem(title: &str) -> String {
@@ -1791,3 +1966,4 @@ mod tests {
         }
     }
 }
+

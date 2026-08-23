@@ -6,7 +6,7 @@ import {
 } from "./agentTools";
 
 /** 单次对话允许的最大工具调用轮次，防止模型死循环 */
-export const MAX_AGENT_TOOL_ROUNDS = 4;
+export const MAX_AGENT_TOOL_ROUNDS = 2;
 
 export interface AgentRequestResult {
   reply: string;
