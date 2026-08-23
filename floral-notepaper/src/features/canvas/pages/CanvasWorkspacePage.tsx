@@ -172,7 +172,7 @@ export function CanvasWorkspacePage({
   const activeNotesCount = (openCanvas.noteIds?.length ?? 0) + (openCanvas.noteId ? 1 : 0);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-paper">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-paper">
       <div className="relative z-50 flex h-12 shrink-0 items-center gap-3 border-b border-paper-deep/20 bg-paper-warm/55 px-4 backdrop-blur">
         <div className="relative">
           <button
@@ -301,7 +301,7 @@ export function CanvasWorkspacePage({
         </span>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         <CanvasPage
           key={openCanvas.id}
           documentId={openCanvas.id}

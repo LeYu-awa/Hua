@@ -247,7 +247,7 @@ export function AppShell() {
             // 桌宠模式：隐藏主 UI，仅保留 Live2D 角色层与台词气泡
             <PetDialogueOverlay />
           ) : (
-            <div className="h-full font-body text-ink overflow-hidden flex">
+            <div className="flex h-full min-h-0 overflow-hidden font-body text-ink">
               <AppSidebar
                 activeView={sidebarView}
                 onViewChange={setSidebarView}
@@ -261,7 +261,7 @@ export function AppShell() {
                 providers={providers}
                 onRequestOpen={() => setChatOpen(true)}
               />
-              <div className="app-main-content flex-1 flex flex-col min-w-0">
+              <div className="app-main-content flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
                 {renderMainView({
                   sidebarView,
                   currentNoteId,

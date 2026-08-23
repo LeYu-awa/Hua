@@ -106,6 +106,7 @@ interface CanvasPageProps {
   agentEnabled?: boolean;
   initialDocument?: CanvasDocument;
   onSave?: (doc: CanvasDocument) => void;
+  toolbarLeading?: ReactNode;
   /** 操作埋点上下文（可选）：缺省时画布操作不产生 agent 事件（可降级） */
   conversationId?: string;
   userId?: string;
@@ -563,6 +564,7 @@ export function CanvasPage({
   agentEnabled = false,
   initialDocument,
   onSave,
+  toolbarLeading,
   conversationId,
   userId,
 }: CanvasPageProps) {
@@ -575,6 +577,7 @@ export function CanvasPage({
     noteIds: initialDocument?.noteIds ?? noteIds ?? [],
     nodes: initialDocument?.nodes ?? [],
     edges: initialDocument?.edges ?? [],
+    groups: initialDocument?.groups ?? [],
   }));
   const [loading, setLoading] = useState(true);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -1286,6 +1289,7 @@ export function CanvasPage({
           noteIds: initialDocument?.noteIds ?? noteIds ?? [],
           nodes: initialDocument?.nodes ?? [],
           edges: initialDocument?.edges ?? [],
+          groups: initialDocument?.groups ?? [],
         };
         undoStackRef.current = [];
         redoStackRef.current = [];
@@ -2137,9 +2141,10 @@ export function CanvasPage({
     !agent.gap;
 
   return (
-    <div className="canvas-home-surface flex-1 flex flex-col min-h-0 relative overflow-hidden select-none">
+    <div className="canvas-home-surface flex h-full min-h-0 flex-1 flex-col relative overflow-hidden select-none">
       {/* 工具栏：flex-wrap 允许窄窗口换行而非溢出裁切；z-20 避免被右上操作条压盖 */}
       <div className="canvas-toolbar-pro absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+        {toolbarLeading}
         <button
           type="button"
           onClick={() => addNode("knowledge")}
@@ -2456,7 +2461,7 @@ export function CanvasPage({
                   <CloseIcon />
                 </button>
               </div>
-              <TaskProgressPanel key={enhanceVersion} goal={enhanceGoal} />
+              <TaskProgressPanel key={enhanceVersion} goal={enhanceGoal} providers={providers} />
             </div>
           )}
 
@@ -2478,6 +2483,7 @@ export function CanvasPage({
               <TaskProgressPanel
                 key={writeupVersion}
                 goal={writeupGoal}
+                providers={providers}
                 onContinueChapter={handleContinueChapter}
               />
             </div>
@@ -2499,7 +2505,7 @@ export function CanvasPage({
                   <CloseIcon />
                 </button>
               </div>
-              <TaskProgressPanel key={chapterVersion} goal={chapterGoal} />
+              <TaskProgressPanel key={chapterVersion} goal={chapterGoal} providers={providers} />
             </div>
           )}
 
@@ -2519,7 +2525,7 @@ export function CanvasPage({
                   <CloseIcon />
                 </button>
               </div>
-              <TaskProgressPanel key={groupTaskVersion} goal={groupTaskGoal} />
+              <TaskProgressPanel key={groupTaskVersion} goal={groupTaskGoal} providers={providers} />
             </div>
           )}
         </div>
@@ -2989,9 +2995,10 @@ export function CanvasPage({
         </div>
       )}
 
-      <svg
-        ref={svgRef}
-        className="h-full w-full touch-none cursor-default"
+      <div className="canvas-viewport min-h-0 flex-1 w-full overflow-hidden">
+        <svg
+          ref={svgRef}
+          className="block h-full min-h-0 w-full touch-none cursor-default"
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerDown={(event) => {
@@ -3463,6 +3470,7 @@ export function CanvasPage({
             ))}
         </g>
       </svg>
+      </div>
 
       {marqueeRect && marqueeRect.width > 2 && marqueeRect.height > 2 && (
         <div

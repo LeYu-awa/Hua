@@ -133,7 +133,7 @@ export function WindowFrame({ children }: WindowFrameProps) {
       </div>
 
       {/* ── content ── */}
-      <div className="flex-1 min-h-0 bg-paper">{children}</div>
+      <div className="flex-1 min-h-0 overflow-hidden bg-paper">{children}</div>
     </div>
   );
 }
