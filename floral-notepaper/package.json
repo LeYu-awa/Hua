@@ -1,7 +1,13 @@
 {
   "name": "floral-notepaper",
   "version": "1.0.6",
+  "description": "花笺 Floral Notepaper — 面向灵感记录、长文创作与二次元写作陪伴的桌面笔记应用（Tauri 2 + React + TypeScript）",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LeYu-awa/Hua.git"
+  },
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
