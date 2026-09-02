@@ -60,6 +60,20 @@ describe("parseCommandDsl（步骤命令 DSL → 画布命令）", () => {
     expect(parseCommandDsl("architecture:订单系统生产架构")).toEqual({
       kind: "generateArchitecture",
       intent: "订单系统生产架构",
+      diagramType: "architecture",
+    });
+  });
+
+  it("dataflow / lifecycle DSL → 携带对应图型", () => {
+    expect(parseCommandDsl("dataflow:下单到落库的数据流")).toEqual({
+      kind: "generateArchitecture",
+      intent: "下单到落库的数据流",
+      diagramType: "dataflow",
+    });
+    expect(parseCommandDsl("lifecycle:订单状态流转")).toEqual({
+      kind: "generateArchitecture",
+      intent: "订单状态流转",
+      diagramType: "lifecycle",
     });
   });
 

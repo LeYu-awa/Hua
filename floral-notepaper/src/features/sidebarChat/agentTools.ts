@@ -267,11 +267,11 @@ export function buildAgentTools(): AgentToolDefinition[] {
       function: {
         name: "canvas.architecture.generate",
         description:
-          "在打开的知识画布上生成架构图：会基于用户当前选中的卡片（没有选中则整张画布）解析成卡片与连线，随后在画布内弹出预览供用户确认。当用户说「把这些整理成架构图 / 生成架构图 / 画出系统架构」这类意图时调用。注意：真正落图需要用户在画布预览中点击确认。",
+          "在打开的知识画布上生成图（架构图 / 数据流图 / 生命周期图）：会基于用户当前选中的卡片（没有选中则整张画布）解析成卡片、连线和分组，随后在画布内弹出预览供用户确认。当用户说「把这些整理成架构图 / 生成架构图 / 画出系统架构」，或「整理成数据流图 / 生命周期图 / 状态机」这类意图时调用。图型由意图关键词自动推断（intent 含数据流/流程图→dataflow，含生命周期/状态机→lifecycle），也可直接在图型选择弹窗里切换。注意：真正落图需要用户在画布预览中点击确认。",
         parameters: {
           type: "object",
           properties: {
-            intent: { type: "string", description: "补充想要强调的架构意图，可留空" },
+            intent: { type: "string", description: "用户想要的图型与强调重点，例如「把下单到发货整理成数据流图」或「画出订单状态生命周期」，可留空" },
           },
         },
       },

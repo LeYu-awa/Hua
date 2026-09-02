@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { CanvasDocument, CanvasNode, CanvasNodeType, CanvasRelationType } from "../features/canvas/types";
+import type { CanvasDocument, CanvasNode, CanvasNodeType, CanvasPatch, CanvasRelationType, DiagramType } from "../features/canvas/types";
 import { CANVAS_RELATION_TYPES } from "../features/canvas/types";
 import { getCanvasDocument, saveCanvasDocument } from "../features/canvas/api";
 import {
@@ -45,10 +45,29 @@ import { NoteTreePanel } from "../features/canvas/components/NoteTreePanel";
 import { SocialComposerPanel } from "../features/canvas/components/SocialComposerPanel";
 import { buildContentVisual } from "../features/canvas/contentVisualizer";
 import { agentSignalQueue } from "../features/agent/signalQueue";
-import { buildArchitecturePatch, applyCanvasPatch } from "../features/canvas/archifyAdapter";
+import { applyCanvasPatch } from "../features/canvas/archifyAdapter";
 
 /** 卡片颜色标记可选值（card 灵感卡） */
 const NODE_COLORS = ["#c28060", "#7aa65c", "#8aa2c2", "#c2a45c", "#a67aa8", "#6f9aa8"];
+
+/** Archify 图型展示名（弹窗标题/快捷按钮） */
+const DIAGRAM_LABELS: Record<DiagramType, string> = {
+  architecture: "架构",
+  dataflow: "数据流",
+  lifecycle: "生命周期",
+};
+const DIAGRAM_OPTIONS: { value: DiagramType; label: string; hint: string }[] = [
+  { value: "architecture", label: "架构图", hint: "组件与依赖" },
+  { value: "dataflow", label: "数据流图", hint: "阶段与流转" },
+  { value: "lifecycle", label: "生命周期图", hint: "泳道与状态" },
+];
+
+/** 未显式指定图型时，按意图关键词推断（与 Rust skill 推断规则一致） */
+function inferDiagramType(intent: string): DiagramType | undefined {
+  if (/生命周期|状态机|状态流转/.test(intent)) return "lifecycle";
+  if (/数据流|流程图|流转路径/.test(intent)) return "dataflow";
+  return undefined;
+}
 
 /** 统一 node.group 与 groups[].nodeIds，并移除不存在的节点/分组引用。 */
 function normalizeGroupMembership(doc: CanvasDocument): CanvasDocument {
@@ -658,7 +677,8 @@ export function CanvasPage({
   const [writeupProposalDismissed, setWriteupProposalDismissed] = useState(false);
   const [architectureOpen, setArchitectureOpen] = useState(false);
   const [architectureIntent, setArchitectureIntent] = useState("");
-  const [architecturePatch, setArchitecturePatch] = useState<ReturnType<typeof buildArchitecturePatch> | null>(null);
+  const [architectureDiagramType, setArchitectureDiagramType] = useState<DiagramType>("architecture");
+  const [architecturePatch, setArchitecturePatch] = useState<CanvasPatch | null>(null);
   const [architectureLoading, setArchitectureLoading] = useState(false);
   const [architectureError, setArchitectureError] = useState<string | null>(null);
   /** AI 架构来源：nodes=画布卡片（默认）/ notes=画布 + 挂载笔记（文档解析生成） */
@@ -677,6 +697,7 @@ export function CanvasPage({
     setArchitectureIntent("");
     setArchitecturePatch(null);
     setArchitectureError(null);
+    setArchitectureDiagramType("architecture");
     const hasNodes = docRef.current.nodes.length > 0;
     const source = hasNodes ? "nodes" : "notes";
     setArchitectureSource(source);
@@ -1072,13 +1093,16 @@ export function CanvasPage({
     setEnhanceVersion((v) => v + 1);
   }, [selectedNodeId]);
 
-  const handleArchitectureRequest = useCallback(async (requestedIntent?: string, requestedNodeIds?: string[]) => {
+  const handleArchitectureRequest = useCallback(async (requestedIntent?: string, requestedNodeIds?: string[], requestedDiagramType?: DiagramType) => {
     // 右键“基于节点生成”走节点来源；弹窗内切到笔记来源时以整张画布 + 所选笔记为上下文
     const useNotes = !requestedNodeIds && architectureSource === "notes";
     const sourceNodeIds = useNotes
       ? []
       : requestedNodeIds ?? (selectedNodeIds.length > 0 ? selectedNodeIds : docRef.current.nodes.map((node) => node.id));
     const intent = requestedIntent ?? architectureIntent;
+    // 图型优先级：显式指定 > 意图关键词推断（右键/AI 直达）> 弹窗内图型选择
+    const diagramType = requestedDiagramType ?? (requestedIntent !== undefined ? inferDiagramType(intent) ?? "architecture" : architectureDiagramType);
+    setArchitectureDiagramType(diagramType);
     setArchitectureLoading(true);
     setArchitectureError(null);
     try {
@@ -1088,8 +1112,9 @@ export function CanvasPage({
         sourceNodeIds,
         useNotes ? architectureNoteIds : undefined,
         providersRef.current,
+        diagramType,
       );
-      setArchitecturePatch(result.patch as ReturnType<typeof buildArchitecturePatch>);
+      setArchitecturePatch(result.patch as CanvasPatch);
       setArchitectureOpen(true);
     } catch (error) {
       setArchitectureError(error instanceof Error ? error.message : String(error));
@@ -1097,7 +1122,7 @@ export function CanvasPage({
     } finally {
       setArchitectureLoading(false);
     }
-  }, [architectureIntent, architectureNoteIds, architectureSource, noteId, noteIds, selectedNodeIds]);
+  }, [architectureIntent, architectureDiagramType, architectureNoteIds, architectureSource, noteId, noteIds, selectedNodeIds]);
 
   /** 切换架构来源；首次切到“笔记来源”时默认勾选全部已挂载笔记 */
   const selectArchitectureSource = useCallback((mode: "nodes" | "notes") => {
@@ -2220,7 +2245,7 @@ export function CanvasPage({
           setOnboardingPhase("demo");
           break;
         case "generateArchitecture":
-          void handleArchitectureRequest(command.intent, command.nodeIds);
+          void handleArchitectureRequest(command.intent, command.nodeIds, command.diagramType);
           break;
       }
     });
@@ -2773,17 +2798,19 @@ export function CanvasPage({
         </div>
       )}
 
-      {/* AI 生成架构图：① 选来源 → ② 补意图 → 生成 → 预览确认 → 应用到画布 */}
+      {/* AI 生成图（架构/数据流/生命周期）：① 选图型 → ② 选来源 → ③ 补意图 → 生成 → 预览确认 → 应用到画布 */}
       {architectureOpen && (
         <div className="absolute inset-0 z-50 grid place-items-center bg-ink/10 p-6 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-paper-deep/25 bg-paper p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h2 className="text-sm font-semibold text-ink">生成架构图</h2>
+                <h2 className="text-sm font-semibold text-ink">
+                  生成{DIAGRAM_LABELS[architecturePatch ? architecturePatch.diagramType : architectureDiagramType]}图
+                </h2>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-ink-ghost">
                   {architecturePatch
                     ? "解析完成，预览以下将加入画布的内容"
-                    : "选择来源后，Agent 会解析成卡片与连线；可随时编辑与重连"}
+                    : "选择图型与来源后，Agent 会解析成卡片与连线；可随时编辑与重连"}
                 </p>
               </div>
               <button
@@ -2797,8 +2824,24 @@ export function CanvasPage({
 
             {!architecturePatch ? (
               <>
-                {/* ① 选择来源 */}
-                <p className="mt-3 text-[11px] font-medium text-ink-soft">① 选择来源</p>
+                {/* ① 选择图型 */}
+                <p className="mt-3 text-[11px] font-medium text-ink-soft">① 选择图型</p>
+                <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-xl bg-paper-warm/60 p-1">
+                  {DIAGRAM_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setArchitectureDiagramType(option.value)}
+                      className={`flex flex-col items-center rounded-lg px-2 py-1.5 transition ${architectureDiagramType === option.value ? "bg-paper font-medium text-ink shadow-sm" : "text-ink-ghost hover:text-ink-soft"}`}
+                    >
+                      <span className="text-[11px]">{option.label}</span>
+                      <span className={`text-[9px] ${architectureDiagramType === option.value ? "text-ink-soft" : "text-ink-ghost/70"}`}>{option.hint}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* ② 选择来源 */}
+                <p className="mt-3 text-[11px] font-medium text-ink-soft">② 选择来源</p>
                 <div className="mt-1.5 flex items-center gap-1 rounded-xl bg-paper-warm/60 p-1">
                   <button
                     type="button"
@@ -2856,12 +2899,12 @@ export function CanvasPage({
                   </p>
                 )}
 
-                {/* ② 补充意图 */}
-                <p className="mt-3 text-[11px] font-medium text-ink-soft">② 补充意图（可留空）</p>
+                {/* ③ 补充意图 */}
+                <p className="mt-3 text-[11px] font-medium text-ink-soft">③ 补充意图（可留空）</p>
                 <textarea
                   value={architectureIntent}
                   onChange={(event) => setArchitectureIntent(event.target.value)}
-                  placeholder="例如：强调订单核心链路与外部依赖；可留空，Agent 自动提炼"
+                  placeholder={`例如：强调订单核心链路与外部依赖；可留空，Agent 自动提炼${architectureDiagramType === "architecture" ? "" : `（当前为${DIAGRAM_LABELS[architectureDiagramType]}图）`}`}
                   rows={2}
                   className="mt-1.5 w-full rounded-xl border border-paper-deep/20 bg-paper-warm/30 p-2 text-xs text-ink outline-none"
                 />
@@ -2882,11 +2925,11 @@ export function CanvasPage({
             ) : (
               <>
                 {/* 预览结果 */}
-                <div className="mt-3 flex items-center justify-between rounded-xl border border-paper-deep/15 bg-paper-warm/30 px-3 py-2">
-                  <span className="text-[11px] text-ink-ghost">
-                    来源：{architectureSource === "notes" ? `${architectureNoteIds.length} 篇笔记 + 画布` : selectedNodeIds.length > 0 ? `${selectedNodeIds.length} 张卡片` : "整张画布"}
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-paper-deep/15 bg-paper-warm/30 px-3 py-2">
+                  <span className="truncate text-[11px] text-ink-ghost">
+                    {DIAGRAM_LABELS[architecturePatch.diagramType]}图 · {architectureSource === "notes" ? `${architectureNoteIds.length} 篇笔记 + 画布` : selectedNodeIds.length > 0 ? `${selectedNodeIds.length} 张卡片` : "整张画布"}
                   </span>
-                  <span className="text-[11px] font-medium text-ink-soft">
+                  <span className="shrink-0 text-[11px] font-medium text-ink-soft">
                     {architecturePatch.nodesToAdd.length} 节点 · {architecturePatch.edgesToAdd.length} 连线 · {architecturePatch.groupsToAdd.length} 分组
                   </span>
                 </div>
@@ -3881,7 +3924,7 @@ export function CanvasPage({
                   const archIds = selectedIdSet.has(nodeContextMenu.nodeId)
                     ? selectedNodeIds
                     : [nodeContextMenu.nodeId];
-                  const archLabel = archIds.length > 1 ? `生成架构图（${archIds.length} 张卡片）` : "生成架构图";
+                  const archLabel = archIds.length > 1 ? `生成图（${archIds.length} 张卡片）` : "生成图";
                   const archIntent =
                     archIds.length > 1
                       ? `将选中的 ${archIds.length} 张卡片整理成系统架构`

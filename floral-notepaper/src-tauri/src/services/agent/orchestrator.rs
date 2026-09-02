@@ -686,11 +686,14 @@ fn enhance_plan(goal: &str) -> Vec<Step> {
     ]
 }
 
-fn architecture_plan(_goal: &str) -> Vec<Step> {
+fn architecture_plan(goal: &str) -> Vec<Step> {
+    // 规则兜底路径（无 LLM）：按目标关键词推断图型，architecture 兜底
+    let diagram_type = if has_any(goal, &["生命周期", "状态机"]) { "lifecycle" } else if has_any(goal, &["数据流", "流程图"]) { "dataflow" } else { "architecture" };
+    let ir_hint = diagram_ir_hint(diagram_type);
     vec![
         tool_step("a1", "canvas.read", json!({ "canvasId": "first" })),
-        llm_step("a2", json!({ "promptTemplate": "根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\\n{previousOutput}" })),
-        tool_step("a3", "architecture.build", json!({ "canvasId": "first", "sourceNodeIds": [] })),
+        llm_step("a2", json!({ "promptTemplate": format!("{ir_hint}\n根据下面的画布内容生成上述 IR JSON，只输出 JSON：\\n{{previousOutput}}") })),
+        tool_step("a3", "architecture.build", json!({ "canvasId": "first", "sourceNodeIds": [], "diagramType": diagram_type })),
     ]
 }
 
@@ -698,8 +701,8 @@ fn architecture_plan(_goal: &str) -> Vec<Step> {
 static SKILLS: &[Skill] = &[
     Skill {
         name: "canvas.architecture",
-        description: "根据画布与文档上下文生成 Architecture IR/Patch",
-        matches: |g| has_any(g, &["architecture", "架构图", "系统架构"]),
+        description: "根据画布与文档上下文生成图 IR/Patch（architecture/dataflow/lifecycle，按目标关键词推断）",
+        matches: |g| has_any(g, &["architecture", "架构图", "系统架构"]) || has_any(g, &["数据流图", "流程图"]) || has_any(g, &["生命周期图", "状态机"]),
         plan: architecture_plan,
     },
     Skill {
@@ -1143,7 +1146,7 @@ impl<'a> TaskRunner<'a> {
                 let canvas = self.canvas.ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
                 let canvas_id = step.input.get("canvasId").and_then(Value::as_str).unwrap_or("first");
                 let canvas_doc = if canvas_id == "first" { canvas.list()?.into_iter().next().ok_or_else(|| AppError::new("canvasEmpty", "没有可读取的画布"))? } else { canvas.get(canvas_id)? };
-                let mut candidate = last_llm_output_text(outputs).ok_or_else(|| AppError::new("architectureParse", "缺少 Architecture LLM 输出"))?;
+                let mut candidate = last_llm_output_text(outputs).ok_or_else(|| AppError::new("architectureParse", "缺少图 IR LLM 输出"))?;
                 let mut diagnostics = Vec::new();
                 let mut ir = None;
                 for attempt in 0..=2 {
@@ -1151,9 +1154,9 @@ impl<'a> TaskRunner<'a> {
                         Ok(value) => { ir = Some(value); break; }
                         Err(errors) if attempt < 2 => {
                             diagnostics = errors;
-                            let provider = self.llm.as_ref().ok_or_else(|| AppError::new("architectureValidation", "Architecture IR 校验失败且未配置修复模型"))?;
+                            let provider = self.llm.as_ref().ok_or_else(|| AppError::new("architectureValidation", "IR 校验失败且未配置修复模型"))?;
                             let repair = provider.complete_prompt(
-                                "你是 Architecture IR 校验修复器。只输出修复后的严格 JSON，不要 Markdown。保留原意，修复所有诊断问题。",
+                                "你是图 IR 校验修复器（architecture/dataflow/lifecycle 三种）。只输出修复后的严格 JSON，不要 Markdown。保留原意，修复所有诊断问题，不要改动 diagram_type。",
                                 &format!("原始 IR：{candidate}\n诊断：{}", serde_json::to_string(&diagnostics).unwrap_or_default()),
                                 4096,
                             ).await?;
@@ -1162,7 +1165,7 @@ impl<'a> TaskRunner<'a> {
                         Err(errors) => { diagnostics = errors; break; }
                     }
                 }
-                let ir = ir.ok_or_else(|| AppError::new("architectureValidation", serde_json::to_string(&diagnostics).unwrap_or_else(|_| "Architecture IR 校验失败".into())))?;
+                let ir = ir.ok_or_else(|| AppError::new("architectureValidation", serde_json::to_string(&diagnostics).unwrap_or_else(|_| "图 IR 校验失败".into())))?;
                 let source_doc = outputs
                     .iter()
                     .find(|(step_id, _)| step_id == "a1")
@@ -2155,7 +2158,16 @@ pub async fn agent_task_create_and_run(
     Ok(task)
 }
 
-/// IPC：生成 Architecture IR/Patch，结果通过任务执行链路返回给前端。
+/// 按目标图型返回给 LLM 的 IR 结构提示（architecture/dataflow/lifecycle）
+fn diagram_ir_hint(diagram_type: &str) -> String {
+    match diagram_type {
+        "dataflow" => "生成严格 Dataflow IR JSON，schema_version=1、diagram_type=dataflow。根字段只允许：meta/stages/nodes/flows；stages 为 2-5 个 {label} 阶段；nodes 每项含 id/type/label/stage(阶段序号)/row，type 只能取 frontend/backend/database/cloud/security/messagebus/external；flows 每项含 from/to/label(必填，描述流经数据)，from/to 必须引用 nodes 的 id。".into(),
+        "lifecycle" => "生成严格 Lifecycle IR JSON，schema_version=1、diagram_type=lifecycle。根字段只允许：meta/lanes/states/transitions；lanes 为 1-4 个 {id,label} 泳道；states 每项含 id/type/label/lane/col，type 只能取 start/active/waiting/decision/success/failure/neutral/external；transitions 每项含 from/to，from/to 必须引用 states 的 id。".into(),
+        _ => "生成严格 Architecture IR JSON，schema_version=1、diagram_type=architecture。根字段只允许：meta/components/boundaries/connections；components 每项含 id/type/label，type 只能取 frontend/backend/database/cloud/security/messagebus/external，id 以英文字母开头且仅含字母数字下划线或连字符；connections 引用 components 的 id。".into(),
+    }
+}
+
+/// IPC：生成 Architecture/Dataflow/Lifecycle IR/Patch，结果通过任务执行链路返回给前端。
 /// 支持两类来源：画布节点（source_node_ids）+ 挂载笔记（source_note_ids，正文注入提示作参考文档）。
 #[tauri::command]
 pub async fn agent_architecture_generate(
@@ -2165,13 +2177,20 @@ pub async fn agent_architecture_generate(
     canvas: tauri::State<'_, CanvasStore>,
     intent: String,
     canvas_id: Option<String>,
+    diagram_type: Option<String>,
     source_node_ids: Option<Vec<String>>,
     source_note_ids: Option<Vec<String>>,
     runtime_config: Option<AppConfig>,
 ) -> Result<Value, AppError> {
     let canvas_id = canvas_id.unwrap_or_else(|| "first".into());
+    let diagram_type = match diagram_type.as_deref() {
+        Some("dataflow") => "dataflow",
+        Some("lifecycle") => "lifecycle",
+        _ => "architecture",
+    };
     let source_node_ids = source_node_ids.unwrap_or_default();
     let source_note_ids = source_note_ids.unwrap_or_default();
+    let ir_hint = diagram_ir_hint(diagram_type);
     // 文档来源：读取所选笔记正文作为参考文档注入提示（单篇截断 6000 字符，防止上下文超长）
     let mut note_context = String::new();
     if !source_note_ids.is_empty() {
@@ -2187,31 +2206,31 @@ pub async fn agent_architecture_generate(
     }
     let prompt = if note_context.is_empty() {
         format!(
-            "用户意图：{}\n根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\n{{{{previousOutput}}}}",
+            "用户意图：{}\n{ir_hint}\n根据下面的画布内容生成上述 IR JSON，只输出 JSON：\n{{{{previousOutput}}}}",
             intent.trim()
         )
     } else {
         format!(
-            "用户意图：{}\n附带的参考文档内容（从中提取业务实体、职责与依赖关系）：\n{}\n根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\n{{{{previousOutput}}}}",
+            "用户意图：{}\n附带的参考文档内容（从中提取业务实体、阶段/状态与依赖关系）：\n{}\n{ir_hint}\n根据下面的画布内容生成上述 IR JSON，只输出 JSON：\n{{{{previousOutput}}}}",
             intent.trim(),
             note_context
         )
     };
     let mut task = Task::new(
         format!("arch-{}", uuid::Uuid::new_v4().simple()),
-        format!("生成系统 architecture；canvasId={canvas_id}；nodeIds={}；noteIds={}", source_node_ids.join(","), source_note_ids.join(",")),
+        format!("生成{diagram_type}图；canvasId={canvas_id}；nodeIds={}；noteIds={}", source_node_ids.join(","), source_note_ids.join(",")),
     );
     task.plan = vec![
         tool_step("a1", "canvas.read", json!({ "canvasId": canvas_id, "nodeIds": source_node_ids.clone() })),
         llm_step("a2", json!({ "promptTemplate": prompt })),
-        tool_step("a3", "architecture.build", json!({ "canvasId": canvas_id, "sourceNodeIds": source_node_ids })),
+        tool_step("a3", "architecture.build", json!({ "canvasId": canvas_id, "sourceNodeIds": source_node_ids, "diagramType": diagram_type })),
     ];
     store.create(&task)?;
     let runner = production_runner(&app, &store, &vectors, &canvas, runtime_config)?;
     runner.run(&mut task).await?;
     task.plan.iter().find(|step| step.tool.as_deref() == Some("architecture.build"))
         .and_then(|step| step.output.clone())
-        .ok_or_else(|| AppError::new("architectureOutput", "Architecture 任务未返回 IR/Patch"))
+        .ok_or_else(|| AppError::new("architectureOutput", "图任务未返回 IR/Patch"))
 }
 
 /// IPC：运行已存在的任务（agent_task_create 创建后触发执行）

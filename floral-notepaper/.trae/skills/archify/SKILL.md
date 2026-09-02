@@ -26,7 +26,7 @@ node bin/archify.mjs doctor
 - 生成入口（四种都要走同一个弹窗/预览管线）：
   - 工具栏按钮 → [CanvasPage.tsx](file:///d:/花箴/floral-notepaper/src/components/CanvasPage.tsx)
   - 卡片右键菜单 → 同上（`handleArchitectureRequest`）
-  - 主 Agent DSL → [canvasCommands.ts](file:///d:/花箴/floral-notepaper/src/features/canvas/canvasCommands.ts)（`CANVAS_COMMAND_EVENT` / `parseCommandDsl` / `dispatchCanvasCommand`）
+  - 主 Agent DSL → [canvasCommands.ts](file:///d:/花箴/floral-notepaper/src/features/canvas/canvasCommands.ts)（`CANVAS_COMMAND_EVENT` / `parseCommandDsl` / `dispatchCanvasCommand`；DSL 前缀 `architecture|dataflow|lifecycle:意图` 携带 `diagramType`）
   - SidebarChat Agent 工具 `canvas.architecture.generate` → [agentTools.ts](file:///d:/花箴/floral-notepaper/src/features/sidebarChat/agentTools.ts)
 - 前端 IR→Patch 适配：`src/features/canvas/archifyAdapter.ts`（`validateArchitecture` / `buildArchitecturePatch` / `applyCanvasPatch`，确定性 layout、stable id）
 - Agent 调用：`src/features/agent/api.ts` 的 `generateArchitecture(...)` → Tauri `invoke("agent_architecture_generate", ...)`
@@ -37,7 +37,7 @@ node bin/archify.mjs doctor
 
 1. 生成结果必须落到**主知识画布**上用**现有卡片组件**渲染（SVG `g`/`rect`/`foreignObject` 卡片），禁止另起 HTML viewer / 独立画布 / HTML-native 节点。
 2. 产物形态是 `CanvasPatch`（`nodesToAdd`/`edgesToAdd`/`groupsToAdd`）→ 用户预览确认 → `commitDoc` 单次可撤销提交。不可直接写文档状态。
-3. 当前只接通 `architecture` 一类并跑通；扩展 dataflow/lifecycle/workflow/sequence 时复用同一 `architecture.build` 管线与 `archifyAdapter` 映射，一次一类、先稳定再扩。
+3. 当前已接通 `architecture` / `dataflow` / `lifecycle` 三类并跑通（共用同一弹窗/预览/落图管线）；`workflow` / `sequence` 尚未接入。后续扩展时复用同一 `architecture.build` 管线与 `archifyAdapter` 映射，一次一类、先稳定再扩。
 4. 节点/连线与现有卡片混合共存：Agent 生成节点、手动自由绘制节点可并存，不得破坏现有画布机制（缩放、拖动、保存序列化、revision guard、flush-before-switch）。
 5. 校验契约：`architecture.build` 严格按 Archify schema 校验 IR；修复循环最多两轮、只改诊断 subject；IR 字段缺失/引用错导致校验不过时如实报告，不伪造成功。
 

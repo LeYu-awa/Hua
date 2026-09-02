@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { withCachedProviderApiKeys } from "../settings/apiKeyCache";
 import type { ProviderConfig } from "../settings/types";
+import type { DiagramType } from "../canvas/types";
 import type {
   AgentAnalysisResult,
   AgentAwaitingConfirmEvent,
@@ -101,10 +102,12 @@ export function generateArchitecture(
   sourceNodeIds?: string[],
   sourceNoteIds?: string[],
   providers?: ProviderConfig[],
+  diagramType?: DiagramType,
 ): Promise<{ ir: unknown; patch: unknown }> {
   return invoke("agent_architecture_generate", {
     intent,
     canvasId,
+    diagramType,
     sourceNodeIds,
     sourceNoteIds,
     runtimeConfig: runtimeConfig(providers),

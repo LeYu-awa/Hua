@@ -98,6 +98,9 @@ export interface CanvasDocument {
   groups?: CanvasGroup[];
 }
 
+/** Archify 三种图型（architecture / dataflow / lifecycle） */
+export type DiagramType = "architecture" | "dataflow" | "lifecycle";
+
 /** Archify Architecture 的最小、与画布无关的输入契约。 */
 export interface ArchitectureIR {
   schema_version: 1;
@@ -143,6 +146,78 @@ export interface ArchitectureConnection {
   variant?: "default" | "emphasis" | "security" | "dashed";
 }
 
+/** Archify Dataflow 输入契约（stages/nodes/flows 三段，与 dataflow.schema.json 最小子集一致）。 */
+export interface DataflowIR {
+  schema_version: 1;
+  diagram_type: "dataflow";
+  meta: { title: string };
+  /** 2-5 个按序推进的阶段，作为画布分组 */
+  stages: { label: string }[];
+  /** 至少两个节点；stage/row 决定网格槽位 */
+  nodes: {
+    id: string;
+    type: ArchitectureComponentType;
+    label: string;
+    sublabel?: string;
+    tag?: string;
+    stage: number;
+    row: number;
+    width?: number;
+    height?: number;
+  }[];
+  /** 描述流经数据的连线，label 必填 */
+  flows: {
+    id?: string;
+    from: string;
+    to: string;
+    label: string;
+    variant?: "default" | "emphasis" | "security" | "dashed";
+  }[];
+}
+
+export type LifecycleStateType =
+  | "start"
+  | "active"
+  | "waiting"
+  | "decision"
+  | "success"
+  | "failure"
+  | "neutral"
+  | "external";
+
+/** Archify Lifecycle 输入契约（lanes/states/transitions，与 lifecycle.schema.json 最小子集一致）。 */
+export interface LifecycleIR {
+  schema_version: 1;
+  diagram_type: "lifecycle";
+  meta: { title: string };
+  /** 1-4 条泳道，作为画布分组 */
+  lanes: { id: string; label: string }[];
+  /** 至少两个状态；col/lane 决定网格槽位 */
+  states: {
+    id: string;
+    type: LifecycleStateType;
+    label: string;
+    sublabel?: string;
+    tag?: string;
+    lane: string;
+    col: number;
+    width?: number;
+    height?: number;
+  }[];
+  /** 状态迁移；label 可选，取 label ?? note 作为边文案 */
+  transitions: {
+    id?: string;
+    from: string;
+    to: string;
+    label?: string;
+    note?: string;
+    variant?: "default" | "emphasis" | "security" | "dashed";
+  }[];
+}
+
+/** 三种 IR 的并集（LLM 输出按 diagram_type 分派） */
+export type DiagramIR = ArchitectureIR | DataflowIR | LifecycleIR;
+
 export interface ArchitectureDiagnostic {
   code: string;
   message: string;
@@ -154,7 +229,7 @@ export interface ArchitectureDiagnostic {
 export interface CanvasPatch {
   id: string;
   canvasId: string;
-  diagramType: "architecture";
+  diagramType: DiagramType;
   sourceDocumentIds: string[];
   sourceNodeIds: string[];
   nodesToAdd: CanvasNode[];

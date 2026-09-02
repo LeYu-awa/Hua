@@ -1,4 +1,4 @@
-import type { CanvasNodeType } from "./types";
+import type { CanvasNodeType, DiagramType } from "./types";
 
 /**
  * 画布命令桥（ai-3）
@@ -68,6 +68,8 @@ export interface GenerateArchitectureCommand {
   intent?: string;
   /** 可选的节点范围；未提供时沿用当前选择或整张画布。 */
   nodeIds?: string[];
+  /** 可选图型；未提供时按意图关键词推断或沿用当前选择。 */
+  diagramType?: DiagramType;
 }
 
 export type CanvasCommand =
@@ -149,7 +151,7 @@ export function onAiRequest(callback: (payload: AiRequestPayload) => void): () =
   return () => window.removeEventListener(AI_REQUEST_EVENT, handler);
 }
 
-/** 步骤 DSL 解析：`cards:10:内容卡片` / `zone:灵感区` / `node:task:待办任务` / `plan:模块名` */
+/** 步骤 DSL 解析：`cards:10:内容卡片` / `zone:灵感区` / `node:task:待办任务` / `plan:模块名` / `architecture|dataflow|lifecycle:意图` */
 export function parseCommandDsl(dsl: string): CanvasCommand | null {
   const parts = dsl.split(":").map((part) => part.trim());
   const [kind, ...rest] = parts;
@@ -192,7 +194,9 @@ export function parseCommandDsl(dsl: string): CanvasCommand | null {
     case "tutorial":
       return { kind: "runTutorial" };
     case "architecture":
-      return { kind: "generateArchitecture", intent: rest.join(":") || undefined };
+    case "dataflow":
+    case "lifecycle":
+      return { kind: "generateArchitecture", intent: rest.join(":") || undefined, diagramType: kind };
     default:
       return null;
   }
