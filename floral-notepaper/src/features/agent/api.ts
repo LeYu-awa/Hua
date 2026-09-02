@@ -95,6 +95,20 @@ export function runAgentTask(taskId: string, providers?: ProviderConfig[]): Prom
   return invoke("agent_task_run", { taskId, runtimeConfig: runtimeConfig(providers) });
 }
 
+export function generateArchitecture(
+  intent: string,
+  canvasId?: string,
+  sourceNodeIds?: string[],
+  providers?: ProviderConfig[],
+): Promise<{ ir: unknown; patch: unknown }> {
+  return invoke("agent_architecture_generate", {
+    intent,
+    canvasId,
+    sourceNodeIds,
+    runtimeConfig: runtimeConfig(providers),
+  });
+}
+
 export function getAgentTask(taskId: string): Promise<AgentTask | null> {
   return invoke("agent_task_get", { taskId });
 }

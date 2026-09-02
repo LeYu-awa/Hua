@@ -5,7 +5,9 @@ use serde_json::{json, Value};
 use std::{collections::BTreeMap, fs, path::PathBuf};
 use uuid::Uuid;
 
+pub mod architecture;
 pub mod canvas_indexer;
+pub mod document;
 pub mod embedding_service;
 pub mod event_collector;
 pub mod event_store;

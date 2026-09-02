@@ -5,6 +5,7 @@ import type { CanvasDocument } from "../features/canvas/types";
 import type { ProviderConfig } from "../features/settings/types";
 
 const mockSave = vi.fn().mockResolvedValue(undefined);
+const mockFetch = vi.fn();
 vi.mock("../features/canvas/api", () => ({
   getCanvasDocument: () => Promise.reject(new Error("no ipc")),
   saveCanvasDocument: (doc: unknown) => mockSave(doc),
@@ -152,6 +153,8 @@ beforeAll(() => {
 beforeEach(() => {
   mockSave.mockClear();
   mockRecordEvent.mockClear();
+  mockFetch.mockReset();
+  vi.stubGlobal("fetch", mockFetch);
 });
 
 afterEach(cleanup);

@@ -7,6 +7,30 @@ export type AgentEventType =
   | "chat_message_sent"
   | "canvas_template_applied";
 
+export interface ArchitectureDocumentSource {
+  kind: "note" | "file";
+  id: string;
+  title: string;
+  mimeType: "text/plain" | "text/markdown" | "text/x-markdown";
+  path?: string;
+}
+
+export interface AgentDocumentChunk {
+  id: string;
+  documentId: string;
+  heading?: string;
+  content: string;
+  order: number;
+  startOffset: number;
+  endOffset: number;
+}
+
+export interface ParsedAgentDocument {
+  source: ArchitectureDocumentSource;
+  content: string;
+  chunks: AgentDocumentChunk[];
+}
+
 export interface AgentEventInput {
   conversationId: string;
   userId: string;

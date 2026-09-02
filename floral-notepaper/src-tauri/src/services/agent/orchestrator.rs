@@ -9,6 +9,7 @@
 //!   待确认 emit `agent.awaiting_confirm`，产出走 `agent.live2d` / `agent.speech` / `agent.ui`。
 //!   AppHandle 可选（测试传 None，纯逻辑可单测）。
 
+use crate::services::agent::architecture::{build_patch, parse_strict};
 use crate::services::agent::llm_provider::{resolve_endpoint, HttpLlmProvider};
 use crate::services::agent::output_bus;
 use crate::services::agent::rag;
@@ -200,7 +201,7 @@ fn step_retry_is_safe(step: &Step) -> bool {
         step.tool.as_deref(),
         Some(
             "note.search" | "note.read" | "canvas.read" | "web.search" | "llm.generate"
-                | "note.export" | "canvas.organize"
+                | "note.export" | "canvas.organize" | "architecture.build"
         )
     )
 }
@@ -685,8 +686,22 @@ fn enhance_plan(goal: &str) -> Vec<Step> {
     ]
 }
 
+fn architecture_plan(_goal: &str) -> Vec<Step> {
+    vec![
+        tool_step("a1", "canvas.read", json!({ "canvasId": "first" })),
+        llm_step("a2", json!({ "promptTemplate": "根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\\n{previousOutput}" })),
+        tool_step("a3", "architecture.build", json!({ "canvasId": "first", "sourceNodeIds": [] })),
+    ]
+}
+
 /// 全部技能（顺序即优先级，首个 matches 命中的生效；note.search 兜底）
 static SKILLS: &[Skill] = &[
+    Skill {
+        name: "canvas.architecture",
+        description: "根据画布与文档上下文生成 Architecture IR/Patch",
+        matches: |g| has_any(g, &["architecture", "架构图", "系统架构"]),
+        plan: architecture_plan,
+    },
     Skill {
         name: "canvas.node.enhance",
         description: "扩写/润色画布节点内容（LLM 扩写后写回保存）",
@@ -810,6 +825,7 @@ pub fn tool_registry_json() -> Value {
         {"name":"canvas.save-groups","description":"把上一步 LLM 的分组结果写回画布（AI 自动分组，写操作，需确认）","input":{"canvasId":"string 或 \"first\""}},
         {"name":"canvas.batch-create","description":"把上一步 LLM 提炼的知识卡批量落入画布，并落一张问题卡自动 cites 连线（知识采集，全自动落卡，无需确认）","input":{"canvasId":"string 或 \"first\"","question":"string"}},
         {"name":"web.search","description":"通过本地 SearXNG 搜索互联网（需确认）","input":{"query":"string","limit":"int 默认5"}},
+        {"name":"architecture.build","description":"校验 Architecture IR（最多两轮修复）并生成 IR/Patch，不落盘","input":{"canvasId":"string 或 first"}},
         {"name":"llm.generate","description":"用 LLM 生成或改写文本","input":{"prompt":"string"}},
     ])
 }
@@ -1123,6 +1139,59 @@ impl<'a> TaskRunner<'a> {
         outputs: &[(String, Value)],
     ) -> Result<Value, AppError> {
         match step.tool.as_deref() {
+            Some("architecture.build") => {
+                let canvas = self.canvas.ok_or_else(|| AppError::new("noCanvasProvider", "画布存储未初始化"))?;
+                let canvas_id = step.input.get("canvasId").and_then(Value::as_str).unwrap_or("first");
+                let canvas_doc = if canvas_id == "first" { canvas.list()?.into_iter().next().ok_or_else(|| AppError::new("canvasEmpty", "没有可读取的画布"))? } else { canvas.get(canvas_id)? };
+                let mut candidate = last_llm_output_text(outputs).ok_or_else(|| AppError::new("architectureParse", "缺少 Architecture LLM 输出"))?;
+                let mut diagnostics = Vec::new();
+                let mut ir = None;
+                for attempt in 0..=2 {
+                    match parse_strict(&candidate) {
+                        Ok(value) => { ir = Some(value); break; }
+                        Err(errors) if attempt < 2 => {
+                            diagnostics = errors;
+                            let provider = self.llm.as_ref().ok_or_else(|| AppError::new("architectureValidation", "Architecture IR 校验失败且未配置修复模型"))?;
+                            let repair = provider.complete_prompt(
+                                "你是 Architecture IR 校验修复器。只输出修复后的严格 JSON，不要 Markdown。保留原意，修复所有诊断问题。",
+                                &format!("原始 IR：{candidate}\n诊断：{}", serde_json::to_string(&diagnostics).unwrap_or_default()),
+                                4096,
+                            ).await?;
+                            candidate = repair;
+                        }
+                        Err(errors) => { diagnostics = errors; break; }
+                    }
+                }
+                let ir = ir.ok_or_else(|| AppError::new("architectureValidation", serde_json::to_string(&diagnostics).unwrap_or_else(|_| "Architecture IR 校验失败".into())))?;
+                let source_doc = outputs
+                    .iter()
+                    .find(|(step_id, _)| step_id == "a1")
+                    .and_then(|(_, value)| serde_json::from_value::<CanvasDocument>(value.clone()).ok());
+                let source_nodes: Vec<String> = step
+                    .input
+                    .get("sourceNodeIds")
+                    .and_then(Value::as_array)
+                    .and_then(|ids| {
+                        let values: Vec<String> = ids.iter().filter_map(Value::as_str).map(str::to_string).collect();
+                        (!values.is_empty()).then_some(values)
+                    })
+                    .unwrap_or_else(|| {
+                        source_doc
+                            .as_ref()
+                            .unwrap_or(&canvas_doc)
+                            .nodes
+                            .iter()
+                            .map(|node| node.id.clone())
+                            .collect()
+                    });
+                let source_documents = source_doc
+                    .as_ref()
+                    .unwrap_or(&canvas_doc)
+                    .note_ids
+                    .clone();
+                let patch = build_patch(&ir, &canvas_doc, source_documents, source_nodes)?;
+                Ok(json!({ "ir": ir, "patch": patch }))
+            }
             Some("note.search") => {
                 let query = step
                     .input
@@ -2086,6 +2155,37 @@ pub async fn agent_task_create_and_run(
     Ok(task)
 }
 
+/// IPC：生成 Architecture IR/Patch，结果通过任务执行链路返回给前端。
+#[tauri::command]
+pub async fn agent_architecture_generate(
+    app: AppHandle,
+    store: tauri::State<'_, AgentTaskStore>,
+    vectors: tauri::State<'_, VectorStore>,
+    canvas: tauri::State<'_, CanvasStore>,
+    intent: String,
+    canvas_id: Option<String>,
+    source_node_ids: Option<Vec<String>>,
+    runtime_config: Option<AppConfig>,
+) -> Result<Value, AppError> {
+    let canvas_id = canvas_id.unwrap_or_else(|| "first".into());
+    let source_node_ids = source_node_ids.unwrap_or_default();
+    let mut task = Task::new(
+        format!("arch-{}", uuid::Uuid::new_v4().simple()),
+        format!("生成系统 architecture；canvasId={canvas_id}；nodeIds={}", source_node_ids.join(",")),
+    );
+    task.plan = vec![
+        tool_step("a1", "canvas.read", json!({ "canvasId": canvas_id, "nodeIds": source_node_ids.clone() })),
+        llm_step("a2", json!({ "promptTemplate": format!("用户意图：{}\\n根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\\n{{previousOutput}}", intent.trim()) })),
+        tool_step("a3", "architecture.build", json!({ "canvasId": canvas_id, "sourceNodeIds": source_node_ids })),
+    ];
+    store.create(&task)?;
+    let runner = production_runner(&app, &store, &vectors, &canvas, runtime_config)?;
+    runner.run(&mut task).await?;
+    task.plan.iter().find(|step| step.tool.as_deref() == Some("architecture.build"))
+        .and_then(|step| step.output.clone())
+        .ok_or_else(|| AppError::new("architectureOutput", "Architecture 任务未返回 IR/Patch"))
+}
+
 /// IPC：运行已存在的任务（agent_task_create 创建后触发执行）
 #[tauri::command]
 pub async fn agent_task_run(
@@ -2517,7 +2617,7 @@ mod tests {
     #[test]
     fn skill_registry_has_unique_names_and_descriptions() {
         let skills = skill_registry();
-        assert_eq!(skills.len(), 11);
+        assert!(skills.iter().any(|s| s.name == "canvas.architecture"));
         let mut names: Vec<&str> = skills.iter().map(|s| s.name).collect();
         names.sort_unstable();
         let mut uniq = names.clone();
@@ -2538,6 +2638,17 @@ mod tests {
         assert_eq!(match_skill("扩写一下这个节点").name, "canvas.node.enhance");
         assert_eq!(match_skill("生成社交文案发朋友圈").name, "social.publish");
         assert_eq!(match_skill("随便找点东西").name, "note.search");
+    }
+
+    #[test]
+    fn architecture_goal_expands_ir_patch_pipeline() {
+        assert_eq!(match_skill("生成系统架构图").name, "canvas.architecture");
+        let plan = plan_for_goal("生成系统架构图");
+        assert_eq!(plan.len(), 3);
+        assert_eq!(plan[0].tool.as_deref(), Some("canvas.read"));
+        assert_eq!(plan[1].kind, StepKind::Llm);
+        assert_eq!(plan[2].tool.as_deref(), Some("architecture.build"));
+        assert!(!plan[2].required_confirm);
     }
 
     #[test]
@@ -2755,7 +2866,9 @@ mod tests {
         canvas
             .save(CanvasDocument {
                 id: "canvas-wa".into(),
+                title: String::new(),
                 note_id: None,
+                note_ids: vec![],
                 co_write_session_id: None,
                 nodes: vec![],
                 edges: vec![],

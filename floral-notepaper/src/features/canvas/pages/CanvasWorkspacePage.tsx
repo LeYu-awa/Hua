@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CanvasPage } from "../../../components/CanvasPage";
 import { deleteCanvasDocument, listCanvasDocuments, saveCanvasDocument } from "../api";
@@ -55,6 +55,22 @@ export function CanvasWorkspacePage({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  /** 当前打开画布暴露的 flush：切换前先落盘脏文档，避免 800ms 防抖窗口内丢失改动 */
+  const flushRef = useRef<(() => Promise<void>) | null>(null);
+
+  const flushCurrent = useCallback(async () => {
+    await flushRef.current?.();
+  }, []);
+
+  /** 切换/新建前先 flush 当前画布，再打开目标画布 */
+  const openCanvasById = useCallback(
+    async (id: string) => {
+      await flushCurrent();
+      setOpenId(id);
+      setSelectorOpen(false);
+    },
+    [flushCurrent],
+  );
 
   const createDocument = useCallback(
     (index: number): CanvasDocument => ({
@@ -105,12 +121,11 @@ export function CanvasWorkspacePage({
       const doc = createDocument(canvases.length + 1);
       await saveCanvasDocument(doc).catch(() => undefined);
       setCanvases((prev) => [...prev, doc]);
-      setOpenId(doc.id);
-      setSelectorOpen(false);
+      await openCanvasById(doc.id);
     } finally {
       setCreating(false);
     }
-  }, [canvases.length, createDocument]);
+  }, [canvases.length, createDocument, openCanvasById]);
 
   const handleRename = useCallback(
     async (id: string) => {
@@ -140,6 +155,8 @@ export function CanvasWorkspacePage({
       const title = target.title || t("canvas.untitled", "未命名画布");
       if (!window.confirm(t("canvas.deleteConfirm", `删除画布「${title}」？该操作不可撤销。`))) return;
 
+      // 删除前先落盘当前画布，避免未保存改动在切换/删除过程中丢失
+      await flushCurrent();
       await deleteCanvasDocument(id).catch(() => undefined);
       const remaining = canvases.filter((canvas) => canvas.id !== id);
       if (remaining.length > 0) {
@@ -153,7 +170,7 @@ export function CanvasWorkspacePage({
       setCanvases([first]);
       setOpenId(first.id);
     },
-    [canvases, createDocument, t],
+    [canvases, createDocument, flushCurrent, t],
   );
 
   const handleSaved = useCallback((doc: CanvasDocument) => {
@@ -231,10 +248,7 @@ export function CanvasWorkspacePage({
                       <div className="flex items-start gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setOpenId(canvas.id);
-                            setSelectorOpen(false);
-                          }}
+                          onClick={() => void openCanvasById(canvas.id)}
                           className="flex min-w-0 flex-1 items-start gap-2 text-left cursor-pointer"
                         >
                           <CanvasGlyph size={26} />
@@ -313,6 +327,7 @@ export function CanvasWorkspacePage({
           agentEnabled={agentEnabled}
           conversationId={openCanvas.id}
           userId={userId}
+          flushRef={flushRef}
           onSave={handleSaved}
         />
       </div>

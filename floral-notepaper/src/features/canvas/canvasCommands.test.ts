@@ -56,6 +56,13 @@ describe("parseCommandDsl（步骤命令 DSL → 画布命令）", () => {
     expect(parseCommandDsl("zoomto:1.5")).toEqual({ kind: "zoomTo", scale: 1.5 });
   });
 
+  it("architecture:intent → generateArchitecture", () => {
+    expect(parseCommandDsl("architecture:订单系统生产架构")).toEqual({
+      kind: "generateArchitecture",
+      intent: "订单系统生产架构",
+    });
+  });
+
   it("未知 DSL 返回 null", () => {
     expect(parseCommandDsl("nonsense")).toBeNull();
   });

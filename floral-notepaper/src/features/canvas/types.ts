@@ -97,3 +97,68 @@ export interface CanvasDocument {
   /** 分组（P1 图层分组） */
   groups?: CanvasGroup[];
 }
+
+/** Archify Architecture 的最小、与画布无关的输入契约。 */
+export interface ArchitectureIR {
+  schema_version: 1;
+  diagram_type: "architecture";
+  meta: { title: string };
+  components: ArchitectureComponent[];
+  boundaries?: ArchitectureBoundary[];
+  connections?: ArchitectureConnection[];
+}
+
+export type ArchitectureComponentType =
+  | "frontend"
+  | "backend"
+  | "database"
+  | "cloud"
+  | "security"
+  | "messagebus"
+  | "external";
+
+export interface ArchitectureComponent {
+  id: string;
+  type: ArchitectureComponentType;
+  label: string;
+  sublabel?: string;
+  tag?: string;
+  sources?: { path: string; line?: number; end_line?: number; label?: string }[];
+  pos?: [number, number];
+  size?: [number, number];
+}
+
+export interface ArchitectureBoundary {
+  kind: "region" | "security-group";
+  label: string;
+  wraps: string[];
+  pad?: number;
+}
+
+export interface ArchitectureConnection {
+  id?: string;
+  from: string;
+  to: string;
+  label?: string;
+  variant?: "default" | "emphasis" | "security" | "dashed";
+}
+
+export interface ArchitectureDiagnostic {
+  code: string;
+  message: string;
+  subject: { path: string; identity?: string };
+  evidence: Record<string, unknown>;
+  supportedFixes: string[];
+}
+
+export interface CanvasPatch {
+  id: string;
+  canvasId: string;
+  diagramType: "architecture";
+  sourceDocumentIds: string[];
+  sourceNodeIds: string[];
+  nodesToAdd: CanvasNode[];
+  edgesToAdd: CanvasEdge[];
+  groupsToAdd: CanvasGroup[];
+  generatedAt: string;
+}

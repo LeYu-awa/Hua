@@ -7,8 +7,9 @@ use locales::Locale;
 use services::agent::{
     self, AgentAnalysisResult, AgentCanvasNode, AgentCollaborationSegment, AgentEvent,
     AgentEventInput, AgentReplayMarker, AgentReviewReport, AgentSuggestion,
+    document::{parse_file as parse_agent_file, parse_note as parse_agent_note, ParsedDocument},
     llm_provider::agent_embed_text,
-    orchestrator::{agent_skill_list, agent_task_confirm, agent_task_create_and_run, agent_task_run},
+    orchestrator::{agent_architecture_generate, agent_skill_list, agent_task_confirm, agent_task_create_and_run, agent_task_run},
     rag::{agent_rag_delete_source, agent_rag_index, agent_rag_retrieve, index_source},
     task_store::{
         agent_task_create, agent_task_delete, agent_task_get, agent_task_list,
@@ -121,6 +122,17 @@ fn notes_import_markdown(
 #[tauri::command]
 fn notes_export_markdown(id: String, path: String) -> Result<(), AppError> {
     default_store()?.export_markdown_file(&id, &PathBuf::from(path))
+}
+
+#[tauri::command]
+fn agent_document_parse_note(id: String) -> Result<ParsedDocument, AppError> {
+    let note = default_store()?.read_note(&id)?;
+    parse_agent_note(&note.id, &note.title, &note.content)
+}
+
+#[tauri::command]
+fn agent_document_parse_file(path: String) -> Result<ParsedDocument, AppError> {
+    parse_agent_file(PathBuf::from(path))
 }
 
 #[tauri::command]
@@ -703,6 +715,8 @@ pub fn run() {
             notes_delete,
             notes_import_markdown,
             notes_export_markdown,
+            agent_document_parse_note,
+            agent_document_parse_file,
             notes_move_category,
             note_tree_state_get,
             note_tree_state_save,
@@ -789,6 +803,7 @@ pub fn run() {
             agent_task_list,
             agent_task_update_status,
             agent_task_delete,
+            agent_architecture_generate,
             agent_task_create_and_run,
             agent_task_run,
             agent_task_confirm,

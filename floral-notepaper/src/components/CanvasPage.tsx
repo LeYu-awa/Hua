@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { CanvasDocument, CanvasNode, CanvasNodeType, CanvasRelationType } from "../features/canvas/types";
 import { CANVAS_RELATION_TYPES } from "../features/canvas/types";
@@ -10,7 +10,7 @@ import {
 import { useCanvasAgent } from "../features/agent/useCanvasAgent";
 import type { ImplicitConnection } from "../features/agent/connectionRecommendations";
 import type { ProviderConfig } from "../features/settings/types";
-import { onAgentExport, onAgentTask, recordAgentEvent } from "../features/agent/api";
+import { generateArchitecture, onAgentExport, onAgentTask, recordAgentEvent } from "../features/agent/api";
 import type { AgentEventType, AgentStepStatus } from "../features/agent/types";
 import { TaskProgressPanel } from "../features/agent/TaskProgressPanel";
 import { WriteupDialog } from "../features/agent/WriteupDialog";
@@ -45,9 +45,38 @@ import { NoteTreePanel } from "../features/canvas/components/NoteTreePanel";
 import { SocialComposerPanel } from "../features/canvas/components/SocialComposerPanel";
 import { buildContentVisual } from "../features/canvas/contentVisualizer";
 import { agentSignalQueue } from "../features/agent/signalQueue";
+import { buildArchitecturePatch, applyCanvasPatch } from "../features/canvas/archifyAdapter";
 
 /** 卡片颜色标记可选值（card 灵感卡） */
 const NODE_COLORS = ["#c28060", "#7aa65c", "#8aa2c2", "#c2a45c", "#a67aa8", "#6f9aa8"];
+
+/** 统一 node.group 与 groups[].nodeIds，并移除不存在的节点/分组引用。 */
+function normalizeGroupMembership(doc: CanvasDocument): CanvasDocument {
+  const groups = doc.groups ?? [];
+  const validNodeIds = new Set(doc.nodes.map((node) => node.id));
+  const validGroupIds = new Set(groups.map((group) => group.id));
+  const listedGroupByNode = new Map<string, string>();
+  for (const group of groups) {
+    for (const nodeId of group.nodeIds) {
+      if (validNodeIds.has(nodeId) && !listedGroupByNode.has(nodeId)) {
+        listedGroupByNode.set(nodeId, group.id);
+      }
+    }
+  }
+  const nodes = doc.nodes.map((node) => {
+    const group = node.group && validGroupIds.has(node.group) ? node.group : listedGroupByNode.get(node.id) ?? null;
+    return node.group === group ? node : { ...node, group };
+  });
+  const membersByGroup = new Map(groups.map((group) => [group.id, [] as string[]]));
+  for (const node of nodes) {
+    if (node.group) membersByGroup.get(node.group)?.push(node.id);
+  }
+  return {
+    ...doc,
+    nodes,
+    groups: groups.map((group) => ({ ...group, nodeIds: membersByGroup.get(group.id) ?? [] })),
+  };
+}
 
 /** 归一化画布文档：兼容 Rust serde 省略空数组/None 字段（旧数据 & 新数据） */
 function normalizeDoc(doc: CanvasDocument): CanvasDocument {
@@ -60,7 +89,7 @@ function normalizeDoc(doc: CanvasDocument): CanvasDocument {
     }
     return "idea";
   };
-  return {
+  return normalizeGroupMembership({
     ...doc,
     groups: doc.groups ?? [],
     nodes: (doc.nodes ?? []).map((node) => ({
@@ -80,7 +109,7 @@ function normalizeDoc(doc: CanvasDocument): CanvasDocument {
       relationType: edge.relationType || "related",
       label: edge.label ?? "",
     })),
-  };
+  });
 }
 
 /** 域名首字母（网页卡 favicon 占位） */
@@ -106,6 +135,7 @@ interface CanvasPageProps {
   agentEnabled?: boolean;
   initialDocument?: CanvasDocument;
   onSave?: (doc: CanvasDocument) => void;
+  flushRef?: MutableRefObject<(() => Promise<void>) | null>;
   toolbarLeading?: ReactNode;
   /** 操作埋点上下文（可选）：缺省时画布操作不产生 agent 事件（可降级） */
   conversationId?: string;
@@ -564,6 +594,7 @@ export function CanvasPage({
   agentEnabled = false,
   initialDocument,
   onSave,
+  flushRef,
   toolbarLeading,
   conversationId,
   userId,
@@ -625,6 +656,11 @@ export function CanvasPage({
   const [tagDraft, setTagDraft] = useState("");
   /** P0-3：Live2D 成文提议（选中 ≥3 张卡片时花灵提议整理成文） */
   const [writeupProposalDismissed, setWriteupProposalDismissed] = useState(false);
+  const [architectureOpen, setArchitectureOpen] = useState(false);
+  const [architectureIntent, setArchitectureIntent] = useState("");
+  const [architecturePatch, setArchitecturePatch] = useState<ReturnType<typeof buildArchitecturePatch> | null>(null);
+  const [architectureLoading, setArchitectureLoading] = useState(false);
+  const [architectureError, setArchitectureError] = useState<string | null>(null);
 
   // ── 新手引导（ob-1 ~ ob-4）：3s 预告动画 → 四步演示 → 模板坞 → AI 唤醒 ──
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(() => {
@@ -796,6 +832,8 @@ export function CanvasPage({
 
   // ── P0 自动保存：脏标记，仅用户改动后才 debounce 保存 ─────────────────────
   const dirtyRef = useRef(false);
+  const revisionRef = useRef(0);
+  const savePromiseRef = useRef<Promise<void> | null>(null);
   const docRef = useRef(doc);
   docRef.current = doc;
 
@@ -815,6 +853,7 @@ export function CanvasPage({
     if (next === prev) return;
     undoStackRef.current = [...undoStackRef.current.slice(-(MAX_HISTORY - 1)), prev];
     redoStackRef.current = [];
+    revisionRef.current += 1;
     docRef.current = next;
     dirtyRef.current = true;
     setDoc(next);
@@ -868,8 +907,11 @@ export function CanvasPage({
         ? current
         : [...current, noteId]
       : current.filter((id) => id !== noteId);
+    if (nextIds === current || nextIds.length === current.length && nextIds.every((id, index) => id === current[index])) return;
     const next = { ...docRef.current, noteIds: nextIds };
-    docRef.current = next;
+    undoStackRef.current = [...undoStackRef.current.slice(-(MAX_HISTORY - 1)), docRef.current];
+    redoStackRef.current = [];
+    revisionRef.current += 1;
     dirtyRef.current = true;
     setSaveStatus("idle");
     setDoc(next);
@@ -896,14 +938,14 @@ export function CanvasPage({
       const ids = new Set(targets.filter(Boolean));
       if (ids.size === 0) return;
       commitDoc((prev) => {
-        // 同步分组成员列表
-        const groups = (prev.groups ?? []).map((group) => {
-          const member = ids.has(group.id);
-          const nodeIds = member
-            ? [...new Set([...group.nodeIds, ...targets])]
-            : group.nodeIds.filter((id) => !ids.has(id));
-          return { ...group, nodeIds };
-        });
+        const groups = (prev.groups ?? []).map((group) => ({
+          ...group,
+          nodeIds: group.nodeIds.filter((id) => !ids.has(id)),
+        }));
+        if (groupId) {
+          const group = groups.find((item) => item.id === groupId);
+          if (group) group.nodeIds = [...new Set([...group.nodeIds, ...ids])];
+        }
         return {
           ...prev,
           groups,
@@ -1001,6 +1043,34 @@ export function CanvasPage({
     setEnhanceVersion((v) => v + 1);
   }, [selectedNodeId]);
 
+  const handleArchitectureRequest = useCallback(async (requestedIntent?: string, requestedNodeIds?: string[]) => {
+    const sourceNodeIds = requestedNodeIds ?? (selectedNodeIds.length > 0 ? selectedNodeIds : docRef.current.nodes.map((node) => node.id));
+    const intent = requestedIntent ?? architectureIntent;
+    setArchitectureLoading(true);
+    setArchitectureError(null);
+    try {
+      const result = await generateArchitecture(
+        intent,
+        docRef.current.id,
+        sourceNodeIds,
+        providersRef.current,
+      );
+      setArchitecturePatch(result.patch as ReturnType<typeof buildArchitecturePatch>);
+    } catch (error) {
+      setArchitectureError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setArchitectureLoading(false);
+    }
+  }, [architectureIntent, noteId, noteIds, selectedNodeIds]);
+
+  const handleArchitectureApply = useCallback(() => {
+    if (!architecturePatch) return;
+    commitDoc((prev) => applyCanvasPatch(prev, architecturePatch));
+    setArchitecturePatch(null);
+    setArchitectureOpen(false);
+    setArchitectureIntent("");
+  }, [architecturePatch, commitDoc]);
+
   // ── 组卡成文入口：框选卡片 → 类型选择 → Rust canvas.writeup 任务 ──────────
   const handleWriteupStart = useCallback((goal: string) => {
     setWriteupOpen(false);
@@ -1023,6 +1093,9 @@ export function CanvasPage({
   }, []);
 
   /** 卡片尺寸调整（Obsidian 风格）：右下角拖拽，pointermove 直接改尺寸，up 时打脏标记 */
+  // 屏幕像素增量需除以当前 scale 换算为画布单位，缩放 ≠ 1 时拖拽手感与视觉一致
+  const scaleRef = useRef(viewState.scale);
+  scaleRef.current = viewState.scale;
   const resizeStateRef = useRef<{
     nodeId: string;
     startClientX: number;
@@ -1050,8 +1123,8 @@ export function CanvasPage({
     const move = (e: PointerEvent) => {
       const r = resizeStateRef.current;
       if (!r) return;
-      const dx = e.clientX - r.startClientX;
-      const dy = e.clientY - r.startClientY;
+      const dx = (e.clientX - r.startClientX) / scaleRef.current;
+      const dy = (e.clientY - r.startClientY) / scaleRef.current;
       const next = {
         ...docRef.current,
         nodes: docRef.current.nodes.map((n) =>
@@ -1423,6 +1496,10 @@ export function CanvasPage({
         ...prev,
         nodes: prev.nodes.filter((n) => !idSet.has(n.id)),
         edges: prev.edges.filter((e) => !idSet.has(e.fromNodeId) && !idSet.has(e.toNodeId)),
+        groups: (prev.groups ?? []).map((group) => ({
+          ...group,
+          nodeIds: group.nodeIds.filter((id) => !idSet.has(id)),
+        })),
       }));
       setSelectedNodeId(null);
       setSelectedNodeIds([]);
@@ -1673,19 +1750,60 @@ export function CanvasPage({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [undo, redo, zoomBy, zoomReset]);
 
+  // P0 保存串行化：同一时刻只允许一个保存请求在途；旧保存不会清除新改动产生的脏标记
   const handleSave = useCallback(async () => {
-    setSaveStatus("saving");
-    try {
-      const saved = await saveCanvasDocument(docRef.current);
-      onSave?.(saved);
-      dirtyRef.current = false;
-      setSaveStatus("saved");
-      window.setTimeout(() => setSaveStatus("idle"), 1800);
-      trackCanvasEvent("canvas_shape_updated", { action: "save" });
-    } catch {
-      setSaveStatus("error");
-    }
+    const revisionAtStart = revisionRef.current;
+    const snapshot = docRef.current;
+    const run = async () => {
+      await savePromiseRef.current;
+      setSaveStatus("saving");
+      try {
+        const saved = await saveCanvasDocument(snapshot);
+        onSave?.(saved);
+        // 保存期间若又产生新改动（revision 前进），保留脏标记让下一轮自动保存继续
+        if (revisionRef.current === revisionAtStart) {
+          dirtyRef.current = false;
+          setSaveStatus("saved");
+          window.setTimeout(() => setSaveStatus("idle"), 1800);
+        } else {
+          setSaveStatus("idle");
+        }
+        trackCanvasEvent("canvas_shape_updated", { action: "save" });
+      } catch {
+        // 失败保持脏标记，状态置 error，等待下一次改动触发重试
+        setSaveStatus("error");
+      }
+    };
+    const promise = run();
+    savePromiseRef.current = promise.catch(() => {});
+    await promise;
   }, [onSave, trackCanvasEvent]);
+
+  // P0 立即落盘：画布切换 / 手动保存前调用；无改动时为空转安全
+  const flush = useCallback(async () => {
+    if (!dirtyRef.current) return;
+    await handleSave();
+  }, [handleSave]);
+
+  // 把 flush 暴露给父组件（切换画布前先保存当前画布）
+  useEffect(() => {
+    if (!flushRef) return;
+    flushRef.current = flush;
+    return () => {
+      flushRef.current = null;
+    };
+  }, [flushRef, flush]);
+
+  // 卸载兜底：跳过 React 状态更新，直接落盘最后一次脏文档
+  useEffect(() => {
+    return () => {
+      if (!dirtyRef.current) return;
+      const snapshot = docRef.current;
+      void saveCanvasDocument(snapshot)
+        .then((saved) => onSave?.(saved))
+        .catch(() => {});
+    };
+  }, [onSave]);
 
   // P0 自动保存：用户改动后 debounce 800ms 触发一次保存
   useEffect(() => {
@@ -2035,9 +2153,12 @@ export function CanvasPage({
           markOnboardingSeen();
           setOnboardingPhase("demo");
           break;
+        case "generateArchitecture":
+          void handleArchitectureRequest(command.intent, command.nodeIds);
+          break;
       }
     });
-  }, [commitDoc, addNode, trackCanvasEvent]);
+  }, [commitDoc, addNode, handleArchitectureRequest, trackCanvasEvent]);
 
   // ── 画布内容快照广播（AI 上下文模块 ④ 读取）────────────────────────
   useEffect(() => {
@@ -2358,6 +2479,16 @@ export function CanvasPage({
             </button>
             <button
               type="button"
+              onClick={() => setArchitectureOpen(true)}
+              disabled={architectureLoading || doc.nodes.length === 0}
+              className="canvas-control-button canvas-button-ai"
+              title="基于当前画布或选中节点生成架构图"
+            >
+              <SparkIcon />
+              AI 架构
+            </button>
+            <button
+              type="button"
               onClick={handleAiGroup}
               disabled={doc.nodes.length < 3}
               className="canvas-control-button canvas-button-ai"
@@ -2577,6 +2708,33 @@ export function CanvasPage({
       )}
 
       {/* P0-3：Live2D 成文提议横幅（花灵气泡同步由信号队列驱动；置于底部提问条上方） */}
+      {architectureOpen && (
+        <div className="absolute inset-0 z-50 grid place-items-center bg-ink/10 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-paper-deep/25 bg-paper p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink">AI 架构</h2>
+              <button type="button" onClick={() => setArchitectureOpen(false)} className="text-xs text-ink-ghost">关闭</button>
+            </div>
+            {!architecturePatch ? (
+              <>
+                <p className="mt-2 text-xs text-ink-ghost">{selectedNodeIds.length > 0 ? `将使用已选 ${selectedNodeIds.length} 张卡片` : "将使用整张画布"} 作为上下文。</p>
+                <textarea value={architectureIntent} onChange={(event) => setArchitectureIntent(event.target.value)} placeholder="例如：生成订单系统的生产架构" rows={3} className="mt-3 w-full rounded-xl border border-paper-deep/20 bg-paper-warm/30 p-2 text-xs text-ink outline-none" />
+                {architectureError && <p className="mt-2 text-xs text-coral">{architectureError}</p>}
+                <button type="button" onClick={() => void handleArchitectureRequest()} disabled={architectureLoading} className="mt-3 w-full rounded-xl bg-ink-soft px-3 py-2 text-xs font-medium text-paper">
+                  {architectureLoading ? "生成中…" : "生成预览"}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 text-xs text-ink-soft">{architecturePatch.nodesToAdd.length} 个节点 · {architecturePatch.edgesToAdd.length} 条连线 · {architecturePatch.groupsToAdd.length} 个分组</p>
+                <ul className="mt-2 max-h-32 space-y-1 overflow-auto text-xs text-ink-ghost">{architecturePatch.nodesToAdd.map((node) => <li key={node.id}>· {node.text.split("\\n")[0]}</li>)}</ul>
+                <div className="mt-3 flex gap-2"><button type="button" onClick={() => setArchitecturePatch(null)} className="flex-1 rounded-xl border border-paper-deep/20 px-3 py-2 text-xs text-ink-ghost">取消</button><button type="button" onClick={handleArchitectureApply} className="flex-1 rounded-xl bg-bamboo px-3 py-2 text-xs font-medium text-paper">确认应用</button></div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {showWriteupProposal && (
         <div className="absolute bottom-20 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-bamboo/30 bg-paper/95 px-4 py-2.5 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.4)] backdrop-blur">
           <span className="text-[12px] text-ink-soft">
@@ -3507,6 +3665,19 @@ export function CanvasPage({
             const canOpenNote = menuNode?.type === "resource" && Boolean(menuNode.noteId);
             return (
               <>
+                {menuNode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleArchitectureRequest(`根据节点“${menuNode.text.split("\\n")[0]}”生成系统架构`, [nodeContextMenu.nodeId]);
+                      setNodeContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition hover:bg-paper-warm/60"
+                  >
+                    <span>生成 Architecture</span>
+                    <span className="text-[10px] text-ink-ghost">✦</span>
+                  </button>
+                )}
                 {menuNode && menuNode.text.trim().length > 0 && (
                   <button
                     type="button"

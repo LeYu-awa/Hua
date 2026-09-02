@@ -62,6 +62,14 @@ export interface RunTutorialCommand {
   kind: "runTutorial";
 }
 
+export interface GenerateArchitectureCommand {
+  kind: "generateArchitecture";
+  /** 可选的架构生成意图；未提供时由 CanvasPage 使用当前上下文。 */
+  intent?: string;
+  /** 可选的节点范围；未提供时沿用当前选择或整张画布。 */
+  nodeIds?: string[];
+}
+
 export type CanvasCommand =
   | CreateCardsCommand
   | CreateNodeCommand
@@ -70,7 +78,8 @@ export type CanvasCommand =
   | SelectNodeCommand
   | PanToCommand
   | ZoomToCommand
-  | RunTutorialCommand;
+  | RunTutorialCommand
+  | GenerateArchitectureCommand;
 
 /** 画布内容快照（AI 上下文模块读取） */
 export interface CanvasSnapshot {
@@ -182,6 +191,8 @@ export function parseCommandDsl(dsl: string): CanvasCommand | null {
     }
     case "tutorial":
       return { kind: "runTutorial" };
+    case "architecture":
+      return { kind: "generateArchitecture", intent: rest.join(":") || undefined };
     default:
       return null;
   }

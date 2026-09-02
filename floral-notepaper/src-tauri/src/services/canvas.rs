@@ -20,6 +20,17 @@ pub struct CanvasNode {
     /// z 序（越大越靠前）；旧数据无此字段时默认 0
     #[serde(default)]
     pub z_index: i32,
+    /// Agent 任务编排绑定；旧数据缺失时保持 None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_task_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_step_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_step_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_step_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_tool: Option<String>,
     /// 所属分组 id（分组/泳道）；旧数据无此字段时默认 None
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
