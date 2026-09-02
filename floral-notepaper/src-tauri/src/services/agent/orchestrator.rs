@@ -1314,7 +1314,7 @@ impl<'a> TaskRunner<'a> {
                     .and_then(Value::as_str)
                     .unwrap_or("");
                 let content = resolve_previous_output(raw_content, outputs);
-                let mut note = self.notes.read_note(id)?;
+                let note = self.notes.read_note(id)?;
                 let content = if mode == "append" && !note.content.trim().is_empty() {
                     format!("{}\n\n{}", note.content.trim_end(), content.trim())
                 } else {
@@ -2156,6 +2156,7 @@ pub async fn agent_task_create_and_run(
 }
 
 /// IPC：生成 Architecture IR/Patch，结果通过任务执行链路返回给前端。
+/// 支持两类来源：画布节点（source_node_ids）+ 挂载笔记（source_note_ids，正文注入提示作参考文档）。
 #[tauri::command]
 pub async fn agent_architecture_generate(
     app: AppHandle,
@@ -2165,17 +2166,44 @@ pub async fn agent_architecture_generate(
     intent: String,
     canvas_id: Option<String>,
     source_node_ids: Option<Vec<String>>,
+    source_note_ids: Option<Vec<String>>,
     runtime_config: Option<AppConfig>,
 ) -> Result<Value, AppError> {
     let canvas_id = canvas_id.unwrap_or_else(|| "first".into());
     let source_node_ids = source_node_ids.unwrap_or_default();
+    let source_note_ids = source_note_ids.unwrap_or_default();
+    // 文档来源：读取所选笔记正文作为参考文档注入提示（单篇截断 6000 字符，防止上下文超长）
+    let mut note_context = String::new();
+    if !source_note_ids.is_empty() {
+        let notes = default_store()?;
+        for note_id in &source_note_ids {
+            if let Ok(note) = notes.read_note(note_id) {
+                let snippet: String = note.content.chars().take(6000).collect();
+                if !snippet.trim().is_empty() {
+                    note_context.push_str(&format!("\n### 笔记：{}\n{}\n", note.title, snippet));
+                }
+            }
+        }
+    }
+    let prompt = if note_context.is_empty() {
+        format!(
+            "用户意图：{}\n根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\n{{{{previousOutput}}}}",
+            intent.trim()
+        )
+    } else {
+        format!(
+            "用户意图：{}\n附带的参考文档内容（从中提取业务实体、职责与依赖关系）：\n{}\n根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\n{{{{previousOutput}}}}",
+            intent.trim(),
+            note_context
+        )
+    };
     let mut task = Task::new(
         format!("arch-{}", uuid::Uuid::new_v4().simple()),
-        format!("生成系统 architecture；canvasId={canvas_id}；nodeIds={}", source_node_ids.join(",")),
+        format!("生成系统 architecture；canvasId={canvas_id}；nodeIds={}；noteIds={}", source_node_ids.join(","), source_note_ids.join(",")),
     );
     task.plan = vec![
         tool_step("a1", "canvas.read", json!({ "canvasId": canvas_id, "nodeIds": source_node_ids.clone() })),
-        llm_step("a2", json!({ "promptTemplate": format!("用户意图：{}\\n根据下面的画布内容生成严格 Architecture IR JSON，只输出 JSON：\\n{{previousOutput}}", intent.trim()) })),
+        llm_step("a2", json!({ "promptTemplate": prompt })),
         tool_step("a3", "architecture.build", json!({ "canvasId": canvas_id, "sourceNodeIds": source_node_ids })),
     ];
     store.create(&task)?;

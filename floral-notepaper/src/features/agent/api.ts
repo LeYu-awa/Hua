@@ -99,12 +99,14 @@ export function generateArchitecture(
   intent: string,
   canvasId?: string,
   sourceNodeIds?: string[],
+  sourceNoteIds?: string[],
   providers?: ProviderConfig[],
 ): Promise<{ ir: unknown; patch: unknown }> {
   return invoke("agent_architecture_generate", {
     intent,
     canvasId,
     sourceNodeIds,
+    sourceNoteIds,
     runtimeConfig: runtimeConfig(providers),
   });
 }

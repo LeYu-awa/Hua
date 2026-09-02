@@ -661,6 +661,24 @@ export function CanvasPage({
   const [architecturePatch, setArchitecturePatch] = useState<ReturnType<typeof buildArchitecturePatch> | null>(null);
   const [architectureLoading, setArchitectureLoading] = useState(false);
   const [architectureError, setArchitectureError] = useState<string | null>(null);
+  /** AI 架构来源：nodes=画布卡片（默认）/ notes=画布 + 挂载笔记（文档解析生成） */
+  const [architectureSource, setArchitectureSource] = useState<"nodes" | "notes">("nodes");
+  const [architectureNoteIds, setArchitectureNoteIds] = useState<string[]>([]);
+  /** 本画布已挂载的笔记（“笔记来源”的可选项） */
+  const mountedNotes = useMemo(() => {
+    const mounted = new Set<string>([...(noteIds ?? []), ...(noteId ? [noteId] : [])]);
+    return noteOptions.filter((option) => mounted.has(option.id));
+  }, [noteId, noteIds, noteOptions]);
+
+  /** 打开架构弹窗并复位状态（默认节点来源，避免上次笔记选择残留） */
+  const openArchitectureModal = useCallback(() => {
+    setArchitectureIntent("");
+    setArchitecturePatch(null);
+    setArchitectureError(null);
+    setArchitectureSource("nodes");
+    setArchitectureNoteIds([]);
+    setArchitectureOpen(true);
+  }, []);
 
   // ── 新手引导（ob-1 ~ ob-4）：3s 预告动画 → 四步演示 → 模板坞 → AI 唤醒 ──
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(() => {
@@ -1044,7 +1062,11 @@ export function CanvasPage({
   }, [selectedNodeId]);
 
   const handleArchitectureRequest = useCallback(async (requestedIntent?: string, requestedNodeIds?: string[]) => {
-    const sourceNodeIds = requestedNodeIds ?? (selectedNodeIds.length > 0 ? selectedNodeIds : docRef.current.nodes.map((node) => node.id));
+    // 右键“基于节点生成”走节点来源；弹窗内切到笔记来源时以整张画布 + 所选笔记为上下文
+    const useNotes = !requestedNodeIds && architectureSource === "notes";
+    const sourceNodeIds = useNotes
+      ? []
+      : requestedNodeIds ?? (selectedNodeIds.length > 0 ? selectedNodeIds : docRef.current.nodes.map((node) => node.id));
     const intent = requestedIntent ?? architectureIntent;
     setArchitectureLoading(true);
     setArchitectureError(null);
@@ -1053,6 +1075,7 @@ export function CanvasPage({
         intent,
         docRef.current.id,
         sourceNodeIds,
+        useNotes ? architectureNoteIds : undefined,
         providersRef.current,
       );
       setArchitecturePatch(result.patch as ReturnType<typeof buildArchitecturePatch>);
@@ -1061,7 +1084,23 @@ export function CanvasPage({
     } finally {
       setArchitectureLoading(false);
     }
-  }, [architectureIntent, noteId, noteIds, selectedNodeIds]);
+  }, [architectureIntent, architectureNoteIds, architectureSource, noteId, noteIds, selectedNodeIds]);
+
+  /** 切换架构来源；首次切到“笔记来源”时默认勾选全部已挂载笔记 */
+  const selectArchitectureSource = useCallback((mode: "nodes" | "notes") => {
+    setArchitectureSource(mode);
+    if (mode === "notes" && architectureNoteIds.length === 0) {
+      const ids = mountedNotes.map((note) => note.id);
+      if (ids.length > 0) setArchitectureNoteIds(ids);
+    }
+  }, [architectureNoteIds, mountedNotes]);
+
+  /** 勾选/取消某篇参考笔记 */
+  const toggleArchitectureNote = useCallback((noteId: string) => {
+    setArchitectureNoteIds((prev) =>
+      prev.includes(noteId) ? prev.filter((id) => id !== noteId) : [...prev, noteId],
+    );
+  }, []);
 
   const handleArchitectureApply = useCallback(() => {
     if (!architecturePatch) return;
@@ -2479,10 +2518,10 @@ export function CanvasPage({
             </button>
             <button
               type="button"
-              onClick={() => setArchitectureOpen(true)}
+              onClick={openArchitectureModal}
               disabled={architectureLoading || doc.nodes.length === 0}
               className="canvas-control-button canvas-button-ai"
-              title="基于当前画布或选中节点生成架构图"
+              title="基于当前画布/选中节点或挂载笔记生成架构图"
             >
               <SparkIcon />
               AI 架构
@@ -2717,10 +2756,69 @@ export function CanvasPage({
             </div>
             {!architecturePatch ? (
               <>
-                <p className="mt-2 text-xs text-ink-ghost">{selectedNodeIds.length > 0 ? `将使用已选 ${selectedNodeIds.length} 张卡片` : "将使用整张画布"} 作为上下文。</p>
+                <div className="mt-2 flex items-center gap-1 rounded-xl bg-paper-warm/60 p-1">
+                  <button
+                    type="button"
+                    onClick={() => selectArchitectureSource("nodes")}
+                    className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] transition ${architectureSource === "nodes" ? "bg-paper font-medium text-ink shadow-sm" : "text-ink-ghost hover:text-ink-soft"}`}
+                  >
+                    画布卡片
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectArchitectureSource("notes")}
+                    disabled={mountedNotes.length === 0}
+                    className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] transition disabled:opacity-50 ${architectureSource === "notes" ? "bg-paper font-medium text-ink shadow-sm" : "text-ink-ghost hover:text-ink-soft"}`}
+                    title={mountedNotes.length === 0 ? "本画布未挂载笔记，请先在笔记面板挂载" : undefined}
+                  >
+                    挂载笔记（文档解析）
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-ink-ghost">
+                  {architectureSource === "notes"
+                    ? architectureNoteIds.length > 0
+                      ? `将使用整张画布 + ${architectureNoteIds.length} 篇笔记作为参考`
+                      : "请至少选择一篇参考笔记"
+                    : selectedNodeIds.length > 0
+                      ? `将使用已选 ${selectedNodeIds.length} 张卡片`
+                      : "将使用整张画布"}
+                </p>
+                {architectureSource === "notes" && (
+                  <div className="mt-2 max-h-28 space-y-0.5 overflow-auto rounded-xl border border-paper-deep/15 bg-paper-warm/30 p-2">
+                    {mountedNotes.length === 0 && (
+                      <p className="px-1 py-1 text-[11px] text-ink-ghost">
+                        本画布未挂载笔记，请先在笔记面板中挂载后使用。
+                      </p>
+                    )}
+                    {mountedNotes.map((note) => {
+                      const checked = architectureNoteIds.includes(note.id);
+                      return (
+                        <label
+                          key={note.id}
+                          className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-[12px] text-ink-soft transition hover:bg-paper/70"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleArchitectureNote(note.id)}
+                            className="h-3.5 w-3.5 accent-bamboo"
+                          />
+                          <span className="truncate" title={note.preview}>
+                            {note.title || note.id}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
                 <textarea value={architectureIntent} onChange={(event) => setArchitectureIntent(event.target.value)} placeholder="例如：生成订单系统的生产架构" rows={3} className="mt-3 w-full rounded-xl border border-paper-deep/20 bg-paper-warm/30 p-2 text-xs text-ink outline-none" />
                 {architectureError && <p className="mt-2 text-xs text-coral">{architectureError}</p>}
-                <button type="button" onClick={() => void handleArchitectureRequest()} disabled={architectureLoading} className="mt-3 w-full rounded-xl bg-ink-soft px-3 py-2 text-xs font-medium text-paper">
+                <button
+                  type="button"
+                  onClick={() => void handleArchitectureRequest()}
+                  disabled={architectureLoading || (architectureSource === "notes" && architectureNoteIds.length === 0)}
+                  className="mt-3 w-full rounded-xl bg-ink-soft px-3 py-2 text-xs font-medium text-paper disabled:opacity-50"
+                >
                   {architectureLoading ? "生成中…" : "生成预览"}
                 </button>
               </>
