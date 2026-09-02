@@ -14,15 +14,19 @@ import {
 } from "./agentTools";
 
 describe("agent tool definitions", () => {
-  test("buildAgentTools exposes all nine tools with required params", () => {
+  test("buildAgentTools exposes all ten tools with required params", () => {
     const tools = buildAgentTools();
-    expect(tools).toHaveLength(9);
+    expect(tools).toHaveLength(10);
     const byName = new Map(tools.map((tool) => [tool.function.name, tool]));
     expect(byName.get("note.search")?.function.parameters.required).toContain("query");
     expect(byName.get("note.update")?.function.parameters.required).toContain("content");
     expect(byName.get("web.search")?.function.parameters.required).toContain("query");
     expect(byName.get("external.openUrl")?.function.parameters.required).toContain("url");
     expect(byName.get("external.copyText")?.function.parameters.required).toContain("text");
+    // 画布架构生成桥：无需必填参数（intent 可留空），不走危险工具确认（落图在画布预览内人工确认）
+    expect(byName.get("canvas.architecture.generate")).toBeDefined();
+    expect(isDangerousTool("canvas.architecture.generate")).toBe(false);
+    expect(requiresConfirmForTool("canvas.architecture.generate", DEFAULT_AGENT_PERMISSION_POLICY)).toBe(false);
   });
 
   test("classifies dangerous vs read-only tools", () => {

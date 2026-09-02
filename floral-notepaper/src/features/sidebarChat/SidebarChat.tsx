@@ -61,6 +61,7 @@ import {
   type AssistantToolPlan,
 } from "./toolPlanner";
 import {
+  dispatchCanvasCommand,
   onAiRequest,
   onCanvasSnapshot,
   requestCanvasSnapshot,
@@ -144,7 +145,9 @@ const AGENT_SYSTEM_SUFFIX =
   "你是一个智能体：当用户请求与本地笔记（搜索/读取/新建/编辑/移动分类）、联网搜索、打开链接或复制文本相关时，" +
   "应自主选择可用工具并填好参数执行，而不是只给建议。规则：只读工具（note.search / note.list / note.read）可直接调用；" +
   "写笔记、联网、外部副作用类工具会先整轮征求用户确认，确认后才会真正执行。收到 tool 结果后，基于真实结果继续回答；" +
-  "若工具找不到目标，向用户说明并询问更精确的信息，不要编造笔记内容。";
+  "若工具找不到目标，向用户说明并询问更精确的信息，不要编造笔记内容。\n" +
+  "关于知识画布：当用户希望把画布内容「整理成架构图 / 生成架构图 / 画出系统架构」时，调用 canvas.architecture.generate" +
+  "（可在 intent 参数补充用户想强调的重点）；该工具会在画布打开生成预览，落图需用户在画布内确认。若用户只提到笔记内容而非画布，不要使用该工具。";
 
 /**
  * 解析拖拽载荷：
@@ -673,6 +676,18 @@ export function SidebarChat({ open, onClose, providers, onRequestOpen }: Sidebar
 
   /** 执行标准 Agent 的一次工具调用：解析模型参数 → 调后端 → 转文本回喂模型 */
   const executeAgentTool = useCallback(async (call: AgentToolCall): Promise<string> => {
+    // 画布架构生成桥：不在本文件的后端工具集里，而是把请求转发给当前打开的知识画布，
+    // 由画布弹出生成预览（真正的落图仍需用户在画布预览中确认，属于"先预览后写"的安全设计）
+    if (call.name === "canvas.architecture.generate") {
+      const params = parseToolArguments(call.arguments);
+      const intent =
+        typeof params.intent === "string" && params.intent.trim() ? params.intent.trim() : undefined;
+      dispatchCanvasCommand({ kind: "generateArchitecture", intent });
+      return (
+        "已向知识画布发起架构生成：会基于你当前选中的卡片（未选中则整张画布）解析成卡片与连线，" +
+        "并在画布内弹出预览。请查看画布预览并确认是否应用；若要强调某些重点，可以直接告诉我补充意图后重新生成。"
+      );
+    }
     if (!isKnownAgentTool(call.name)) {
       throw new Error(`未知工具：${call.name}，请从可用工具中选择`);
     }

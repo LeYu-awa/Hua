@@ -265,6 +265,20 @@ export function buildAgentTools(): AgentToolDefinition[] {
     {
       type: "function",
       function: {
+        name: "canvas.architecture.generate",
+        description:
+          "在打开的知识画布上生成架构图：会基于用户当前选中的卡片（没有选中则整张画布）解析成卡片与连线，随后在画布内弹出预览供用户确认。当用户说「把这些整理成架构图 / 生成架构图 / 画出系统架构」这类意图时调用。注意：真正落图需要用户在画布预览中点击确认。",
+        parameters: {
+          type: "object",
+          properties: {
+            intent: { type: "string", description: "补充想要强调的架构意图，可留空" },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
         name: "web.search",
         description: "联网搜索并返回结果摘要（标题/链接/片段），用于回答需要实时信息的问题。",
         parameters: {
@@ -318,6 +332,7 @@ export function toolDisplayName(name: string): string {
     "note.update": "写回笔记",
     "note.moveCategory": "移动分类",
     "web.search": "联网搜索",
+    "canvas.architecture.generate": "在画布生成架构图",
     "external.openUrl": "打开链接",
     "external.copyText": "复制文本",
   };
