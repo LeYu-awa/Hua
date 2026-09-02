@@ -664,21 +664,32 @@ export function CanvasPage({
   /** AI 架构来源：nodes=画布卡片（默认）/ notes=画布 + 挂载笔记（文档解析生成） */
   const [architectureSource, setArchitectureSource] = useState<"nodes" | "notes">("nodes");
   const [architectureNoteIds, setArchitectureNoteIds] = useState<string[]>([]);
+  /** 架构图成功落画布后的轻提示（短暂展示后自动消失） */
+  const [architectureNotice, setArchitectureNotice] = useState<string | null>(null);
   /** 本画布已挂载的笔记（“笔记来源”的可选项） */
   const mountedNotes = useMemo(() => {
     const mounted = new Set<string>([...(noteIds ?? []), ...(noteId ? [noteId] : [])]);
     return noteOptions.filter((option) => mounted.has(option.id));
   }, [noteId, noteIds, noteOptions]);
 
-  /** 打开架构弹窗并复位状态（默认节点来源，避免上次笔记选择残留） */
+  /** 打开架构弹窗并复位状态；画布为空时默认切到“挂载笔记”来源（可从文档直接解析） */
   const openArchitectureModal = useCallback(() => {
     setArchitectureIntent("");
     setArchitecturePatch(null);
     setArchitectureError(null);
-    setArchitectureSource("nodes");
-    setArchitectureNoteIds([]);
+    const hasNodes = docRef.current.nodes.length > 0;
+    const source = hasNodes ? "nodes" : "notes";
+    setArchitectureSource(source);
+    setArchitectureNoteIds(source === "notes" ? mountedNotes.map((note) => note.id) : []);
     setArchitectureOpen(true);
-  }, []);
+  }, [mountedNotes]);
+
+  // 架构图落画布提示自动消失
+  useEffect(() => {
+    if (!architectureNotice) return;
+    const timer = window.setTimeout(() => setArchitectureNotice(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [architectureNotice]);
 
   // ── 新手引导（ob-1 ~ ob-4）：3s 预告动画 → 四步演示 → 模板坞 → AI 唤醒 ──
   const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(() => {
@@ -1079,8 +1090,10 @@ export function CanvasPage({
         providersRef.current,
       );
       setArchitecturePatch(result.patch as ReturnType<typeof buildArchitecturePatch>);
+      setArchitectureOpen(true);
     } catch (error) {
       setArchitectureError(error instanceof Error ? error.message : String(error));
+      setArchitectureOpen(true);
     } finally {
       setArchitectureLoading(false);
     }
@@ -1104,10 +1117,24 @@ export function CanvasPage({
 
   const handleArchitectureApply = useCallback(() => {
     if (!architecturePatch) return;
+    const { nodesToAdd, edgesToAdd } = architecturePatch;
     commitDoc((prev) => applyCanvasPatch(prev, architecturePatch));
+    // 视口平移到首个新节点附近，让用户一眼看到结果落在哪里（保留当前缩放）
+    const first = nodesToAdd[0];
+    if (first) {
+      setViewState((vs) => {
+        const rect = svgRef.current?.getBoundingClientRect();
+        return {
+          ...vs,
+          panX: (rect ? rect.width / 2 : 400) - (first.x + first.width / 2) * vs.scale,
+          panY: (rect ? rect.height / 2 : 300) - (first.y + first.height / 2) * vs.scale,
+        };
+      });
+    }
     setArchitecturePatch(null);
     setArchitectureOpen(false);
     setArchitectureIntent("");
+    setArchitectureNotice(`已把 ${nodesToAdd.length} 个节点、${edgesToAdd.length} 条连线加入画布`);
   }, [architecturePatch, commitDoc]);
 
   // ── 组卡成文入口：框选卡片 → 类型选择 → Rust canvas.writeup 任务 ──────────
@@ -2519,12 +2546,12 @@ export function CanvasPage({
             <button
               type="button"
               onClick={openArchitectureModal}
-              disabled={architectureLoading || doc.nodes.length === 0}
+              disabled={architectureLoading || (doc.nodes.length === 0 && mountedNotes.length === 0)}
               className="canvas-control-button canvas-button-ai"
-              title="基于当前画布/选中节点或挂载笔记生成架构图"
+              title="把选中的卡片或挂载的笔记解析成一张可继续编辑的架构图（需至少一张卡片或一篇挂载笔记）"
             >
               <SparkIcon />
-              AI 架构
+              生成架构
             </button>
             <button
               type="button"
@@ -2746,23 +2773,39 @@ export function CanvasPage({
         </div>
       )}
 
-      {/* P0-3：Live2D 成文提议横幅（花灵气泡同步由信号队列驱动；置于底部提问条上方） */}
+      {/* AI 生成架构图：① 选来源 → ② 补意图 → 生成 → 预览确认 → 应用到画布 */}
       {architectureOpen && (
         <div className="absolute inset-0 z-50 grid place-items-center bg-ink/10 p-6 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-paper-deep/25 bg-paper p-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink">AI 架构</h2>
-              <button type="button" onClick={() => setArchitectureOpen(false)} className="text-xs text-ink-ghost">关闭</button>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-ink">生成架构图</h2>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-ink-ghost">
+                  {architecturePatch
+                    ? "解析完成，预览以下将加入画布的内容"
+                    : "选择来源后，Agent 会解析成卡片与连线；可随时编辑与重连"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setArchitectureOpen(false)}
+                className="shrink-0 text-xs text-ink-ghost hover:text-ink cursor-pointer"
+              >
+                关闭
+              </button>
             </div>
+
             {!architecturePatch ? (
               <>
-                <div className="mt-2 flex items-center gap-1 rounded-xl bg-paper-warm/60 p-1">
+                {/* ① 选择来源 */}
+                <p className="mt-3 text-[11px] font-medium text-ink-soft">① 选择来源</p>
+                <div className="mt-1.5 flex items-center gap-1 rounded-xl bg-paper-warm/60 p-1">
                   <button
                     type="button"
                     onClick={() => selectArchitectureSource("nodes")}
                     className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] transition ${architectureSource === "nodes" ? "bg-paper font-medium text-ink shadow-sm" : "text-ink-ghost hover:text-ink-soft"}`}
                   >
-                    画布卡片
+                    画布卡片（{doc.nodes.length}）
                   </button>
                   <button
                     type="button"
@@ -2771,62 +2814,113 @@ export function CanvasPage({
                     className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] transition disabled:opacity-50 ${architectureSource === "notes" ? "bg-paper font-medium text-ink shadow-sm" : "text-ink-ghost hover:text-ink-soft"}`}
                     title={mountedNotes.length === 0 ? "本画布未挂载笔记，请先在笔记面板挂载" : undefined}
                   >
-                    挂载笔记（文档解析）
+                    挂载笔记（{mountedNotes.length}）
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-ink-ghost">
-                  {architectureSource === "notes"
-                    ? architectureNoteIds.length > 0
-                      ? `将使用整张画布 + ${architectureNoteIds.length} 篇笔记作为参考`
-                      : "请至少选择一篇参考笔记"
-                    : selectedNodeIds.length > 0
-                      ? `将使用已选 ${selectedNodeIds.length} 张卡片`
-                      : "将使用整张画布"}
-                </p>
-                {architectureSource === "notes" && (
-                  <div className="mt-2 max-h-28 space-y-0.5 overflow-auto rounded-xl border border-paper-deep/15 bg-paper-warm/30 p-2">
-                    {mountedNotes.length === 0 && (
-                      <p className="px-1 py-1 text-[11px] text-ink-ghost">
-                        本画布未挂载笔记，请先在笔记面板中挂载后使用。
-                      </p>
+
+                {architectureSource === "notes" ? (
+                  <>
+                    <p className="mt-2 text-[11px] text-ink-ghost">
+                      将解析<b className="font-medium text-ink-soft">所选笔记</b> + 整张画布，勾选参考范围：
+                    </p>
+                    <div className="mt-1.5 max-h-28 space-y-0.5 overflow-auto rounded-xl border border-paper-deep/15 bg-paper-warm/30 p-2">
+                      {mountedNotes.map((note) => {
+                        const checked = architectureNoteIds.includes(note.id);
+                        return (
+                          <label
+                            key={note.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-[12px] text-ink-soft transition hover:bg-paper/70"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleArchitectureNote(note.id)}
+                              className="h-3.5 w-3.5 accent-bamboo"
+                            />
+                            <span className="truncate" title={note.preview}>
+                              {note.title || note.id}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {architectureNoteIds.length === 0 && (
+                      <p className="mt-1 text-[10px] text-coral">请至少勾选一篇参考笔记</p>
                     )}
-                    {mountedNotes.map((note) => {
-                      const checked = architectureNoteIds.includes(note.id);
-                      return (
-                        <label
-                          key={note.id}
-                          className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-[12px] text-ink-soft transition hover:bg-paper/70"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleArchitectureNote(note.id)}
-                            className="h-3.5 w-3.5 accent-bamboo"
-                          />
-                          <span className="truncate" title={note.preview}>
-                            {note.title || note.id}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-[11px] text-ink-ghost">
+                    {selectedNodeIds.length > 0
+                      ? `解析已选中的 ${selectedNodeIds.length} 张卡片`
+                      : "解析整张画布的全部卡片"}
+                  </p>
                 )}
-                <textarea value={architectureIntent} onChange={(event) => setArchitectureIntent(event.target.value)} placeholder="例如：生成订单系统的生产架构" rows={3} className="mt-3 w-full rounded-xl border border-paper-deep/20 bg-paper-warm/30 p-2 text-xs text-ink outline-none" />
-                {architectureError && <p className="mt-2 text-xs text-coral">{architectureError}</p>}
+
+                {/* ② 补充意图 */}
+                <p className="mt-3 text-[11px] font-medium text-ink-soft">② 补充意图（可留空）</p>
+                <textarea
+                  value={architectureIntent}
+                  onChange={(event) => setArchitectureIntent(event.target.value)}
+                  placeholder="例如：强调订单核心链路与外部依赖；可留空，Agent 自动提炼"
+                  rows={2}
+                  className="mt-1.5 w-full rounded-xl border border-paper-deep/20 bg-paper-warm/30 p-2 text-xs text-ink outline-none"
+                />
+                {architectureError && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-coral">
+                    生成失败：{architectureError}，可调整来源或意图后重试
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleArchitectureRequest()}
                   disabled={architectureLoading || (architectureSource === "notes" && architectureNoteIds.length === 0)}
-                  className="mt-3 w-full rounded-xl bg-ink-soft px-3 py-2 text-xs font-medium text-paper disabled:opacity-50"
+                  className="mt-3 w-full rounded-xl bg-ink-soft px-3 py-2 text-xs font-medium text-paper disabled:opacity-50 cursor-pointer"
                 >
-                  {architectureLoading ? "生成中…" : "生成预览"}
+                  {architectureLoading ? "正在解析并生成…" : "开始生成"}
                 </button>
               </>
             ) : (
               <>
-                <p className="mt-3 text-xs text-ink-soft">{architecturePatch.nodesToAdd.length} 个节点 · {architecturePatch.edgesToAdd.length} 条连线 · {architecturePatch.groupsToAdd.length} 个分组</p>
-                <ul className="mt-2 max-h-32 space-y-1 overflow-auto text-xs text-ink-ghost">{architecturePatch.nodesToAdd.map((node) => <li key={node.id}>· {node.text.split("\\n")[0]}</li>)}</ul>
-                <div className="mt-3 flex gap-2"><button type="button" onClick={() => setArchitecturePatch(null)} className="flex-1 rounded-xl border border-paper-deep/20 px-3 py-2 text-xs text-ink-ghost">取消</button><button type="button" onClick={handleArchitectureApply} className="flex-1 rounded-xl bg-bamboo px-3 py-2 text-xs font-medium text-paper">确认应用</button></div>
+                {/* 预览结果 */}
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-paper-deep/15 bg-paper-warm/30 px-3 py-2">
+                  <span className="text-[11px] text-ink-ghost">
+                    来源：{architectureSource === "notes" ? `${architectureNoteIds.length} 篇笔记 + 画布` : selectedNodeIds.length > 0 ? `${selectedNodeIds.length} 张卡片` : "整张画布"}
+                  </span>
+                  <span className="text-[11px] font-medium text-ink-soft">
+                    {architecturePatch.nodesToAdd.length} 节点 · {architecturePatch.edgesToAdd.length} 连线 · {architecturePatch.groupsToAdd.length} 分组
+                  </span>
+                </div>
+                {architecturePatch.nodesToAdd.length > 0 ? (
+                  <ul className="mt-2 max-h-32 space-y-1 overflow-auto text-xs text-ink-ghost">
+                    {architecturePatch.nodesToAdd.map((node) => (
+                      <li key={node.id} className="truncate">
+                        · {node.text.split("\\n")[0]}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 rounded-xl bg-coral/5 px-3 py-2 text-[11px] leading-relaxed text-coral">
+                    没有解析出任何节点，可能是来源内容不足。点「返回修改」补充更多卡片或笔记后重试。
+                  </p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setArchitecturePatch(null)}
+                    className="flex-1 rounded-xl border border-paper-deep/20 px-3 py-2 text-xs text-ink-ghost hover:bg-paper-warm/60 cursor-pointer"
+                  >
+                    返回修改
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleArchitectureApply}
+                    disabled={architecturePatch.nodesToAdd.length === 0}
+                    className="flex-1 rounded-xl bg-bamboo px-3 py-2 text-xs font-medium text-paper disabled:opacity-50 cursor-pointer"
+                    title="以卡片节点形式落到当前画布，可继续编辑连线"
+                  >
+                    应用到画布
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -3047,6 +3141,15 @@ export function CanvasPage({
             </div>
           );
         })()}
+
+      {architectureNotice && (
+        <div
+          className="pointer-events-none absolute z-30 bottom-28 left-1/2 -translate-x-1/2 rounded-full bg-bamboo/95 px-4 py-2 text-[12px] font-medium text-paper shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)]"
+          role="status"
+        >
+          {architectureNotice}
+        </div>
+      )}
 
       {saveStatus !== "idle" && saveStatus !== "saving" && (
         <div
@@ -3609,6 +3712,15 @@ export function CanvasPage({
                           }}
                           className="relative w-full h-full text-[13px] text-ink-soft leading-relaxed whitespace-pre-wrap overflow-hidden"
                         >
+                          {/* AI 生成节点的来源徽标：与手动卡片完全同组件渲染，仅来源可辨 */}
+                          {node.source === "agent" && !node.agentStepStatus && (
+                            <span
+                              className="absolute right-0 top-0 rounded-full bg-bamboo/15 px-1.5 py-0.5 text-[9px] font-medium text-bamboo"
+                              title="AI 生成节点，可像普通卡片一样编辑、连线与分组"
+                            >
+                              AI 生成
+                            </span>
+                          )}
                           {node.agentStepStatus && (
                             <span className="absolute right-0 top-0 rounded-full bg-paper/85 px-1.5 py-0.5 text-[10px] font-medium text-bamboo shadow-sm">
                               {getNodeStatusLabel(node.agentStepStatus)}
@@ -3617,6 +3729,7 @@ export function CanvasPage({
                           <div
                             className={[
                               node.agentStepStatus ? "pr-12" : "",
+                              node.source === "agent" && !node.agentStepStatus ? "pr-12" : "",
                               node.type === "task" ? "pl-4" : "",
                             ]
                               .filter(Boolean)
@@ -3763,19 +3876,30 @@ export function CanvasPage({
             const canOpenNote = menuNode?.type === "resource" && Boolean(menuNode.noteId);
             return (
               <>
-                {menuNode && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleArchitectureRequest(`根据节点“${menuNode.text.split("\\n")[0]}”生成系统架构`, [nodeContextMenu.nodeId]);
-                      setNodeContextMenu(null);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition hover:bg-paper-warm/60"
-                  >
-                    <span>生成 Architecture</span>
-                    <span className="text-[10px] text-ink-ghost">✦</span>
-                  </button>
-                )}
+                {menuNode && (() => {
+                  // 右键节点已在多选中 → 对整组选中卡生成；否则仅右键这张卡
+                  const archIds = selectedIdSet.has(nodeContextMenu.nodeId)
+                    ? selectedNodeIds
+                    : [nodeContextMenu.nodeId];
+                  const archLabel = archIds.length > 1 ? `生成架构图（${archIds.length} 张卡片）` : "生成架构图";
+                  const archIntent =
+                    archIds.length > 1
+                      ? `将选中的 ${archIds.length} 张卡片整理成系统架构`
+                      : `根据节点“${menuNode.text.split("\\n")[0]}”生成系统架构`;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleArchitectureRequest(archIntent, archIds);
+                        setNodeContextMenu(null);
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition hover:bg-paper-warm/60"
+                    >
+                      <span>{archLabel}</span>
+                      <span className="text-[10px] text-ink-ghost">✦</span>
+                    </button>
+                  );
+                })()}
                 {menuNode && menuNode.text.trim().length > 0 && (
                   <button
                     type="button"
